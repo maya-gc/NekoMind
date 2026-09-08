@@ -1,0 +1,45 @@
+# --- NekoMind .gitignore ---
+
+# Segredos e configuracoes locais
+.env
+*.env
+!.env.example
+
+# Binarios e dependencias de plataforma (gerados/baixados localmente)
+esp-idf/
+tools/
+vscode-portable/
+logs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ESP-IDF / builds
+build/
+sdkconfig
+sdkconfig.old
+managed_components/
+
+# Dados locais (banco SQLite e audio)
+backend/storage/*.db
+backend/storage/audio/
+*.db
+*.sqlite3
+*.wav
+
+# Streamlit
+frontend/streamlit/.streamlit/secrets.toml
+
+# SO / editores
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

@@ -1,0 +1,84 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "ESP-IDF: Build firmware",
+      "type": "shell",
+      "command": "idf.py",
+      "args": ["build"],
+      "options": {
+        "cwd": "${workspaceFolder}/iot/nekomind_firmware",
+        "env": {
+          "IDF_PATH": "${workspaceFolder}/esp-idf",
+          "IDF_TOOLS_PATH": "${workspaceFolder}/tools"
+        }
+      },
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "ESP-IDF: Flash firmware",
+      "type": "shell",
+      "command": "idf.py",
+      "args": ["-p", "${input:serialPort}", "flash"],
+      "options": {
+        "cwd": "${workspaceFolder}/iot/nekomind_firmware",
+        "env": {
+          "IDF_PATH": "${workspaceFolder}/esp-idf",
+          "IDF_TOOLS_PATH": "${workspaceFolder}/tools"
+        }
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "ESP-IDF: Monitor serial",
+      "type": "shell",
+      "command": "idf.py",
+      "args": ["-p", "${input:serialPort}", "monitor"],
+      "options": {
+        "cwd": "${workspaceFolder}/iot/nekomind_firmware",
+        "env": {
+          "IDF_PATH": "${workspaceFolder}/esp-idf",
+          "IDF_TOOLS_PATH": "${workspaceFolder}/tools"
+        }
+      },
+      "problemMatcher": [],
+      "isBackground": true
+    },
+    {
+      "label": "Backend: rodar (uvicorn)",
+      "type": "shell",
+      "command": "${workspaceFolder}/backend/.venv/Scripts/python.exe",
+      "args": ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000", "--reload"],
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "problemMatcher": [],
+      "isBackground": true
+    },
+    {
+      "label": "Frontend: rodar (streamlit)",
+      "type": "shell",
+      "command": "${workspaceFolder}/frontend/streamlit/.venv/Scripts/python.exe",
+      "args": ["-m", "streamlit", "run", "app.py", "--server.address", "127.0.0.1", "--server.port", "8501"],
+      "options": { "cwd": "${workspaceFolder}/frontend/streamlit" },
+      "problemMatcher": [],
+      "isBackground": true
+    },
+    {
+      "label": "Backend: testes (pytest)",
+      "type": "shell",
+      "command": "${workspaceFolder}/backend/.venv/Scripts/python.exe",
+      "args": ["-m", "pytest", "-v"],
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "group": "test",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "serialPort",
+      "type": "promptString",
+      "description": "Porta serial do ESP32-S3 (ex.: COM5 ou /dev/ttyACM0)",
+      "default": "COM5"
+    }
+  ]
+}

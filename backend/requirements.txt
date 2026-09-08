@@ -1,0 +1,18 @@
+# Backend NekoMind - dependencias do MVP (Python 3.11+)
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+pydantic-settings>=2.2
+SQLAlchemy>=2.0
+python-multipart>=0.0.9   # upload de chunks (multipart/form-data)
+websockets>=12            # WebSocket /ws/device
+
+# Testes
+pytest>=8.0
+httpx>=0.27               # TestClient do FastAPI
+
+# Futuros (descomente quando for ativar):
+# faster-whisper>=1.0     # ASR real (NEKOMIND_ASR_PROVIDER=faster_whisper)
+# pyserial>=3.5           # leitura da serial do dispositivo
+# psycopg[binary]>=3.1    # driver PostgreSQL
+# openai>=1.0             # ou outra API de LLM

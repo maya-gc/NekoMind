@@ -1,0 +1,13 @@
+# NekoMind - sdkconfig.defaults (ESP32-S3)
+# Alvo padrao do projeto
+CONFIG_IDF_TARGET="esp32s3"
+
+# Flash/psRAM comuns em placas ESP32-S3 devkit (ajuste para sua placa)
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+
+# Serial/USB CDC para o transporte de audio via USB (espadilha de console)
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+# Particoes padrao sao suficientes para o MVP
