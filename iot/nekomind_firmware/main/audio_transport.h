@@ -1,9 +1,9 @@
 /**
- * audio_transport.h - Transporte de mensagens/chunks para o computador.
+ * audio_transport.h - Transporte de mensagens para o computador.
  *
  * Protocolo: JSON Lines (uma mensagem JSON por linha) - ver
- * docs/iot_protocol.md. MVP usa a serial USB; uma interface Wi-Fi
- * esta prevista como alternativa futura.
+ * docs/iot_protocol.md. MVP usa USB/serial para comandos/estados/resultados;
+ * audio nao trafega pelo ESP no caminho principal.
  */
 #pragma once
 
@@ -38,13 +38,14 @@ esp_err_t audio_transport_init(neko_transport_mode_t mode);
 /** Envia uma mensagem JSON (uma linha, sem '\n' final - sera adicionado). */
 esp_err_t audio_transport_send_json(const char *json_line);
 
-/** Envia um chunk de audio + metadados (formato base64 provisorio). */
+/** Futuro: audio embarcado fora do caminho principal do MVP. */
 esp_err_t audio_transport_send_chunk(const char *session_id, uint32_t seq,
                                      const uint8_t *data, size_t len);
 
 /**
- * Tenta receber uma linha JSON do computador (ex.: analysis_result).
- * @return ESP_OK se uma linha foi recebida; ESP_ERR_TIMEOUT caso contrario.
+ * Tenta receber uma linha JSON do computador.
+ * @return ESP_OK se uma linha foi recebida, ESP_ERR_TIMEOUT se nao houver
+ *         dados ou ESP_ERR_NOT_SUPPORTED quando o driver RX nao estiver pronto.
  */
 esp_err_t audio_transport_poll_rx(char *out_line, size_t max_len,
                                   uint32_t timeout_ms);

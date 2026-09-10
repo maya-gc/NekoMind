@@ -9,7 +9,9 @@ static const char *avatar_face(neko_state_t state)
 {
     switch (state) {
     case NEKO_STATE_IDLE:       return "(=^.^=) zZ";
+    case NEKO_STATE_PENDING:    return "(=o.o=) aguardando";
     case NEKO_STATE_RECORDING:  return "(=O.o=) ouvindo...";
+    case NEKO_STATE_PAUSED:     return "(=-.-=) pausado";
     case NEKO_STATE_SENDING:    return "(=>^.^)=> enviando";
     case NEKO_STATE_PROCESSING: return "(=@.@=) pensando";
     case NEKO_STATE_SUCCESS:    return "(=^*^=) sucesso!";
@@ -33,6 +35,23 @@ esp_err_t display_ui_render(const char *status_line)
     neko_state_t st = avatar_state_get();
     ESP_LOGI(TAG, "NEKO %s | %s", avatar_face(st),
              status_line != NULL ? status_line : avatar_state_name(st));
+    return ESP_OK;
+}
+
+esp_err_t display_ui_render_view(const char *status_line,
+                                 const char *summary,
+                                 const char (*topics)[NEKO_TOPIC_MAX + 1],
+                                 size_t topic_count,
+                                 bool is_demo)
+{
+    size_t i;
+    display_ui_render(status_line);
+    if (summary != NULL && summary[0] != '\0') {
+        ESP_LOGI(TAG, "resultado %s: %s", is_demo ? "demo" : "real", summary);
+    }
+    for (i = 0; topics != NULL && i < topic_count; i++) {
+        ESP_LOGI(TAG, "topico[%u]: %s", (unsigned int)i, topics[i]);
+    }
     return ESP_OK;
 }
 

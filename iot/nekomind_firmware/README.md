@@ -1,42 +1,117 @@
-# NekoMind Firmware (ESP32-S3 + ESP-IDF)
+# NekoMind Firmware
 
-Firmware do dispositivo NekoMind: captura a explicação oral do estudante
-com um microfone INMP441 (I2S + DMA), mostra o estado da sessão por um
-avatar e envia chunks de áudio ao computador via serial USB (JSON Lines).
-Wi-Fi é a alternativa planejada de transporte.
+Firmware do dispositivo NekoMind para o MVP touch + Mac.
 
-## Estados do avatar
+O caminho principal aprovado e:
 
-`IDLE → RECORDING ⇄ SENDING → PROCESSING → SUCCESS | ERROR`
+- ESP32 com display touch: avatar, comandos de sessao e resultado curto.
+- Mac: captura do microfone, transcricao, validacao, analise e persistencia.
+- USB/serial: JSON Lines v1 para comandos, estados, erros e resultados.
+- Sem transporte de audio pelo ESP no fluxo principal do MVP.
 
-## O que já funciona (MVP)
+O microfone embarcado/I2S permanece no repositorio como possibilidade futura,
+mas os arquivos `audio_capture.c` e `i2s_microphone.c` nao entram no alvo
+principal do firmware neste MVP.
 
-- Máquina de estados e orquestração da sessão (`session_controller`).
-- Protocolo JSON Lines na serial (ver `docs/iot_protocol.md`).
-- Captura e LCD em modo simulado (logs), firmware 100% compilável sem
-  hardware.
+## Estados
 
-## TODOs de hardware (preencher antes de gravar na placa)
+`IDLE -> PENDING -> RECORDING -> PAUSED -> PROCESSING -> SUCCESS | ERROR`
 
-| Configuração | Arquivo | Descrição |
-|---|---|---|
-| `NEKO_I2S_PIN_BCLK/WS/DIN` | `main/i2s_microphone.h` | Pinos do INMP441 |
-| `NEKO_LCD_PIN_*` | `main/display_ui.h` | Pinos do LCD |
-| `NEKO_WIFI_SSID/PASSWORD/HOST/PORT` | `main/audio_transport.h` | Wi-Fi futuro (não versionar valores reais) |
-| `NEKO_SAMPLE_RATE_HZ`, `NEKO_AUDIO_CHUNK_SIZE` | headers | Áudio |
+O firmware so entra em `RECORDING` depois de receber estado `recording`
+correlacionado do Mac. Ele so entra em `SUCCESS` depois de receber um
+`type=result`, `state=completed`, com `request_id` e `session_id` da sessao
+atual e campos obrigatorios validados. Mensagens antigas, de outra sessao,
+malformadas, erros tardios ou simuladas como reais nao produzem sucesso.
 
-## Build
+## Contrato serial
 
-```bash
-# Na raiz do repositorio:
-source scripts/source_idf.sh
-cd iot/nekomind_firmware
-idf.py set-target esp32s3
-idf.py build
-idf.py -p COMx flash monitor   # ajuste a porta
+As mensagens seguem JSON Lines UTF-8, ate 4096 bytes por linha. O dispositivo
+envia comandos:
+
+```json
+{"v":1,"type":"command","request_id":"req-1","command":"start","session_id":null}
 ```
 
-## Componentes externos
+Comandos suportados: `start`, `pause`, `resume`, `finish`, `retry`, `status`
+e reenvio local da ultima requisicao. O `request_id` inclui nonce de boot de
+128 bits injetado pelo ESP (`esp_random` quatro vezes) mais contador monotono,
+para evitar colisao com o journal do Mac apos reboot. Reenvio preserva
+exatamente o mesmo `request_id` para idempotencia quando a confirmacao se
+perde.
 
-Coloque drivers adicionais (ex.: LCD) em `components/` — ver
-`components/README.md`.
+Heartbeats `status` sao rastreados separadamente do `finish`: eles atualizam
+a conexao, mas nao substituem o `request_id` aguardado para o resultado final
+e nao reiniciam indefinidamente o timeout de analise. Se um heartbeat durante
+`PROCESSING` receber o resultado ja persistido, o firmware aceita esse resultado
+correlacionado dentro do prazo.
+
+`session_id:null` e aceito somente para `state=idle` e para erro correlacionado
+ao `start` quando o backend/Mac ainda nao abriu sessao. Resultados continuam
+exigindo `session_id` positivo. Estados de confirmacao tambem precisam
+corresponder ao comando pendente; por exemplo, `pause` nao aceita `recording`
+como confirmacao.
+
+O Mac responde com `type=state`, `type=error` ou `type=result`. Resultado:
+
+```json
+{
+  "v": 1,
+  "type": "result",
+  "request_id": "bootNonce-2",
+  "session_id": 42,
+  "state": "completed",
+  "is_demo": false,
+  "asr_provider": "faster_whisper",
+  "topic_provider": "local_keywords",
+  "topics": ["fotossintese"],
+  "summary": "Sessao processada."
+}
+```
+
+Topicos vazios sao validos. O firmware nao mostra nota pedagogica; o hook de
+display recebe estado, resumo curto, topicos e origem demo/real conforme
+`is_demo`, sem escolher ainda um driver fisico.
+
+## Hardware pendente
+
+A placa, display, controlador touch, pinos e tamanho fisico ainda nao foram
+escolhidos. Por isso:
+
+- `board_touch_init()` e `board_touch_poll()` retornam `ESP_ERR_NOT_SUPPORTED`
+  enquanto nao houver driver fisico. Nessa condicao `session_controller_init`
+  renderiza `hardware touch indisponivel` e falha; o dispositivo nao deve ser
+  tratado como pronto para uso.
+- `display_ui` usa log serial como fallback de desenvolvimento.
+- Nenhum teste automatizado aqui comprova funcionamento fisico do touch.
+- A task do controlador usa stack de 8192 bytes e buffer RX estatico porque a
+  linha serial pode ter ate 4096 bytes; o build ESP-IDF ainda precisa ser
+  executado no ambiente com `esp-idf/export.sh` instalado.
+
+Quando o hardware for escolhido, implemente `board_touch.c` e o driver real do
+display mantendo `neko_controller.c` sem dependencias de placa.
+
+## Teste host
+
+O teste automatizado valida a logica independente de hardware:
+
+```bash
+iot/nekomind_firmware/scripts/test_firmware.sh
+```
+
+Ele cobre conclusao valida, mensagens invalidas/antigas/de outra sessao,
+timeouts, erro, pausa/retomada, toque duplo, nova tentativa, nonce por boot,
+reenvio da mesma requisicao, `session_id:null` restrito, estado inesperado em
+ack de comando, heartbeat durante processamento, wrap de `millis` e resultado
+direto sem estado `processing` intermediario.
+
+## Build ESP-IDF
+
+```bash
+source scripts/source_idf.sh
+cd iot/nekomind_firmware
+idf.py set-target ALVO_ESCOLHIDO  # placeholder: decidir depois da placa
+idf.py build
+```
+
+O build fisico e a validacao do touch ficam bloqueados ate a selecao da placa e
+do display.

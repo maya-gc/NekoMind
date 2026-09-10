@@ -7,9 +7,13 @@
  */
 #pragma once
 
+#include <stdbool.h>
+#include <stddef.h>
+
 #include "esp_err.h"
 
 #include "avatar_state.h"
+#include "neko_protocol.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,6 +38,16 @@ esp_err_t display_ui_init(void);
  * Chamado periodicamente pela task de UI ou apos avatar_state_set().
  */
 esp_err_t display_ui_render(const char *status_line);
+
+/**
+ * Renderiza estado com resultado validado quando houver. Drivers fisicos
+ * futuros devem usar summary/topics/is_demo para mostrar a conclusao correta.
+ */
+esp_err_t display_ui_render_view(const char *status_line,
+                                 const char *summary,
+                                 const char (*topics)[NEKO_TOPIC_MAX + 1],
+                                 size_t topic_count,
+                                 bool is_demo);
 
 /** Mostra telemetria curta (ex.: RMS do microfone, heap livre). */
 esp_err_t display_ui_show_telemetry(const char *telemetry_line);

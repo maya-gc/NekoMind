@@ -1,11 +1,9 @@
 /**
- * session_controller.h - Orquestra uma sessao de estudo Feynman:
+ * session_controller.h - Orquestra a sessao touch + Mac.
  *
- *   IDLE -> RECORDING -> SENDING/RECORDING (intercalado) -> PROCESSING
- *        -> SUCCESS | ERROR
- *
- * Coordena audio_capture, audio_transport, avatar_state e display_ui,
- * e emite as mensagens do protocolo JSON Lines (docs/iot_protocol.md).
+ * O firmware envia comandos JSON Lines pela serial e so muda para gravando,
+ * processando ou sucesso depois de estados/resultados correlacionados do Mac.
+ * Audio nao trafega pelo ESP no caminho principal do MVP.
  */
 #pragma once
 
@@ -17,12 +15,6 @@ extern "C" {
 
 /** Inicializa todos os modulos e entra em IDLE. */
 esp_err_t session_controller_init(void);
-
-/**
- * Executa uma sessao completa de demonstracao.
- * Duracao definida por NEKO_DEMO_SESSION_SECONDS (MVP, por logs).
- */
-esp_err_t session_controller_run_demo(void);
 
 /** Inicia a task FreeRTOS do controlador (loop de eventos). */
 esp_err_t session_controller_start_task(void);
