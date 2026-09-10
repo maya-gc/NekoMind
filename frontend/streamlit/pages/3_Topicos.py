@@ -1,14 +1,18 @@
 """Página Tópicos: conceitos extraídos das sessões."""
+
 from __future__ import annotations
 
 import streamlit as st
-
 from components.topic_tree import render_topic_tree
 from services import backend_client
 
 st.markdown("## 🧠 Tópicos")
 
-sessions = backend_client.list_sessions(limit=100)
+try:
+    sessions = backend_client.list_sessions(limit=100)
+except Exception as exc:  # noqa: BLE001
+    st.error(f"Não foi possível conectar ao backend: {exc}")
+    st.stop()
 if not sessions:
     st.caption("Nenhuma sessão registrada.")
     st.stop()
@@ -24,6 +28,7 @@ for s in sessions:
                 "session_id": s["id"],
                 "session_title": s.get("title"),
                 "notes": topic.get("notes"),
+                "is_demo": detail.get("is_demo"),
             }
         )
 
@@ -37,6 +42,8 @@ counts = Counter(t["name"] for t in all_topics)
 st.markdown("### 🔥 Tópicos mais citados")
 for name, n in counts.most_common(8):
     st.markdown(f"- **{name}** — {n} vez(es)")
+if any(topic.get("is_demo") for topic in all_topics):
+    st.caption("A lista inclui tópicos de sessão demo identificada.")
 
 st.markdown("### 🌳 Tópicos por sessão")
 expandido = st.checkbox("Expandir todas as sessões")

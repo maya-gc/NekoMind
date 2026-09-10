@@ -1,122 +1,112 @@
-# NekoMind
+# NekoMind — MVP touch + Mac
 
-Sistema embarcado de apoio ao estudo baseado na **técnica Feynman**: o
-estudante explica um conceito em voz alta, o NekoMind captura o áudio
-(ESP32-S3 + INMP441), transcreve, extrai tópicos e calcula métricas de
-clareza e abrangência — tudo apresentado em um dashboard lúdico.
+A pessoa explica um assunto em voz alta e controla a sessão por um gatinho ESP32
+com **display touch obrigatório**. O microfone do **Mac** captura; o Mac transcreve,
+extrai assuntos e armazena a sessão localmente. Tópicos e métricas heurísticas não
+comprovam correção factual nem domínio do conteúdo.
 
-## Propósito
+Implementação de software e testes automatizados disponíveis nesta branch.
+**Ainda não validado fisicamente**: placa, display, controlador de toque, pinos e
+transporte USB físico precisam ser escolhidos e integrados. Os hooks de placa retornam
+indisponibilidade explícita. ASR real, microfone real e calibração permanecem pendentes.
+O extrator `local_keywords` é um candidato funcional **opt-in**, cuja adoção ainda
+precisa de decisão; não representa escolha aprovada de modelo/provedor.
 
-Transformar a técnica Feynman em um ciclo rápido e visível:
+## Fluxo
 
-1. O aluno fala sua explicação para o dispositivo (avatar "gatinho").
-2. O firmware envia o áudio ao computador (serial USB; Wi-Fi no futuro).
-3. O backend transcreve (ASR), extrai tópicos (LLM) e calcula métricas.
-4. O dashboard mostra a evolução das explicações.
+Touch → USB/serial JSON Lines → bridge Mac → microfone Mac → API loopback →
+WAV + WebRTC VAD → ASR → tópicos → SQLite → resultado validado → touch.
 
-> ⚠️ **Importante**
-> O processamento por IA deve ser tratado como apoio à reflexão do estudante,
-> não como avaliação pedagógica definitiva. Métricas de clareza e abrangência
-> são heurísticas e devem ser apresentadas como estimativas.
+A indicação de gravação depende de o stream ter iniciado. Pausa fecha o microfone;
+retomar reabre; finalizar encerra captura antes de avaliar. Somente resultado concluído
+da sessão correta produz conclusão. Há deduplicação, timeout, erro e nova tentativa.
+Streamlit consulta histórico e oferece demo identificada; não grava pelo navegador.
+Microfone embarcado, Wi-Fi e autonomia sem Mac são possibilidades futuras.
 
-## Arquitetura (visão geral)
+## Instalação no macOS
 
-```mermaid
-flowchart LR
-    ESP[ESP32-S3 + INMP441] -->|I2S + DMA| FW[Firmware NekoMind]
-    FW -->|JSON Lines / serial USB| BE[Backend FastAPI]
-    FW -.->|Wi-Fi futuro| BE
-    BE --> DB[(SQLite)]
-    BE --> AI[ASR + LLM<br/>mock por padrão]
-    BE --> WS[WebSocket /ws/device]
-    FR[Frontend Streamlit] -->|HTTP API| BE
-```
-
-Mais detalhes em [`docs/architecture.md`](docs/architecture.md).
-
-## Pré-requisitos
-
-- **Python 3.11+** (backend e frontend);
-- **Git**;
-- (Opcional para firmware) **ESP-IDF** instalado pelo próprio projeto
-  (`scripts/setup_espidf_portable.sh`) e **VS Code portátil**;
-- Hardware (para gravar de verdade): ESP32-S3, microfone INMP441, LCD.
-
-## Estrutura
-
-```
-nekomind/
-├── iot/nekomind_firmware/   firmware ESP-IDF (ESP32-S3)
-├── backend/                 FastAPI + SQLite + ASR/LLM
-├── frontend/streamlit/      dashboard (Streamlit)
-├── docs/                    requisitos, arquitetura, protocolo, DER
-├── scripts/                 setup e execução (.sh e .ps1)
-├── esp-idf/ e tools/        ESP-IDF e toolchains (gerados, não versionados)
-└── vscode-portable/         VS Code portátil (gerado, não versionado)
-```
-
-## Setup
-
-### 1. Backend e frontend (Python)
+Requer Python3.11+ (testado com3.12), Git e compilador C para os testes portáteis.
+Na raiz do repositório:
 
 ```bash
-# Linux/macOS
-bash scripts/setup_backend.sh
-bash scripts/setup_frontend.sh
-# Windows (PowerShell)
-.\scripts\setup_backend.ps1
-.\scripts\setup_frontend.ps1
+PYTHON_BIN=python3.12 bash scripts/setup_backend.sh
+backend/.venv/bin/python -m pip install -r backend/requirements-mac.txt
+cp -n backend/.env.example backend/.env  # preservar configuração existente
+bash scripts/run_backend.sh
 ```
 
-### 2. Firmware (opcional)
+O backend escuta `127.0.0.1:8000`, com **um worker e sem reload**. Não expor em rede.
+Para o bridge, em outro terminal:
 
 ```bash
-bash scripts/setup_espidf_portable.sh   # baixa ESP-IDF + toolchains em ./esp-idf e ./tools
-source scripts/source_idf.sh
-cd iot/nekomind_firmware
-idf.py set-target esp32s3
-idf.py build
+cd backend
+.venv/bin/python -m serial.tools.list_ports
+.venv/bin/python -m sounddevice  # listar dispositivos; não grava
+.venv/bin/python -m app.mac --port /dev/cu.PORTA_ESCOLHIDA
+# Opcional: --device 'nome do microfone' --data-dir ./storage/mac
 ```
 
-### 3. VS Code portátil
+A porta acima é um placeholder; depende do hardware. Não abrir duas instâncias com
+a mesma porta/diretório. Após escolher o dispositivo, permitir microfone ao app de
+terminal que executa Python em **Ajustes do Sistema → Privacidade e Segurança →
+Microfone**. Se negado, a captura falha e o touch permite tentar novamente após corrigir.
+Nenhum áudio é capturado antes de um comando de início. O bridge usa `caffeinate`;
+manter Mac ligado, tampa aberta e sem suspensão manual durante a sessão.
 
-Ver [`vscode-portable/README.md`](vscode-portable/README.md) e
-`scripts/launch_vscode.sh`/`.ps1`.
+## Demo e real
 
-## Execução
+O padrão é `NEKOMIND_MODE=demo`, ASR e extração `mock`. Sem modelo nem chave;
+o teste demo com silêncio continua disponível e identificado em cada resultado.
+O bridge real de captura pode operar em demo, mas a análise resultante é simulada.
+
+Para ensaiar processamento real local depois da decisão do extrator:
 
 ```bash
-# Tudo (backend + frontend):
-bash scripts/run_all.sh            # ou .\scripts\run_all.ps1
-# Separadamente:
-bash scripts/run_backend.sh        # http://127.0.0.1:8000
-bash scripts/run_frontend.sh       # http://127.0.0.1:8501
-# Testes:
-bash scripts/run_tests.sh          # pytest do backend
+backend/.venv/bin/python -m pip install -r backend/requirements-real.txt
 ```
 
-## Comandos úteis
+Configurar `backend/.env`: `NEKOMIND_MODE=real`, `NEKOMIND_ASR_PROVIDER=faster_whisper`,
+`NEKOMIND_ASR_MODEL_SIZE=/caminho/absoluto/modelo-ctranslate2`, dispositivo `cpu`,
+compute_type `int8` e, **se adotado**, `NEKOMIND_LLM_PROVIDER=local_keywords`.
+Esses parâmetros são configuráveis, não um benchmark ou recomendação de modelo validada.
+O modelo precisa ser preparado localmente pelo operador: `local_files_only=True`
+impede download automático. Não há chamada de IA remota nem chave necessária.
+Configuração desconhecida, modelo ausente, áudio sem fala ou extração inválida geram
+falha explícita, sem fallback. Reiniciar processos após ajustar configuração.
 
-| Ação | Linux/macOS | Windows |
-|---|---|---|
-| Setup backend | `bash scripts/setup_backend.sh` | `.\scripts\setup_backend.ps1` |
-| Setup frontend | `bash scripts/setup_frontend.sh` | `.\scripts\setup_frontend.ps1` |
-| Setup ESP-IDF | `bash scripts/setup_espidf_portable.sh` | `.\scripts\setup_espidf_portable.ps1` |
-| Rodar tudo | `bash scripts/run_all.sh` | `.\scripts\run_all.ps1` |
-| Testes | `bash scripts/run_tests.sh` | `.\scripts\run_tests.ps1` |
-| Abrir VS Code | `bash scripts/launch_vscode.sh` | `.\scripts\launch_vscode.ps1` |
+O extrator lexical usa frases literalmente presentes na transcrição, sem lista fixa,
+com máximo de8 tópicos e sem preenchimento artificial. Não faz validação factual;
+a qualidade semântica e a decisão entre este método/modelo/API continuam abertas.
 
-## Limitações do MVP
+## Testes
 
-- **ASR e LLM em modo mock**: sem chaves de API e sem baixar modelos;
-  transcrições e tópicos são dados fictícios marcados como `[DEMO]`.
-- **Firmware simulado**: captura I2S e LCD por logs até os pinos serem
-  definidos (ver TODOs nos headers em `iot/nekomind_firmware/main/`).
-- **Transporte serial no MVP**: a ingestão real pelo dispositivo ainda
-  será ligada; por ora os uploads ocorrem via API (multipart) ou WebSocket.
-- **SQLite** como banco padrão (PostgreSQL planejado).
-- Métricas de clareza/abrangência são **heurísticas** de demonstração.
+```bash
+backend/.venv/bin/python -m pip install -r backend/requirements-test.txt
+cd backend
+.venv/bin/python -m pytest -q
+.venv/bin/python -m unittest discover -s tests -p test_asr_lifecycle.py -v
+cd ..
+bash iot/nekomind_firmware/scripts/test_firmware.sh
+backend/.venv/bin/python -m ruff check backend/app backend/tests
+```
 
-## Licença
+Os testes usam microfone/modelos substitutos, SQLite temporário e uma PTY real do
+sistema para transporte. VAD instalado é exercitado com silêncio/ruído sintéticos;
+fala/níveis/pausas também usam substitutos conforme [método](docs/speech-validation.md).
+Nenhum teste sintético comprova touch, voz ou Whisper físicos. Para Streamlit e seus
+testes, ver [frontend](frontend/streamlit/README.md).
 
-MIT — ver [LICENSE](LICENSE).
+## Dados, recuperação e documentação
+
+Áudio, SQLite, backups e journal ficam em `backend/storage/`, fora do Git. O journal
+precisa ser preservado para reconhecer retransmissões. Reinício durante captura gera
+erro, nunca reabre o microfone automaticamente. Reinício do backend marca sessões
+incompletas como interrompidas. Falhas de captura não viram notas sobre conhecimento.
+A migração é aditiva com backup SQLite consistente; ver rollback antes de usar banco
+existente. Não há política automática de retenção: limpar dados locais só deliberadamente.
+
+- [Mapa NM-001 a NM-007 e evidências](docs/delivery.md)
+- [Arquitetura](docs/architecture.md) · [API](docs/api_contract.md)
+- [USB/serial e estados](docs/iot_protocol.md) · [Dados e migração](docs/data_model.md)
+- [ASR: cache e medição](docs/asr-model-lifecycle.md) · [VAD](docs/speech-validation.md)
+- [Teste real na mesa](docs/manual-validation.md) · [Fontes](docs/implementation-sources.md)

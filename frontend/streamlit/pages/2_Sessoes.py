@@ -1,30 +1,43 @@
 """Página Sessões: lista, detalhe e transcrição."""
+
 from __future__ import annotations
 
 import streamlit as st
-
 from components.avatar_widget import render_avatar
 from components.topic_tree import render_topic_tree
 from services import backend_client
 
 st.markdown("## 📚 Sessões")
 
-if st.button("➕ Nova sessão (demo)", use_container_width=True):
+try:
+    backend_client.health()
+except Exception as exc:  # noqa: BLE001
+    st.error(f"Sem conexão com o backend: {exc}")
+    st.stop()
+
+backend_status = backend_client.effective_backend_status()
+
+demo_disabled = backend_status.get("is_demo") is not True
+if st.button("➕ Nova sessão (demo)", use_container_width=True, disabled=demo_disabled):
     with st.spinner("Criando e analisando sessão de demonstração..."):
         try:
             backend_client.demo_session()
-            st.success("Sessão de demonstração criada! 🐾")
+            st.success("Sessão de demonstração concluída e identificada pelo backend.")
             st.rerun()
         except Exception as exc:  # noqa: BLE001
             st.error(f"Falha ao criar demonstração: {exc}")
+if demo_disabled:
+    st.caption("Demonstração disponível somente quando o backend confirma modo demo.")
 
 sessions = backend_client.list_sessions(limit=100)
 if not sessions:
     st.caption("Nenhuma sessão registrada.")
     st.stop()
 
-options = {f"#{s['id']} · {s['title'] or 'Sem título'} · {s['status']}": s["id"]
-           for s in sessions}
+options = {
+    f"#{s['id']} · {s['title'] or 'Sem título'} · {s['status']}": s["id"]
+    for s in sessions
+}
 label = st.selectbox("Selecione uma sessão", list(options.keys()))
 session_id = options[label]
 
@@ -36,6 +49,7 @@ if not detail:
 # Status para o avatar (espelha o firmware).
 status_map = {
     "recording": "RECORDING",
+    "paused": "PAUSED",
     "processing": "PROCESSING",
     "completed": "SUCCESS",
     "error": "ERROR",
@@ -46,7 +60,17 @@ render_avatar(
 )
 
 if detail.get("is_demo"):
-    st.caption("⚠️ Dados de demonstração (adapter mock do backend).")
+    st.warning("Sessão em modo demonstração ou com etapa simulada.")
+
+origin = backend_client.session_origin(detail)
+st.caption(
+    f"Origem: {origin['label']} · ASR: {origin['asr'] or 'desconhecido'} · "
+    f"Tópicos: {origin['topic'] or 'desconhecido'}"
+)
+if detail.get("status") == "processing":
+    st.info("Sessão em processamento; aguarde a conclusão confirmada pelo backend.")
+elif detail.get("status") == "error":
+    st.error(detail.get("error_message") or "Sessão terminou com erro.")
 
 metrics = {m["name"]: m for m in detail.get("metrics", [])}
 col1, col2, col3 = st.columns(3)
@@ -54,13 +78,18 @@ with col1:
     st.metric("Duração", f"{detail.get('duration_seconds', 0):.1f} s")
 with col2:
     clarity = detail.get("clarity_score")
-    st.metric("Clareza", f"{clarity:.1f}" if clarity is not None else "—", "/ 10")
+    st.metric(
+        "Clareza heurística", f"{clarity:.1f}" if clarity is not None else "—", "/ 10"
+    )
 with col3:
     words = metrics.get("word_count", {}).get("value", 0)
     st.metric("Palavras", f"{words:.0f}")
 
 if metrics:
-    st.markdown("#### Métricas detalhadas")
+    st.markdown("#### Métricas heurísticas")
+    st.caption(
+        "Estas métricas apoiam reflexão; não provam domínio nem correção factual."
+    )
     for name, m in metrics.items():
         unit = m.get("unit") or ""
         st.markdown(f"- **{name}**: {m['value']} {unit}")

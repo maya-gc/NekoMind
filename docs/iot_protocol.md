@@ -1,115 +1,90 @@
-# Protocolo do dispositivo (JSON Lines)
+# Contrato USB/serial v1 — touch + Mac
 
-## Visão geral
+JSON Lines UTF-8, uma mensagem por LF, até4096 bytes incluindo LF, baud115200.
+O driver deve reservar terminador NUL no C. Sem áudio do ESP nesse canal. Logs de
+hardware devem ficar separados ou claramente descartados; não são respostas válidas.
+O transporte RX físico depende da placa; os testes host não comprovam USB físico.
 
-O firmware se comunica com o computador enviando **uma mensagem JSON por
-linha** (JSON Lines, `\n` terminado) via **USB serial** (UART/USB-JTAG,
-115200 baud por padrão). O mesmo formato é aceito pelo WebSocket
-`/ws/device` do backend (lá, cada mensagem é um JSON).
-
-Encoding: UTF-8. Campos desconhecidos devem ser ignorados.
-
-## Tipos de mensagem (device → computador)
-
-### `session_start`
-
-Avisa o início de uma sessão de gravação.
+## Comandos
 
 ```json
-{
-  "type": "session_start",
-  "session_id": "demo-0001",
-  "sample_rate": 16000,
-  "format": "pcm_s16le",
-  "title": "Fotossíntese"
-}
+{"v":1,"type":"command","request_id":"bootNonce-1","command":"start","session_id":null}
 ```
 
-### `audio_chunk`
+`v` inteiro1, `request_id` de1–64 caracteres `[A-Za-z0-9_-]`, campos desconhecidos,
+duplicados, JSON inválido e números não finitos rejeitados. `session_id` inteiro positivo
+até2147483647 quando presente. Firmware usa nonce de boot128bits e contador; substituir
+nonce somente em novo boot, nunca ao retransmitir o mesmo comando.
 
-Um bloco de áudio PCM. No MVP o payload é anunciado em stub; na versão
-final `data` virá em base64.
-
-```json
-{
-  "type": "audio_chunk",
-  "session_id": "demo-0001",
-  "seq": 3,
-  "bytes": 4096,
-  "sample_rate": 16000,
-  "encoding": "none-stub",
-  "data": "..."
-}
-```
-
-### `session_end`
-
-Sinaliza fim da gravação.
-
-```json
-{
-  "type": "session_end",
-  "session_id": "demo-0001"
-}
-```
-
-### `device_status`
-
-Telemetria periódica (estado do avatar, memória, simulação).
-
-```json
-{
-  "type": "device_status",
-  "state": "RECORDING",
-  "free_heap": 240000,
-  "simulated": 1
-}
-```
-
-### `error`
-
-Falha de captura, comunicação ou processamento.
-
-```json
-{
-  "type": "error",
-  "where": "capture",
-  "code": "I2S_READ_FAILED"
-}
-```
-
-## Tipos de mensagem (computador → device)
-
-### `analysis_result`
-
-Resultado da análise de uma sessão (enviada via WebSocket quando o
-dispositivo estiver conectado por esse canal).
-
-```json
-{
-  "type": "analysis_result",
-  "session_id": 12,
-  "status": "completed",
-  "clarity_score": 7.3,
-  "summary": "Você cobriu 3 tópicos..."
-}
-```
-
-## Estados → mensagens (referência)
-
-| Estado | Mensagens típicas |
+| Comando | Sessão/efeito |
 |---|---|
-| IDLE | `device_status` (estado idle) |
-| RECORDING | `session_start`, `audio_chunk` |
-| SENDING | `audio_chunk` (envio em andamento) |
-| PROCESSING | `session_end` |
-| SUCCESS | recebe `analysis_result` |
-| ERROR | `error` |
+| start | null; somente idle; cria uma sessão e abre microfone |
+| pause | id atual; fecha stream, conserva áudio e confirma paused |
+| resume | id atual; reabre stream antes de confirmar recording |
+| finish | id atual; fecha captura, envia chunks e pede análise |
+| retry | id anterior; após erro/conclusão cria nova sessão e captura |
+| status | id atual, ou null para descoberta/idle; consulta, sem iniciar captura |
 
-## Notas de implementação
+O touch mostra PENDING e bloqueia nova ativação comum até confirmação/timeout.
+A ação RESEND é local ao controlador: retransmite exatamente a linha anterior,
+inclusive request_id. Nova tentativa deliberada usa retry com novo request_id.
 
-- O firmware ainda envia chunks em modo **stub** (metadados sem payload)
-  para não poluir o console durante o MVP.
-- Quando a serial for ligada ao backend, o adaptador
-  `backend/app/adapters/serial_adapter.py` fará o parsing destas linhas.
-- O transport Wi-Fi (futuro) usará o mesmo formato JSON sobre TCP/WebSocket.
+## Respostas
+
+Confirmação de estado:
+
+```json
+{"v":1,"type":"state","request_id":"bootNonce-1","session_id":42,"state":"recording","is_demo":true}
+```
+
+`recording` só é emitido depois de o stream iniciar. `pause` espera paused, `resume`
+espera recording, `finish` espera processing ou resultado/erro; resposta divergente
+é erro recuperável, não confirmação. `state=idle` pode ter session_id null.
+
+Resultado:
+
+```json
+{"v":1,"type":"result","request_id":"bootNonce-4","session_id":42,"state":"completed","is_demo":false,"asr_provider":"faster_whisper","topic_provider":"local_keywords","topics":["respiração celular"],"summary":"Assuntos identificados. Isso nao comprova acerto ou dominio."}
+```
+
+Este exemplo real documenta o candidato de extração, **não sua adoção**. Antes de enviar,
+o bridge valida SessionDetail completed, id inteiro correto, texto não vazio, origem
+executada e tópicos com session_id correto. Firmware exige tipo/estado/campos/limites,
+sessão atual e solicitação esperada de finish/status (ou heartbeat durante processamento).
+`is_demo` é booleano obrigatório; etapas mock não podem produzir resultado real.
+Até8 tópicos, cada um até120 bytes UTF-8, resumo até240bytes, provedores até64bytes.
+O bridge limita sem dividir caracteres. Lista vazia é válida: não inventar assuntos.
+Resultado antigo, outra sessão, simples ACK ou statecompleted sem conteúdo não é sucesso.
+
+Erro:
+
+```json
+{"v":1,"type":"error","request_id":"bootNonce-4","session_id":42,"state":"error","is_demo":false,"code":"audio_unusable","message":"Confira a captura e tente novamente."}
+```
+
+Erros anteriores à criação podem trazer session_id null. Código até64bytes, mensagem
+até160bytes. Principais códigos do bridge: capture_failed, disconnected, interrupted,
+backend_unavailable, invalid_result, request_conflict, invalid_state, invalid_command.
+Erros de backend persistidos também chegam pelo código, por exemplo audio_unusable.
+O display recebe estado textual, modo, resumo e tópicos em uma view independente do driver.
+
+## Prazos, retransmissão e recuperação
+
+- ACK de comando:5s no firmware. HTTP comum:5s no bridge. Permissão/driver lentos
+  podem exceder janela; isso vira timeout, não sucesso. Corrigir no Mac e reenviar/consultar.
+- Heartbeat status a cada2s; ausência de resposta por8s indica desconexão. O bridge
+  também encerra captura ao perder comandos válidos por8s. Processing continua localmente.
+- Resultado:120s de janela no firmware; HTTP finish aguarda até125s. Não é promessa de
+  tempo de ASR. Timeout permite STATUS manual com nova janela, sem pedir nova análise.
+  Heartbeats não estendem indefinidamente essa janela.
+- Captura máxima30min/57,6MB PCM; atingir limite é erro, não nota sobre o estudante.
+- Reconexão serial: tentativa a cada1s; leitura0,1s, escrita2s, sem flush bloqueante.
+
+O journal SQLite grava intenção antes do efeito e conserva recibos. Mesmo id/payload
+retorna estado atual; mesmo id/payload diferente é conflito. Reenvio antigo não reabre
+microfone. Início concorrente usa unicidade backend; finalização usa claim atômico.
+Após reinício incerto não há captura automática. Se a resposta de finish se perder,
+GET/status recupera o resultado persistido; backend não analisa novamente a sessão.
+
+Sem seleção dos drivers touch/display/RX serial, o firmware retorna indisponibilidade
+na inicialização. A experiência física de mesa deve seguir o [roteiro manual](manual-validation.md).

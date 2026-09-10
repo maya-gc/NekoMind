@@ -1,4 +1,8 @@
-# Log de setup do NekoMind
+# Log histórico de setup do NekoMind
+
+> Histórico da base de 05/09/2026. Os resultados abaixo não validam a implementação
+> touch + Mac desta branch. O hardware, os drivers e o build atual continuam
+> pendentes; consultar README e docs/delivery.md para o estado atual.
 
 Registro do que foi criado, instalado e validado, incluindo falhas e
 soluções. Data: 2026-09-05.

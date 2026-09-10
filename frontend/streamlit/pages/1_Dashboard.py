@@ -1,9 +1,8 @@
 """Página Dashboard: visão geral do estudante."""
+
 from __future__ import annotations
 
 import streamlit as st
-
-from components.avatar_widget import render_avatar
 from components.metric_cards import show_metric_cards
 from components.session_chart import clarity_trend, duration_chart
 from services import backend_client
@@ -20,11 +19,21 @@ except Exception as exc:  # noqa: BLE001
     st.info("Confira a URL em **Configurações** ou inicie o backend.")
     st.stop()
 
-if backend_client.is_demo_mode():
-    st.info("Modo demonstração ativo — os dados abaixo podem ser [DEMO].")
+backend_status = backend_client.effective_backend_status()
+if backend_status.get("is_demo") is True:
+    st.warning(
+        "Backend em demonstração — resultados mock aparecem identificados como [DEMO]."
+    )
+elif backend_status.get("is_demo") is None:
+    st.info(
+        "Modo do backend desconhecido; confira a página Configurações antes de interpretar resultados."
+    )
 
 summary = backend_client.dashboard_summary()
 show_metric_cards(summary)
+st.caption(
+    "Métricas do dashboard são heurísticas de apoio à reflexão; não comprovam conhecimento ou correção factual."
+)
 
 if summary.get("top_topics"):
     st.markdown("### 🧠 Tópicos mais frequentes")
@@ -33,6 +42,9 @@ if summary.get("top_topics"):
 
 st.markdown("### 📈 Evolução")
 sessions = backend_client.list_sessions(limit=50)
+demo_count = sum(1 for session in sessions if session.get("is_demo"))
+if demo_count:
+    st.caption(f"Inclui {demo_count} sessão(ões) de demonstração identificada(s).")
 if sessions:
     left, right = st.columns(2)
     with left:

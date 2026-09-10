@@ -1,83 +1,60 @@
-# Modelo de dados
+# Persistência do MVP
 
-## Entidades
+`StudySession` relaciona 1:N com `Topic`, `Metric` e `AudioChunk`. Estados persistidos:
+`recording`, `paused`, `processing`, `completed`, `error`. Transcrição, tópicos e métricas
+finais pertencem sempre ao id da sessão. A transação de conclusão grava o conjunto
+final; falha não deve deixar nota ou tópicos de uma análise incompleta.
 
-```mermaid
-erDiagram
-    STUDY_SESSION {
-        int id PK
-        string title
-        datetime started_at
-        datetime ended_at
-        float duration_seconds
-        enum status
-        text transcription
-        float clarity_score
-        bool is_demo
-    }
+- `start_request_id` tem unicidade (não nulos); `request_id` mantém compatibilidade.
+  Payload divergente com o mesmo pedido retorna409. `finish_request_id` registra a
+  solicitação que adquiriu o processamento; consultas/reenvios não criam nova análise.
+- `capture_source` identifica `mac_microphone`; `device_session_id` é metadado opcional.
+- `mode`, `asr_provider_config`, `topic_provider_config` congelam modo/provedores no início.
+  `asr_provider_used`, `topic_provider_used` registram etapas realmente executadas.
+  A origem ASR fica registrada mesmo se a extração falhar depois.
+- `is_demo` é verdadeiro em demo ou quando qualquer adaptador executado é simulado.
+  `analysis_origin` resume a classificação. Origem legada ausente é desconhecida;
+  `is_demo=false` sozinho não comprova execução real.
+- `audio_validation`/`speech_validation` preservam compatibilidade entre consumidores;
+  guardam JSON resumido do gate de fala quando executado. `error_code`/`error_message`
+  apresentam falhas sem logs internos nem conteúdo da explicação.
 
-    TOPIC {
-        int id PK
-        int session_id FK
-        string name
-        float relevance
-        text notes
-    }
+## Áudio e concorrência
 
-    METRIC {
-        int id PK
-        int session_id FK
-        string name
-        float value
-        string unit
-    }
+`AudioChunk` registra sessão, sequência, formato, taxa, tamanho e caminho. Existe índice
+único `(session_id, sequence)`. O upload adquire transação SQLite `BEGIN IMMEDIATE`,
+reconfere estado e conteúdo. Mesma sequência/bytes devolve registro existente;
+conteúdo diferente ou lacuna falha. A análise adquire estado `processing` por UPDATE
+condicional; outra finalização recebe o estado existente. Apenas chunks referenciados
+pelo banco entram no merge; arquivos órfãos de interrupção não são áudio confirmado.
+Arquivos são imutáveis por tentativa. Falhas normais limpam o arquivo da tentativa;
+crash de processo pode deixar órfãos para inspeção/remoção manual, sem excluir dados antigos.
 
-    AUDIO_CHUNK {
-        int id PK
-        int session_id FK
-        int sequence
-        string format
-        int sample_rate
-        int byte_size
-        string file_path
-    }
+O journal separado do bridge armazena payload/recibo por `request_id` e a sessão ativa.
+É necessário preservar o journal em reconexões. Reinício nunca abre microfone sozinho.
+Dados do journal, gravações e backups não são versionados.
 
-    STUDY_SESSION ||--o{ TOPIC : "extrai"
-    STUDY_SESSION ||--o{ METRIC : "avalia"
-    STUDY_SESSION ||--o{ AUDIO_CHUNK : "recebe"
-```
+## Migração de banco existente
 
-## Descrição
+`init_db()` inspeciona colunas, executa a migração aditiva versionada
+`20260910_touch_mac_mvp_backend`, cria tabelas ausentes, garante índices e registra
+interrupções. `create_all()` não é usado como migração de colunas. Antes de adicionar
+colunas, a API SQLite de backup cria `nekomind.db.bak-<timestamp>` consistente com WAL.
+Se backup falha, migração para. Nenhum registro antigo é apagado; origem não conhecida
+não é fabricada. Duplicatas legadas que impeçam índice único bloqueiam inicialização,
+exigindo inspeção, sem deduplicação destrutiva automática.
 
-- **StudySession**: uma explicação gravada. `status` em
-  `recording | processing | completed | error`. `clarity_score` (0..10)
-  é uma heurística de demonstração.
-- **Topic**: conceito extraído da transcrição. `relevance` em 0..1 e
-  `notes` (observações do LLM/reflexão).
-- **Metric**: métricas calculadas por sessão (`duration_seconds`,
-  `word_count`, `topic_count`, `lexical_diversity`, `topic_coverage`,
-  `clarity_score`), cada uma com `value` + `unit`.
-- **AudioChunk**: metadados de cada bloco de áudio recebido; o payload
-  bruto fica em disco (`storage/audio/session_<id>/chunk_<seq>.raw`),
-  referenciado por `file_path`.
+Executar com backend/bridge anteriores parados e um único worker. No startup, sessões
+em recording/paused/processing recebem `error` e `backend_restarted`. Isso é recuperação
+conservadora, não retomada automática. Bancos novos também recebem índices únicos.
+Somente SQLite foi implementado/testado para esta estratégia; trocar URL para PostgreSQL
+não oferece equivalência garantida.
 
-## Por que SQLite no MVP?
+## Rollback
 
-1. **Zero configuração**: arquivo local, sem servidor nem credenciais —
-   ideal para um trabalho acadêmico e para rodar em qualquer máquina.
-2. **Portabilidade**: o banco viaja com o projeto (útil para entrega).
-3. **Camada de acesso única**: o código usa SQLAlchemy; trocar para
-   PostgreSQL é apenas alterar `NEKOMIND_DATABASE_URL`
-   (`postgresql+psycopg://...`). Nenhuma mudança em repositórios/modelos.
-4. **Carga baixa**: dados de um único estudante em uma única máquina.
-
-## Migrações
-
-No MVP as tabelas são criadas em `init_db()` (startup) via
-`Base.metadata.create_all`. Para evoluir o schema, `database/migrations/`
-é o local dos scripts (futuro: Alembic).
-
-## Banco de dados de dados locais
-
-O arquivo SQLite com dados locais fica em `backend/storage/` e é
-ignorado pelo Git (ver `.gitignore`).
+Parar backend e bridge. Preservar uma cópia do banco/áudio/journal atuais antes de
+qualquer restauração. Para voltar à versão antiga, selecionar explicitamente o backup
+anterior à migração e restaurá-lo com os processos parados; não misturar arquivos WAL/SHM
+do banco novo. A restauração perde sessões posteriores ao backup se não forem guardadas
+separadamente. Preferir correção aditiva quando houver novos dados. Não há down migration
+automática ou comando que apague dados em execução.
