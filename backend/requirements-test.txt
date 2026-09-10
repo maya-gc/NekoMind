@@ -1,0 +1,4 @@
+-r requirements.txt
+-r requirements-mac.txt
+webrtcvad-wheels==2.0.14
+ruff>=0.6

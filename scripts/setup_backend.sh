@@ -7,10 +7,12 @@ BACKEND_DIR="$ROOT/backend"
 VENV_DIR="$BACKEND_DIR/.venv"
 
 cd "$BACKEND_DIR"
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+"$PYTHON_BIN" -c 'import sys; sys.exit("Python 3.11+ necessario; use PYTHON_BIN=python3.12") if sys.version_info < (3, 11) else None'
 
 if [ ! -d "$VENV_DIR" ]; then
   echo ">> Criando venv em $VENV_DIR ..."
-  python3 -m venv "$VENV_DIR"
+  "$PYTHON_BIN" -m venv "$VENV_DIR"
 fi
 
 echo ">> Instalando dependencias ..."

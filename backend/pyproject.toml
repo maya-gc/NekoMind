@@ -14,10 +14,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=8.0", "httpx>=0.27"]
-asr = ["faster-whisper>=1.0"]
-postgres = ["psycopg[binary]>=3.1"]
-serial = ["pyserial>=3.5"]
+test = ["pytest>=8.0", "httpx>=0.27", "webrtcvad-wheels==2.0.14", "pyserial==3.5", "sounddevice==0.5.3", "ruff>=0.6"]
+real = ["faster-whisper==1.2.1", "webrtcvad-wheels==2.0.14"]
+mac = ["sounddevice==0.5.3", "pyserial==3.5", "httpx>=0.27"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -26,3 +25,7 @@ pythonpath = ["."]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI descriptors are intentionally declared in function signatures.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.File", "fastapi.Form"]

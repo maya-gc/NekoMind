@@ -1,4 +1,5 @@
 """Health check do backend."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter
@@ -14,6 +15,7 @@ def health() -> dict:
     return {
         "status": "ok",
         "service": "nekomind-backend",
+        "mode": settings.mode,
         "asr_provider": settings.asr_provider,
         "llm_provider": settings.llm_provider,
     }

@@ -1,17 +1,63 @@
-"""Adaptador de LLM (extracao de topicos e analise qualitativa).
+"""Topic extraction adapters.
 
-Interface unica `LLMAdapter` com implementacao mock por padrao (offline,
-sem chave de API). O mock retorna topicos ficticios marcados como
-demonstracao, suficientes para exercitar pipeline, banco e frontend.
-
-Para usar uma API externa, defina NEKOMIND_LLM_PROVIDER e
-NEKOMIND_LLM_API_KEY no .env (nunca versione a chave).
+The MVP keeps cloud/model selection open. It provides an explicit demo adapter
+and a local deterministic extractor that never sends transcripts to the cloud.
 """
+
 from __future__ import annotations
+
+import re
+import unicodedata
+
+_WORD_RE = re.compile(r"\b[\wÀ-ÿ]{3,}\b", flags=re.UNICODE)
+_STOPWORDS = {
+    "aqui",
+    "aquela",
+    "aquele",
+    "aquilo",
+    "cada",
+    "como",
+    "com",
+    "das",
+    "dos",
+    "de",
+    "dela",
+    "dele",
+    "depois",
+    "e",
+    "ela",
+    "ele",
+    "eles",
+    "em",
+    "entre",
+    "essa",
+    "esse",
+    "esta",
+    "este",
+    "explica",
+    "explicam",
+    "formar",
+    "isso",
+    "mais",
+    "mas",
+    "nas",
+    "nos",
+    "para",
+    "pela",
+    "pelo",
+    "por",
+    "que",
+    "uma",
+    "uso",
+    "usa",
+}
 
 
 class LLMAdapter:
     """Contrato: recebe transcricao e extrai topicos + observacoes."""
+
+    provider = "unknown"
+    is_demo = False
 
     def extract_topics(self, transcription: str) -> list[dict]:  # pragma: no cover
         raise NotImplementedError
@@ -19,6 +65,9 @@ class LLMAdapter:
 
 class MockLLMAdapter(LLMAdapter):
     """Implementacao de demonstracao (sem IA real)."""
+
+    provider = "mock"
+    is_demo = True
 
     def extract_topics(self, transcription: str) -> list[dict]:
         return [
@@ -40,20 +89,110 @@ class MockLLMAdapter(LLMAdapter):
         ]
 
 
-class ExternalLLMAdapter(LLMAdapter):
-    """Ponto de extensao para uma API de LLM (nao usado no MVP)."""
+class LocalKeywordTopicAdapter(LLMAdapter):
+    """Extract transcript-grounded keyword topics without fixed padding."""
 
-    def __init__(self, api_key: str, model: str = ""):
-        self.api_key = api_key
-        self.model = model
+    provider = "local_keywords"
 
-    def extract_topics(self, transcription: str) -> list[dict]:  # pragma: no cover
-        raise NotImplementedError(
-            "configure sua API de LLM aqui (OpenAI, Anthropic, local etc.)"
-        )
+    def extract_topics(self, transcription: str) -> list[dict]:
+        """Rank literal phrases separated by stopwords/punctuation (RAKE-style).
+
+        This is an opt-in deterministic candidate, not an approved AI model.
+        Every output name is a contiguous span of this transcript. No padding.
+        """
+        if not isinstance(transcription, str) or not transcription.strip():
+            raise ValueError("Transcricao vazia ou invalida")
+        from collections import Counter
+
+        stops = _STOPWORDS | {
+            "a",
+            "o",
+            "as",
+            "os",
+            "um",
+            "uns",
+            "umas",
+            "ao",
+            "aos",
+            "da",
+            "do",
+            "no",
+            "na",
+            "se",
+            "ser",
+            "sao",
+            "foi",
+            "e",
+            "é",
+            "sobre",
+            "tem",
+            "ter",
+            "ate",
+            "ou",
+            "porque",
+            "portanto",
+            "exemplo",
+            "explicar",
+            "explica",
+            "explicado",
+            "vou",
+            "hoje",
+            "falar",
+            "assunto",
+        }
+        candidates = []
+        current = []
+        for token in re.findall(r"[^\W\d_]+|[^\w\s]", transcription, re.UNICODE):
+            if not token.isalpha() or _normalize(token) in stops:
+                if current:
+                    candidates.append(current)
+                    current = []
+            else:
+                current.append(token)
+                if len(current) == 4:
+                    candidates.append(current)
+                    current = []
+        if current:
+            candidates.append(current)
+        frequency, degree = Counter(), Counter()
+        for phrase in candidates:
+            for word in map(_normalize, phrase):
+                frequency[word] += 1
+                degree[word] += len(phrase)
+        ranked = {}
+        for phrase in candidates:
+            name = " ".join(phrase)
+            key = _normalize(name)
+            if len(name) > 200:
+                continue
+            score = sum(degree[_normalize(word)] / frequency[_normalize(word)] for word in phrase)
+            if key not in ranked:
+                ranked[key] = (name, score)
+        choices = sorted(ranked.values(), key=lambda item: -item[1])[:8]
+        peak = max((score for _, score in choices), default=1)
+        return [
+            {
+                "name": name,
+                "relevance": round(score / peak, 3),
+                "notes": "Expressao presente na transcricao; relevancia lexical, sem verificacao factual.",
+            }
+            for name, score in choices
+        ]
 
 
 def get_llm_adapter(provider: str = "mock", api_key: str = "") -> LLMAdapter:
-    if provider != "mock" and api_key:
-        return ExternalLLMAdapter(api_key=api_key)
-    return MockLLMAdapter()
+    if provider == "mock":
+        return MockLLMAdapter()
+    if provider == "local_keywords":
+        return LocalKeywordTopicAdapter()
+    if api_key:
+        raise ValueError(f"Provedor de topicos desconhecido ou nao implementado: {provider}")
+    raise ValueError(f"Provedor de topicos desconhecido: {provider}")
+
+
+def _normalize(value: str) -> str:
+    value = value.lower().strip()
+    value = "".join(
+        char for char in unicodedata.normalize("NFKD", value) if not unicodedata.combining(char)
+    )
+    return value

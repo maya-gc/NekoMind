@@ -1,4 +1,5 @@
 """Aplicacao FastAPI do NekoMind."""
+
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
@@ -6,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.adapters.asr_adapter import clear_asr_cache
 from app.api import routes_audio, routes_health, routes_sessions, websocket
 from app.config import get_settings
 from app.database.connection import init_db
@@ -16,7 +18,10 @@ async def lifespan(app: FastAPI):
     # Garante que o diretorio de armazenamento exista antes do banco/audio.
     get_settings().storage_dir.mkdir(parents=True, exist_ok=True)
     init_db()
-    yield
+    try:
+        yield
+    finally:
+        clear_asr_cache()
 
 
 app = FastAPI(

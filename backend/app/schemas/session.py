@@ -1,4 +1,5 @@
 """Schemas Pydantic das sessoes de estudo."""
+
 from __future__ import annotations
 
 import enum
@@ -12,6 +13,20 @@ from app.schemas.topic import TopicOut
 
 class SessionCreate(BaseModel):
     title: str | None = Field(default=None, max_length=200)
+    request_id: str | None = Field(default=None, max_length=100)
+    capture_source: str | None = Field(default=None, max_length=80)
+    device_session_id: str | None = Field(default=None, max_length=100)
+
+
+class SessionFinish(BaseModel):
+    request_id: str | None = Field(default=None, max_length=100)
+
+
+class CaptureStateUpdate(BaseModel):
+    request_id: str | None = Field(default=None, max_length=100)
+    state: str = Field(pattern="^(recording|paused|error)$")
+    error_code: str | None = Field(default=None, max_length=80)
+    error_message: str | None = Field(default=None, max_length=240)
 
 
 class SessionOut(BaseModel):
@@ -26,6 +41,19 @@ class SessionOut(BaseModel):
     transcription: str | None
     clarity_score: float | None
     is_demo: bool
+    start_request_id: str | None = None
+    finish_request_id: str | None = None
+    device_session_id: str | None = None
+    capture_source: str | None = None
+    asr_provider_used: str | None = None
+    topic_provider_used: str | None = None
+    analysis_origin: str | None = None
+    audio_validation: str | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+    mode: str = "demo"
+    request_id: str | None = None
+    speech_validation: str | None = None
 
     @field_validator("status", mode="before")
     @classmethod
