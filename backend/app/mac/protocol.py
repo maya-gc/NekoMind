@@ -13,7 +13,20 @@ class Command(BaseModel):
     v: Literal[1]
     type: Literal["command"]
     request_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
-    command: Literal["start", "pause", "resume", "finish", "retry", "status"]
+    command: Literal[
+        "start",
+        "pause",
+        "resume",
+        "finish",
+        "retry",
+        "status",
+        "diagnose",
+        "calibrate",
+        "recover",
+        "discard",
+        "cancel",
+        "reset",
+    ]
     session_id: int | None = Field(default=None, gt=0, le=2147483647)
 
     @field_validator("v", mode="before")
@@ -56,7 +69,11 @@ def encode_line(message: dict) -> bytes:
 def validate_result(row: dict, session_id: int) -> None:
     if not isinstance(row, dict) or type(row.get("id")) is not int or row["id"] != session_id:
         raise ValueError("wrong_session")
-    if row.get("status") != "completed" or type(row.get("is_demo")) is not bool:
+    if (
+        row.get("status") != "completed"
+        or type(row.get("is_demo")) is not bool
+        or row.get("deletion_pending") is True
+    ):
         raise ValueError("invalid_result")
     for name in ("asr_provider", "topic_provider", "transcription"):
         if not isinstance(row.get(name), str) or not row[name].strip():

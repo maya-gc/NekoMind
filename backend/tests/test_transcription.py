@@ -1,4 +1,5 @@
 """Testes dos adapters de transcricao e das heuristicas."""
+
 from __future__ import annotations
 
 from pathlib import Path

@@ -7,9 +7,22 @@ Ver docs/data_model.md para o DER e justificativas.
 from __future__ import annotations
 
 import enum
+import json
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    DDL,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    event,
+    text,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -27,6 +40,8 @@ class SessionStatus(str, enum.Enum):
     processing = "processing"  # transcricao/analise em andamento
     completed = "completed"  # analise concluida
     error = "error"  # falha em alguma etapa
+    recovery = "recovery"  # requer acao explicita para retomar/analisar/descartar
+    cancelled = "cancelled"  # encerrada por cancelamento confirmado
 
 
 class StudySession(Base):
@@ -61,6 +76,11 @@ class StudySession(Base):
     error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     mode: Mapped[str] = mapped_column(String(16), default="demo")
+    subject: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    subject_confirmed: Mapped[bool] = mapped_column(default=False)
+    metric_method_version: Mapped[str] = mapped_column(String(40), default="heuristic-v1")
+    journey_json: Mapped[str] = mapped_column(Text, default="{}")
+    deletion_pending: Mapped[bool] = mapped_column(default=False)
 
     topics: Mapped[list[Topic]] = relationship(
         back_populates="session", cascade="all, delete-orphan"
@@ -71,6 +91,14 @@ class StudySession(Base):
     audio_chunks: Mapped[list[AudioChunk]] = relationship(
         back_populates="session", cascade="all, delete-orphan"
     )
+
+    @property
+    def journey(self) -> dict:
+        try:
+            value = json.loads(self.journey_json or "{}")
+        except json.JSONDecodeError:
+            return {}
+        return value if isinstance(value, dict) else {}
 
 
 class Topic(Base):
@@ -112,3 +140,29 @@ class AudioChunk(Base):
     file_path: Mapped[str] = mapped_column(String(500))
 
     session: Mapped[StudySession] = relationship(back_populates="audio_chunks")
+
+
+class DeletedSessionTombstone(Base):
+    __tablename__ = "deleted_session_tombstones"
+
+    session_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    start_request_id: Mapped[str | None] = mapped_column(String(100), unique=True, nullable=True)
+    deleted_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utcnow, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+event.listen(
+    DeletedSessionTombstone.__table__,
+    "after_create",
+    DDL(
+        """
+        CREATE TRIGGER IF NOT EXISTS trg_study_sessions_delete_tombstone
+        AFTER DELETE ON study_sessions
+        BEGIN
+            INSERT OR IGNORE INTO deleted_session_tombstones (session_id, start_request_id)
+            VALUES (OLD.id, OLD.start_request_id);
+        END
+        """
+    ),
+)

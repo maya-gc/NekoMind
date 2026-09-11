@@ -45,6 +45,15 @@ class Settings(BaseSettings):
 
     # Serial e microfone sao configurados no CLI app.mac. PCM fixo em 16 kHz.
     serial_port: str = ""
+    retain_raw_audio: bool = False
+    mac_data_dir: Path | None = None
+    fair_idle_seconds: int = Field(default=90, ge=15, le=3600)
+    bridge_timeout_seconds: int = Field(default=8, ge=3, le=60)
+
+    @property
+    def mac_directory(self) -> Path:
+        return self.mac_data_dir or self.storage_dir.parent / "mac"
+
     # Compatibilidade da interface de adaptadores; nenhum provedor atual exige chave.
     llm_api_key: str = ""
 

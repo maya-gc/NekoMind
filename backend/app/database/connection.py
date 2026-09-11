@@ -114,7 +114,7 @@ def mark_interrupted_sessions_failed(target_engine: Engine = engine) -> None:
         conn.execute(
             text(
                 "UPDATE study_sessions "
-                "SET status='error', error_code='backend_restarted', "
+                "SET status='recovery', error_code='backend_restarted', "
                 "error_message='Sessao interrompida pelo reinicio do backend.' "
                 "WHERE status IN ('recording', 'paused', 'processing')"
             )

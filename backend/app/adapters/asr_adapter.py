@@ -67,6 +67,12 @@ class FasterWhisperAdapter(ASRAdapter):
             raise FileNotFoundError("Audio ausente; confira a captura e tente novamente")
         if not audio_path.stat().st_size:
             raise ValueError("Audio vazio; confira a captura e tente novamente")
+        with _model_lock:
+            model = self._load()
+            segments, _info = model.transcribe(str(audio_path), language="pt", vad_filter=True)
+            return " ".join(seg.text.strip() for seg in segments).strip()
+
+    def _load(self):
         key = (self.model_size, self.device, self.compute_type)
         with _model_lock:
             if key not in _models:
@@ -74,16 +80,17 @@ class FasterWhisperAdapter(ASRAdapter):
                     from faster_whisper import WhisperModel
                 except ImportError as exc:
                     raise RuntimeError("faster-whisper nao instalado") from exc
-                # Assignment occurs only after successful initialization.
                 _models[key] = WhisperModel(
                     self.model_size,
                     device=self.device,
                     compute_type=self.compute_type,
                     local_files_only=True,
                 )
-            model = _models[key]
-            segments, _info = model.transcribe(str(audio_path), language="pt", vad_filter=True)
-            return " ".join(seg.text.strip() for seg in segments).strip()
+            return _models[key]
+
+    def check_available(self) -> None:
+        """Explicit operator self-test: load locally, without recording or downloading."""
+        self._load()
 
 
 def get_asr_adapter(

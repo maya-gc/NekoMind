@@ -6,9 +6,15 @@ from app.mac.protocol import decode_line, encode_line
 from tests.test_mac_bridge import Recorder, command
 
 
+def mark_ready(bridge):
+    bridge.state = "ready"
+    bridge.diagnostics = [{"component": "test-preflight", "status": "ready", "message": "ok"}]
+
+
 def test_demo_touch_to_persisted_result_and_retry(client, tmp_path):
     backend = LocalBackend(client=client)
     bridge = MacBridge(backend, Recorder(tmp_path / "capture.raw"), tmp_path / "journal.db")
+    mark_ready(bridge)
     start = bridge.handle(decode_line(encode_line(command("start", "start-e2e"))))
     sid = start["session_id"]
     assert start["state"] == "recording" and start["is_demo"]
@@ -36,6 +42,7 @@ def test_real_silence_never_becomes_device_result(client, tmp_path, monkeypatch)
     bridge = MacBridge(
         LocalBackend(client=client), Recorder(tmp_path / "capture.raw"), tmp_path / "journal.db"
     )
+    mark_ready(bridge)
     sid = bridge.handle(command("start", "start-real"))["session_id"]
     bridge.handle(command("finish", "finish-real", sid))
     bridge.wait_for_analysis()
@@ -67,6 +74,7 @@ def test_real_pipeline_uses_local_extractor_and_correct_session(client, tmp_path
     bridge = MacBridge(
         LocalBackend(client=client), Recorder(tmp_path / "capture.raw"), tmp_path / "journal.db"
     )
+    mark_ready(bridge)
     sid = bridge.handle(command("start", "real-text"))["session_id"]
     bridge.handle(command("finish", "real-text-finish", sid))
     bridge.wait_for_analysis()

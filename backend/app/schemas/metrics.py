@@ -1,4 +1,5 @@
 """Schemas Pydantic de metricas e do resumo do dashboard."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict

@@ -33,13 +33,25 @@ def run_serial(port, bridge, stop, *, heartbeat_timeout=8.0):
                     continue  # Invalid traffic is not a heartbeat or acknowledgement.
                 last_seen = monotonic()
                 disconnected = False
+                marker = getattr(bridge, "mark_serial_connected", None)
+                if marker is not None:
+                    marker()
                 response = bridge.handle(message)
                 port.write(encode_line(response))
             bridge.check_capture()
+            tick = getattr(bridge, "tick", None)
+            if tick is not None:
+                tick()
             for response in bridge.drain_events():
                 port.write(encode_line(response))
             if monotonic() - last_seen > heartbeat_timeout and not disconnected:
+                marker = getattr(bridge, "mark_serial_disconnected", None)
+                if marker is not None:
+                    marker()
                 bridge.disconnect()
                 disconnected = True
     finally:
+        marker = getattr(bridge, "mark_serial_disconnected", None)
+        if marker is not None:
+            marker()
         bridge.disconnect()

@@ -29,6 +29,25 @@ class CaptureStateUpdate(BaseModel):
     error_message: str | None = Field(default=None, max_length=240)
 
 
+class SessionRecover(BaseModel):
+    action: str = Field(pattern="^(resume|analyze|discard)$")
+    request_id: str | None = Field(default=None, max_length=100)
+
+
+class SessionDelete(BaseModel):
+    confirmed: bool = False
+
+
+class SessionCancel(BaseModel):
+    confirmed: bool = False
+    request_id: str | None = Field(default=None, max_length=100)
+
+
+class SessionSubjectUpdate(BaseModel):
+    subject: str | None = Field(default=None, max_length=200)
+    confirmed: bool = False
+
+
 class SessionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -54,6 +73,11 @@ class SessionOut(BaseModel):
     mode: str = "demo"
     request_id: str | None = None
     speech_validation: str | None = None
+    subject: str | None = None
+    subject_confirmed: bool = False
+    metric_method_version: str = "heuristic-v1"
+    journey: dict = Field(default_factory=dict)
+    deletion_pending: bool = False
 
     @field_validator("status", mode="before")
     @classmethod

@@ -11,17 +11,21 @@ from sqlalchemy.orm import Session
 
 from app.database.connection import get_db
 from app.database.models import SessionStatus, StudySession
-from app.repositories.session_repository import SessionRepository
+from app.repositories.session_repository import SessionRepository, TombstonedSessionRequestError
 from app.repositories.topic_repository import TopicRepository
 from app.schemas.metrics import DashboardSummary
 from app.schemas.session import (
     CaptureStateUpdate,
+    SessionCancel,
     SessionCreate,
+    SessionDelete,
     SessionDetail,
     SessionFinish,
     SessionOut,
+    SessionRecover,
+    SessionSubjectUpdate,
 )
-from app.services import session_analysis
+from app.services import journey, session_analysis, session_lifecycle
 
 router = APIRouter(prefix="/api/v1", tags=["sessions"])
 
@@ -39,12 +43,15 @@ def create_session(payload: SessionCreate, db: Session = Depends(get_db)):
             )
         if existing is not None:
             return existing
-    session = repo.create(
-        title=payload.title,
-        request_id=payload.request_id,
-        capture_source=payload.capture_source,
-        device_session_id=payload.device_session_id,
-    )
+    try:
+        session = repo.create(
+            title=payload.title,
+            request_id=payload.request_id,
+            capture_source=payload.capture_source,
+            device_session_id=payload.device_session_id,
+        )
+    except TombstonedSessionRequestError as exc:
+        raise HTTPException(410, "Sessao excluida; use uma nova tentativa.") from exc
     if payload.request_id and _start_conflicts(session, payload):
         raise HTTPException(status_code=409, detail="request_id ja usado com outro payload")
     return session
@@ -94,12 +101,43 @@ def update_capture_state(
     db.query(StudySession).filter(
         StudySession.id == session_id,
         StudySession.status.in_([SessionStatus.recording, SessionStatus.paused]),
+        StudySession.deletion_pending.is_(False),
     ).update(values, synchronize_session=False)
     db.commit()
     db.expire_all()
     session = repo.get(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Sessao nao encontrada")
+    if session.status.value != payload.state:
+        return session
+    if payload.state == "recording":
+        journey.save_step(
+            session,
+            "capture",
+            status="running",
+            provider=session.capture_source,
+            is_demo=session.capture_source == "synthetic",
+        )
+        repo.save(session)
+    elif payload.state == "paused":
+        journey.save_step(
+            session,
+            "capture",
+            status="waiting",
+            provider=session.capture_source,
+            is_demo=session.capture_source == "synthetic",
+        )
+        repo.save(session)
+    elif payload.state == "error":
+        journey.save_step(
+            session,
+            "capture",
+            status="error",
+            provider=session.capture_source,
+            is_demo=session.capture_source == "synthetic",
+            error_code=payload.error_code or "capture_error",
+        )
+        repo.save(session)
     return session
 
 
@@ -135,6 +173,107 @@ def finish_session(
             content=SessionDetail.model_validate(current).model_dump(mode="json"),
         )
     return repo.get(session.id)
+
+
+@router.post("/sessions/{session_id}/cancel", response_model=SessionDetail)
+def cancel_session(
+    session_id: int,
+    payload: SessionCancel,
+    db: Session = Depends(get_db),
+):
+    if not payload.confirmed:
+        raise HTTPException(status_code=409, detail="Confirmacao obrigatoria para cancelar sessao")
+    values = {
+        "status": SessionStatus.cancelled,
+        "ended_at": datetime.now(UTC),
+        "error_code": "cancelled",
+        "error_message": "Sessao cancelada por comando confirmado.",
+    }
+    updated = (
+        db.query(StudySession)
+        .filter(
+            StudySession.id == session_id,
+            StudySession.status.in_(
+                [
+                    SessionStatus.recording,
+                    SessionStatus.paused,
+                    SessionStatus.processing,
+                    SessionStatus.recovery,
+                    SessionStatus.error,
+                ]
+            ),
+            StudySession.deletion_pending.is_(False),
+        )
+        .update(values, synchronize_session=False)
+    )
+    db.commit()
+    db.expire_all()
+    session = SessionRepository(db).get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
+    if updated != 1 and session.status not in {SessionStatus.completed, SessionStatus.cancelled}:
+        raise HTTPException(status_code=409, detail="Sessao nao pode ser cancelada neste estado")
+    return session
+
+
+@router.post("/sessions/{session_id}/recover", response_model=SessionDetail)
+def recover_session(
+    session_id: int,
+    payload: SessionRecover,
+    db: Session = Depends(get_db),
+):
+    try:
+        session = session_lifecycle.recover_session(
+            db,
+            session_id,
+            payload.action,
+            request_id=payload.request_id,
+        )
+    except session_lifecycle.LifecycleRejectedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if session is None:
+        if payload.action == "discard":
+            raise HTTPException(status_code=404, detail="Sessao descartada")
+        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
+    return SessionRepository(db).get(session.id)
+
+
+@router.delete("/sessions/{session_id}")
+def delete_session(
+    session_id: int,
+    payload: SessionDelete,
+    db: Session = Depends(get_db),
+):
+    try:
+        return session_lifecycle.delete_session(db, session_id, confirmed=payload.confirmed)
+    except session_lifecycle.LifecycleRejectedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.patch("/sessions/{session_id}/subject", response_model=SessionOut)
+def update_subject(
+    session_id: int,
+    payload: SessionSubjectUpdate,
+    db: Session = Depends(get_db),
+):
+    session = session_lifecycle.set_subject(
+        db,
+        session_id,
+        payload.subject,
+        payload.confirmed,
+    )
+    if session is None:
+        raise HTTPException(status_code=404, detail="Sessao nao encontrada")
+    return session
+
+
+@router.get("/history/subjects/{subject}")
+def get_subject_history(
+    subject: str,
+    method_version: str | None = None,
+    db: Session = Depends(get_db),
+):
+    return session_lifecycle.subject_history(db, subject, method_version=method_version)
 
 
 @router.get("/dashboard/summary", response_model=DashboardSummary)

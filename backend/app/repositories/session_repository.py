@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.config import get_settings
-from app.database.models import SessionStatus, StudySession
+from app.database.models import DeletedSessionTombstone, SessionStatus, StudySession
+
+
+class TombstonedSessionRequestError(ValueError):
+    """Raised when a replayed start_request_id belongs to a deleted session."""
 
 
 class SessionRepository:
@@ -22,13 +26,20 @@ class SessionRepository:
         capture_source: str | None = None,
         device_session_id: str | None = None,
     ) -> StudySession:
+        if self.db.get_bind().dialect.name == "sqlite":
+            # Reserve the writer before selecting a new identity. Separate
+            # requests/processes must not both allocate the same MAX(id)+1.
+            self.db.execute(text("BEGIN IMMEDIATE"))
         if request_id:
             existing = self.get_by_start_request_id(request_id)
             if existing is not None:
                 return existing
+            if self.is_tombstoned_start_request_id(request_id):
+                raise TombstonedSessionRequestError("start_request_id pertence a sessao excluida")
         settings = get_settings()
         mode = settings.mode
         session = StudySession(
+            id=self.next_session_id(),
             title=title,
             request_id=request_id,
             start_request_id=request_id,
@@ -48,9 +59,27 @@ class SessionRepository:
                 existing = self.get_by_start_request_id(request_id)
                 if existing is not None:
                     return existing
+                if self.is_tombstoned_start_request_id(request_id):
+                    raise TombstonedSessionRequestError(
+                        "start_request_id pertence a sessao excluida"
+                    )
             raise
         self.db.refresh(session)
         return session
+
+    def next_session_id(self) -> int:
+        max_live = self.db.query(func.coalesce(func.max(StudySession.id), 0)).scalar() or 0
+        max_deleted = (
+            self.db.query(func.coalesce(func.max(DeletedSessionTombstone.session_id), 0)).scalar()
+            or 0
+        )
+        return int(max(max_live, max_deleted)) + 1
+
+    def is_tombstoned_start_request_id(self, request_id: str) -> bool:
+        stmt = select(DeletedSessionTombstone.session_id).where(
+            DeletedSessionTombstone.start_request_id == request_id
+        )
+        return self.db.execute(stmt).first() is not None
 
     def get_by_start_request_id(self, request_id: str) -> StudySession | None:
         stmt = (
@@ -93,6 +122,7 @@ class SessionRepository:
         self,
         session_id: int,
         finish_request_id: str | None = None,
+        from_statuses: set[SessionStatus] | None = None,
     ) -> StudySession | None:
         values: dict[str, object] = {
             "status": SessionStatus.processing,
@@ -105,9 +135,33 @@ class SessionRepository:
             self.db.query(StudySession)
             .filter(
                 StudySession.id == session_id,
-                StudySession.status.in_([SessionStatus.recording, SessionStatus.paused]),
+                StudySession.status.in_(
+                    from_statuses or {SessionStatus.recording, SessionStatus.paused}
+                ),
+                StudySession.deletion_pending.is_(False),
             )
             .update(values, synchronize_session=False)
+        )
+        self.db.commit()
+        self.db.expire_all()
+        if claimed != 1:
+            return None
+        return self.get(session_id)
+
+    def claim_deletion(
+        self,
+        session_id: int,
+        *,
+        allowed_statuses: set[SessionStatus],
+    ) -> StudySession | None:
+        claimed = (
+            self.db.query(StudySession)
+            .filter(
+                StudySession.id == session_id,
+                StudySession.status.in_(allowed_statuses),
+                StudySession.deletion_pending.is_(False),
+            )
+            .update({"deletion_pending": True}, synchronize_session=False)
         )
         self.db.commit()
         self.db.expire_all()

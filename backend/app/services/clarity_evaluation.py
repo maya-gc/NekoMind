@@ -4,6 +4,7 @@ ATENCAO: estas metricas sao HEURISTICAS DE DEMONSTRACAO, pensadas para
 apoio a reflexao do estudante - nao sao avaliacao pedagogica.
 Cada funcao e simples, explicavel e documentada.
 """
+
 from __future__ import annotations
 
 import re
@@ -39,9 +40,7 @@ def topic_coverage(topic_count: int, target: int = 5) -> float:
     return round(min(topic_count / target, 1.0), 3)
 
 
-def clarity_score(
-    text: str, duration_seconds: float, topic_count: int
-) -> float:
+def clarity_score(text: str, duration_seconds: float, topic_count: int) -> float:
     """Pontuacao de clareza de DEMONSTRACAO (0..10).
 
     Componentes (pesos arbitrarios, documentados):

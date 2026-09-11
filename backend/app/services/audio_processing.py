@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database.models import AudioChunk
+from app.services.audio_quality import assess_audio_quality
 
 
 def validate_speech(audio_path: Path | None, *, detector=None) -> dict[str, float | str]:
@@ -39,6 +40,13 @@ def validate_speech(audio_path: Path | None, *, detector=None) -> dict[str, floa
                 raise ValueError("audio_invalid: WAV truncado")
     except (wave.Error, EOFError, OSError) as exc:
         raise ValueError("audio_invalid: Arquivo de audio invalido") from exc
+    quality = assess_audio_quality(audio_path)
+    if quality["quality"] == "clipping":
+        raise ValueError("clipping: Afaste-se do microfone e tente novamente")
+    if quality["quality"] == "low" and detector is None:
+        raise ValueError("audio_low: Aproxime-se do microfone ou fale mais alto")
+    if quality["quality"] == "noise":
+        raise ValueError("audio_noise: Ruido excessivo; reduza o ruido e tente novamente")
     if detector is None:
         try:
             import webrtcvad

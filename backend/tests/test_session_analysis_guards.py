@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import time
 from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 
 import pytest
 
@@ -166,7 +167,7 @@ def test_finish_returns_persisted_error_when_analysis_fails(
     assert detail["status"] == "error"
     assert detail["error_code"] == "analysis_failed"
     assert detail["asr_provider_used"] == "mock"
-    assert detail["topic_provider_used"] is None
+    assert detail["topic_provider_used"] == "mock"
     assert repeated["status"] == "error"
 
 
@@ -195,3 +196,56 @@ def test_concurrent_start_with_same_request_id_is_idempotent(client) -> None:
         json={**payload, "capture_source": "other"},
     )
     assert conflict.status_code == 409
+
+
+def test_cancel_processing_session_prevents_late_analysis_result(
+    client, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.database.connection import SessionLocal
+    from app.database.models import StudySession
+    from app.services import transcription
+    from app.services.transcription import TranscriptionResult
+
+    session_id = client.post("/api/v1/sessions", json={"title": "Cancelar processing"}).json()["id"]
+    _upload_pcm(client, session_id, _pcm_tone(1.0))
+    entered = Event()
+    release = Event()
+
+    def blocked_transcribe(_path, *, provider=None):
+        entered.set()
+        assert release.wait(timeout=3)
+        return TranscriptionResult(
+            text="[DEMO] conteudo tardio nao deve salvar resultado.",
+            provider=provider or "mock",
+            is_demo=True,
+        )
+
+    monkeypatch.setattr(transcription, "transcribe_audio_result", blocked_transcribe)
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        finish = pool.submit(
+            lambda: client.post(
+                f"/api/v1/sessions/{session_id}/finish",
+                json={"request_id": "finish-cancelled"},
+            )
+        )
+        assert entered.wait(timeout=3)
+        cancelled = client.post(
+            f"/api/v1/sessions/{session_id}/cancel",
+            json={"confirmed": True, "request_id": "cancel-processing"},
+        )
+        release.set()
+        finish_response = finish.result(timeout=3)
+
+    with SessionLocal() as db:
+        persisted = db.get(StudySession, session_id)
+        assert persisted is not None
+        assert persisted.status.value == "cancelled"
+        assert persisted.transcription is None
+        assert persisted.clarity_score is None
+        assert persisted.topics == []
+        assert persisted.metrics == []
+
+    assert cancelled.status_code == 200
+    assert cancelled.json()["status"] == "cancelled"
+    assert finish_response.status_code in {200, 422}

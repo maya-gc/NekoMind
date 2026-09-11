@@ -114,10 +114,27 @@ class ASRLifecycleTests(unittest.TestCase):
 
     def test_fastapi_lifespan_unloads_model(self):
         from fastapi.testclient import TestClient
+        from sqlalchemy import create_engine, inspect
 
+        from app.config import Settings
         from app.main import app
 
-        with TestClient(app):
+        settings = Settings(
+            database_url=f"sqlite:///{self.temp.name}/lifecycle.db",
+            storage_dir=Path(self.temp.name) / "storage" / "audio",
+            mode="demo",
+            asr_provider="mock",
+            llm_provider="mock",
+        )
+        engine = create_engine(settings.database_url, connect_args={"check_same_thread": False})
+        self.addCleanup(engine.dispose)
+        with (
+            patch("app.database.connection.engine", engine),
+            patch("app.main.get_settings", return_value=settings),
+            patch("app.security.get_settings", return_value=settings),
+            TestClient(app),
+        ):
+            self.assertIn("study_sessions", inspect(engine).get_table_names())
             asr.FasterWhisperAdapter().transcribe(self.path)
             self.assertFalse(self.models[0].unloaded)
         self.assertTrue(self.models[0].unloaded)
