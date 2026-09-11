@@ -37,7 +37,7 @@ export function renderTouch(model) {
         ${renderCatFace({ state: model.state, voice: model.voice, compact: isResult })}
         <section class="touch-copy">
           <h1>${escapeHtml(isResult ? active.label : model.title)}</h1>
-          <p>${escapeHtml(isResult ? active.value : model.detail)}</p>
+          ${isResult ? renderTouchResultCard(active, model) : `<p>${escapeHtml(model.detail)}</p>`}
         </section>
         ${isResult ? renderCardNav(model) : renderTouchStatus(model)}
       </div>
@@ -215,8 +215,51 @@ function renderPublicResult(snapshot) {
   if (!snapshot.result) {
     return `<p class="empty-result">Sem dados do visitante anterior.</p>`;
   }
-  const topics = snapshot.result.topics.map((topic) => `<li>${escapeHtml(topic)}</li>`).join("");
-  return `<ul class="topic-strip">${topics}</ul>`;
+  const result = snapshot.result;
+  const evidence = result.evidence || {};
+  const topics = result.topics.slice(0, 5).map((topic) => `<li>${escapeHtml(topic)}</li>`).join("");
+  const duration = formatDuration(result.duration_seconds);
+  const words = evidence.recognized_word_count ?? 0;
+  const steps = evidence.completed_steps ?? 0;
+  const hasSpeechEvidence = evidence.speech_detected === true;
+  const facts = snapshot.is_demo
+    ? ["Dados simulados e identificados", `${duration} de demonstração`, `${steps} etapas simuladas`]
+    : hasSpeechEvidence ? [
+      "Fala detectada",
+      `${duration} de áudio`,
+      `${words} ${words === 1 ? "palavra reconhecida" : "palavras reconhecidas"}`,
+      `${steps} ${steps === 1 ? "etapa concluída" : "etapas concluídas"}`,
+      evidence.local_processing ? "Processamento local" : "Origem identificada",
+    ] : ["Validação de fala indisponível", "Resultado persistido", "Origem identificada"];
+  return `<div class="public-evidence">
+    <div class="evidence-heading">
+      <span class="evidence-check" aria-hidden="true">✓</span>
+      <div>
+        <small>${escapeHtml(snapshot.is_demo ? "MODO DEMONSTRAÇÃO" : "SESSÃO PROCESSADA")}</small>
+        <h2>O NekoMind confirmou</h2>
+      </div>
+    </div>
+    <ul class="evidence-facts">${facts.map((fact) => `<li>${escapeHtml(fact)}</li>`).join("")}</ul>
+    <div class="public-topics">
+      <h3>Termos reconhecidos pelo NekoMind</h3>
+      ${topics ? `<ul class="topic-strip">${topics}</ul>` : `<p class="empty-result">Nenhum termo destacado.</p>`}
+    </div>
+  </div>`;
+}
+
+function renderTouchResultCard(card, model) {
+  if (card.kind === "topics") {
+    return card.topics.length
+      ? `<ul class="touch-topic-cloud">${card.topics.map((topic) => `<li>${escapeHtml(topic)}</li>`).join("")}</ul>`
+      : `<p>${escapeHtml(card.value)}</p>`;
+  }
+  if (card.kind === "evidence") {
+    const checks = model.is_demo
+      ? "Dados simulados"
+      : card.evidence?.speech_detected ? "Fala detectada · processo concluído" : "Processo concluído";
+    return `<div class="touch-proof"><strong>${escapeHtml(card.value)}</strong><small>✓ ${escapeHtml(checks)}</small></div>`;
+  }
+  return `<p>${escapeHtml(card.value)}</p>`;
 }
 
 function renderJourney(journey = []) {
@@ -267,7 +310,7 @@ function formatSigned(value) {
 function renderCardNav(model) {
   return `<nav class="card-nav" aria-label="Navegação dos cartões">
     <button type="button" data-local-action="prev-card" aria-label="Cartão anterior">‹</button>
-    <span>${model.activeCard.cardIndex + 1}/${model.activeCard.total}</span>
+    <span><span class="card-nav-prefix">Resultado </span>${model.activeCard.cardIndex + 1} de ${model.activeCard.total}</span>
     <button type="button" data-local-action="next-card" aria-label="Próximo cartão">›</button>
   </nav>`;
 }
@@ -292,6 +335,10 @@ function renderBadge(badge) {
 
 function publicTitle(snapshot) {
   if (snapshot.error) return snapshot.error.message;
+  if (snapshot.result && snapshot.experience_mode === "fair") {
+    if (snapshot.is_demo) return "Demonstração concluída";
+    return snapshot.result.evidence?.speech_detected ? "Funcionou!" : "Resultado concluído";
+  }
   if (snapshot.result) return snapshot.result.subject || "Resultado NekoMind";
   if (snapshot.state === "recording") return "Explicação em andamento";
   if (snapshot.state === "processing") return "Análise em andamento";
@@ -300,10 +347,22 @@ function publicTitle(snapshot) {
 }
 
 function publicSubtitle(snapshot) {
+  if (snapshot.result && snapshot.experience_mode === "fair") {
+    if (snapshot.is_demo) return "Os dados desta sessão são simulados e estão identificados.";
+    return snapshot.result.evidence?.speech_detected
+      ? "O Mac captou a voz e concluiu o processamento da sessão."
+      : "O resultado foi persistido, mas não há confirmação pública de fala.";
+  }
   if (snapshot.result) return snapshot.result.summary;
   if (snapshot.state === "processing") return "A resposta muda quando a bancada confirma cada etapa.";
   if (snapshot.state === "recording") return "Áudio fica no Mac; esta tela não usa microfone.";
   return "A tela pública é somente leitura.";
+}
+
+function formatDuration(value) {
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds) || seconds < 0) return "0s";
+  return `${Number(seconds.toFixed(1))}s`;
 }
 
 function escapeHtml(value) {

@@ -565,7 +565,7 @@ static void test_portable_touch_layout_faces_cards_and_targets(void)
     assert(portrait.face.width >= 92);
     assert(portrait.face.height >= 92);
     assert(portrait.face.height > portrait.primary_action.height);
-    assert(portrait.card_count == 5);
+    assert(portrait.card_count == 4);
     assert(portrait.reduced_motion == false);
     assert_hit_target(&portrait.primary_action);
     assert_hit_target(&portrait.next_action);
@@ -682,12 +682,12 @@ static void assert_scene_no_important_overlap(const neko_scene_t *scene)
     }
 }
 
-static void test_scene_result_content_badges_and_topic_pagination(void)
+static void test_scene_result_content_badges_and_grouped_topics(void)
 {
     const char topics[3][NEKO_TOPIC_MAX + 1] = {
-        "Fotossintese e clorofila",
-        "Ciclo do carbono",
-        "Energia luminosa",
+        "Azul",
+        "Preto",
+        "Rosa",
     };
     neko_controller_view_t view = {
         .message = "sessao concluida",
@@ -703,7 +703,7 @@ static void test_scene_result_content_badges_and_topic_pagination(void)
 
     assert(neko_layout_build(NEKO_CONTROLLER_SUCCESS, &view, 240, 320,
                              false, 0, &layout));
-    assert(layout.card_count == 6);
+    assert(layout.card_count == 4);
     assert(neko_scene_build(NEKO_CONTROLLER_SUCCESS, &view, &layout, &scene));
     assert(scene_has_text(&scene, "DEMO"));
     assert(scene_has_text(&scene, "Resumo curto da explicacao"));
@@ -711,15 +711,15 @@ static void test_scene_result_content_badges_and_topic_pagination(void)
     assert(neko_layout_build(NEKO_CONTROLLER_SUCCESS, &view, 240, 320,
                              false, 1, &layout));
     assert(neko_scene_build(NEKO_CONTROLLER_SUCCESS, &view, &layout, &scene));
-    assert(scene_has_text(&scene, "Fotossintese e clorofila"));
+    assert(scene_has_text(&scene, "Azul / Preto / Rosa"));
 
     assert(neko_layout_build(NEKO_CONTROLLER_SUCCESS, &view, 240, 320,
-                             false, 4, &layout));
+                             false, 2, &layout));
     assert(neko_scene_build(NEKO_CONTROLLER_SUCCESS, &view, &layout, &scene));
     assert(scene_has_text(&scene, "73s"));
 
     assert(neko_layout_build(NEKO_CONTROLLER_SUCCESS, &view, 240, 320,
-                             false, 5, &layout));
+                             false, 3, &layout));
     assert(neko_scene_build(NEKO_CONTROLLER_SUCCESS, &view, &layout, &scene));
     assert(scene_has_text(&scene, "Mais claro"));
 }
@@ -953,7 +953,7 @@ int main(void)
     test_scene_hit_actions_for_core_states();
     test_result_card_navigation_updates_view_only();
     test_recovery_discard_confirmation_and_async_diagnose_ready();
-    test_scene_result_content_badges_and_topic_pagination();
+    test_scene_result_content_badges_and_grouped_topics();
     test_scene_confirmation_badge_face_expression_and_overlap_both_orientations();
     test_touch_edge_requires_release_before_second_confirm();
     puts("firmware controller tests passed");

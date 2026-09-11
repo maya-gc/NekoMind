@@ -95,7 +95,10 @@ conclusão parcial. Ausência de fala não produz nota nem assuntos fictícios.
 ## Extrator lexical local
 
 `local_keywords` é opção explícita e executa extração lexical local sobre a transcrição
-validada, com frases literalmente presentes, máximo8, sem completar quantidade.
+validada, com frases literalmente presentes, máximo5, sem completar quantidade. O
+adaptador remove preenchimentos conversacionais comuns e candidatos integralmente
+contidos em uma expressão mais informativa. Se restarem apenas expressões genéricas,
+a lista pode ser vazia; o serviço não força um tópico para parecer bem-sucedido.
 Relevância é pontuação lexical, não certeza. Adaptadores inválidos ou indisponíveis
 falham explicitamente; nenhuma chamada de nuvem.
 
@@ -106,6 +109,13 @@ modo real/demo, diagnóstico resumido, jornada, voz compacta enquanto grava, res
 público, erro seguro, recuperação e conexão do bridge. A consulta é estritamente
 read-only. Não expõe transcrição completa, áudio, token, caminhos locais ou comandos
 administrativos.
+
+No resultado concluído, `evidence` contém apenas dados derivados e sanitizados:
+`speech_detected`, `recognized_word_count`, `completed_steps` (0..4) e
+`local_processing`. A detecção depende do relatório de validação de fala persistido;
+a contagem vem da transcrição validada, sem revelar seu texto; etapas vêm da jornada
+persistida; origem local exige os providers reais executados. Em demo, os dados seguem
+identificados como simulados.
 
 `GET /api/v1/experience/presenter` exige token e adiciona `available_actions` e
 metadados seguros de sessões recuperáveis. `POST /api/v1/experience/commands` exige

@@ -10,7 +10,8 @@ Implementação de software e testes automatizados disponíveis nesta branch.
 tensão lógica, orientação de montagem e transporte USB físico precisam ser conferidos
 na unidade real. O módulo anunciado é Teknimas TFT touch 2,4", resolução 240x320,
 SPI e controlador gráfico ILI9341; isso não comprova touch, pinagem ou revisão.
-ASR real, microfone real, calibração física e hardware de mesa permanecem pendentes.
+O ASR real e o microfone do Mac foram exercitados com voz sintetizada local. Validação
+com voz humana, calibração da bancada e hardware físico de mesa permanecem pendentes.
 O extrator `local_keywords` agora é uma opção explícita aceita para execução local
 offline; ele não é LLM, não é mock, não chama nuvem e não prova domínio do assunto.
 
@@ -19,6 +20,13 @@ offline; ele não é LLM, não é mock, não chama nuvem e não prova domínio d
 Touch → USB/serial JSON Lines → bridge Mac → microfone Mac → API loopback →
 WAV + WebRTC VAD/qualidade → ASR → tópicos → SQLite → resultado validado → touch,
 painel público e painel do apresentador.
+
+No modo feira, o display do gatinho resume a conclusão em dois cartões: prova curta
+de captura/processamento e até cinco termos reconhecidos. A tela pública do Mac mostra
+a jornada, duração, contagem de palavras e origem local para a plateia acompanhar o
+funcionamento. A transcrição completa continua privada e nenhuma dessas evidências
+é apresentada como nota ou prova de domínio. Os termos refletem o que o ASR local
+reconheceu e podem divergir da fala quando o modelo ou a captação forem insuficientes.
 
 A indicação de gravação depende de o stream ter iniciado. Pausa fecha o microfone;
 retomar reabre; finalizar encerra captura antes de avaliar. Somente resultado concluído
@@ -88,7 +96,8 @@ Configuração desconhecida, modelo ausente, áudio sem fala ou extração invá
 falha explícita, sem fallback. Reiniciar processos após ajustar configuração.
 
 O extrator lexical usa frases literalmente presentes na transcrição, sem lista fixa,
-com máximo de8 tópicos e sem preenchimento artificial. Não faz validação factual;
+remove preenchimentos conversacionais e duplicatas contidas em termos maiores, com
+máximo de cinco tópicos e sem preenchimento artificial. Não faz validação factual;
 a qualidade semântica precisa ser avaliada na bancada. Substituir esse método por
 outro modelo ou API é uma decisão futura; nenhuma API de nuvem foi acionada.
 

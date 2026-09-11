@@ -38,6 +38,31 @@ def test_local_topics_do_not_pad_or_invent_when_text_is_too_short(
     assert [topic["name"] for topic in result.topics] == ["fotossintese"]
 
 
+def test_local_topics_remove_conversation_fillers_and_nested_duplicates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("NEKOMIND_LLM_PROVIDER", "local_keywords")
+
+    result = extract_topics_result(
+        "Eu gosto da cor azul preta. Eu acho muito feminina. "
+        "Rosa nao me agrada. Eu gosto da cor preta. Entao custo."
+    )
+    names = [topic["name"].lower() for topic in result.topics]
+
+    assert 1 <= len(names) <= 5
+    assert "cor azul preta" in names
+    assert "rosa nao me agrada" in names
+    assert all(
+        name not in {"eu gosto", "gosto", "cor preta", "rosa", "entao", "custo"} for name in names
+    )
+
+
+def test_local_topics_can_be_empty_when_only_generic_conversation_remains() -> None:
+    adapter = get_llm_adapter("local_keywords")
+
+    assert adapter.extract_topics("A gente nao quer fazer pouco.") == []
+
+
 def test_invalid_topic_provider_fails_explicitly() -> None:
     with pytest.raises(ValueError, match="Provedor de topicos desconhecido"):
         get_llm_adapter("typo", "")

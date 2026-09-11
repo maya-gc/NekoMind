@@ -64,6 +64,13 @@ storage padrão, e separado o diretório de arquivos de cada teste.
   renderer passou a consumir `ended_at`.
 - A calibração de três segundos aguardava somente 100 ms e falhava no primeiro uso se
   `capture/` ainda não existisse. Agora respeita a janela solicitada e cria o diretório.
+- O resultado de feira gerava até 11 cartões porque separava resumo, cada tópico e
+  duração. A apresentação atual usa dois cartões no touch e um bloco de evidências no
+  Mac. A inspeção em browser encontrou e corrigiu rolagem em 1440x900 e sobreposição
+  entre o terceiro termo e a navegação em 320x240.
+- Um ensaio real com `faster_whisper` tiny mostrou termos reconhecidos diferentes da
+  frase sintetizada. A interface passou a dizer `Termos reconhecidos pelo NekoMind`, e
+  o extrator passou a aceitar lista vazia quando restam apenas expressões genéricas.
 
 ## Evidência visual
 
@@ -110,15 +117,17 @@ privacidade e ASR são subconjuntos/execuções adicionais e não devem ser soma
 | Formatação | `cd backend; .venv/bin/ruff format --check app tests` | 68 arquivos conformes | 0 |
 | Sintaxe Python | `cd backend; .venv/bin/python -m compileall -q app tests` | PASS | 0 |
 | Sintaxe JS/shell | `node --check frontend/web/src/*.mjs` individual; `bash -n` por script de produto | PASS | 0; não há type checker configurado |
-| Backend completo | `cd backend; .venv/bin/python -m pytest -q --tb=short` | **180 / 180**, 16,75s | 0; 6 avisos de depreciação Starlette/httpx/AnyIO |
+| Backend completo | `cd backend; .venv/bin/python -m pytest -q --tb=short` | **184 / 184**, 16,56s | 0; 6 avisos de depreciação Starlette/httpx/AnyIO |
 | ASR isolado | `cd backend; .venv/bin/python -m unittest discover -s tests -p test_asr_lifecycle.py -v` | **10 / 10** | 0; modelo substituto, lifespan real isolado |
-| Frontend web | `node --test frontend/tests/*.test.mjs` | **25 / 25** | 0; estados, fila, contratos, cartões e a11y de markup |
+| Frontend web | `node --test frontend/tests/*.test.mjs` | **28 / 28** | 0; estados, fila, contratos, evidências e a11y de markup |
 | Streamlit legado | `python3 -m pytest frontend/streamlit/tests -q` | **6 / 6** | 0; usa Python global, venv backend sem Streamlit |
 | Firmware portátil | `bash iot/nekomind_firmware/scripts/test_firmware.sh` | **22 casos**, binário C aprovado | 0; compilação host não é build ESP-IDF |
 | Integração | pytest `test_touch_mac_end_to_end.py`, `test_experience_end_to_end.py`, `test_serial_interop.py` | **6 / 6**, execução separada | ASR/microfone substituídos; extrator lexical e C reais |
 | Privacidade/persistência | pytest `test_privacy_failures.py`, `test_session_lifecycle_nm019.py`, `test_sqlite_migration.py` | **21 / 21**, execução separada | 0; isolamento, tombstones, backup e falhas parciais |
-| Operação/painel | pytest `test_operations.py` | **20 / 20** | 0; snapshot público, auth, comandos, reset e ACK antigo |
+| Operação/painel | pytest `test_operations.py` | **21 / 21** | 0; snapshot público, evidências, auth, comandos, reset e ACK antigo |
 | Visual | Navegador local + capturas abertas; 240×320, 320×240, 1440×900 | Estados listados e jornada interativa final concluída | Captura integral 1920×1080 parcial; sem tela física |
+| Evidência browser | `codex-flow-browser-evidence-gate.sh --strict --force-ui` | **11 checks PASS** | 0; browser local, não substitui validação física |
+| Assets | `codex-flow-assets-gate.sh --strict --force-ui` | **5 PASS**, 0 WARN/FAIL | Sem assets externos novos |
 | Segredos/arquivos | Inventário Git + padrões de chaves privadas/GitHub/AWS, saída só de caminhos | 182 textos examinados antes do fechamento, 0 achados | Gitleaks/Semgrep/Trivy indisponíveis; não equivale a auditoria completa |
 | Desempenho | Casos de limitação de voz/concorrência, tempos de etapas | Automatizado com substitutos | Sem benchmark de ASR, memória, FPS ou latência física |
 | Hardware real | PortAudio/microfone Mac | **Executado** com voz sintetizada local; calibração e iniciar/pausar/retomar/finalizar | Whisper, serial, ESP-IDF/flash e TFT/touch não executados |
@@ -134,7 +143,7 @@ aprovada.
 A revisão final das imagens também encontrou “Sem recuperação pendente” antes da
 autenticação no presenter. O texto passou a indicar que a consulta exige token; a
 regressão foi observada falhando, corrigida e a captura foi reaberta. A suíte web
-final ficou em 25 testes aprovados.
+final ficou em 28 testes aprovados.
 
 ## Inventário da suíte backend
 
@@ -151,7 +160,7 @@ final ficou em 25 testes aprovados.
 | `test_mac_capture.py` | 12 |
 | `test_mac_serial.py` | 17 |
 | `test_modes.py` | 8 |
-| `test_operations.py` | 20 |
+| `test_operations.py` | 21 |
 | `test_privacy_failures.py` | 7 |
 | `test_serial_interop.py` | 1 |
 | `test_session_analysis_guards.py` | 7 |
@@ -159,7 +168,7 @@ final ficou em 25 testes aprovados.
 | `test_sessions.py` | 3 |
 | `test_speech_validation.py` | 11 |
 | `test_sqlite_migration.py` | 8 |
-| `test_topic_extraction_real.py` | 10 |
+| `test_topic_extraction_real.py` | 12 |
 | `test_touch_mac_end_to_end.py` | 3 |
 | `test_transcription.py` | 3 |
 
@@ -173,13 +182,16 @@ final ficou em 25 testes aprovados.
 - [Extração 240×320](../ScreenshotsToCloseLoop/runs/feira-nm019/touch-processing-topics-240x320.png) · [Preparação 320×240](../ScreenshotsToCloseLoop/runs/feira-nm019/touch-processing-result-320x240.png)
 - [Resultado 240×320](../ScreenshotsToCloseLoop/runs/feira-nm019/touch-result-240x320.png) · [Resultado 320×240](../ScreenshotsToCloseLoop/runs/feira-nm019/touch-result-320x240.png)
 - [Painel público 1440×900](../ScreenshotsToCloseLoop/runs/feira-nm019/public-result-1440x900.png)
+- [Prova visual nova no touch 240×320](../ScreenshotsToCloseLoop/runs/presentation-evidence/touch-proof-240x320.jpg) · [termos agrupados 320×240](../ScreenshotsToCloseLoop/runs/presentation-evidence/touch-terms-320x240.jpg)
+- [Prova visual nova no painel público](../ScreenshotsToCloseLoop/runs/presentation-evidence/public-proof-1440x900.jpg) · [ensaio real local](../ScreenshotsToCloseLoop/runs/presentation-evidence/public-live-real-1440x900.jpg)
 - [Presenter 1440×900](../ScreenshotsToCloseLoop/runs/feira-nm019/presenter-recovery-1440x900.png)
 - [Reset fixture](../ScreenshotsToCloseLoop/runs/feira-nm019/touch-reset-240x320.png), distinto do reset conectado testado pela API.
 
 ## Validação física e pendências
 
-Faster-whisper real não está instalado/carregado; sem benchmark de primeira transcrição,
-reuso ou memória. O microfone/PortAudio real capturou voz sintetizada pelos alto-falantes:
+Faster-whisper real com o modelo local tiny foi carregado e executado; continuam sem
+benchmark a primeira transcrição, o reuso e a memória. O microfone/PortAudio real
+capturou voz sintetizada pelos alto-falantes:
 a calibração ficou pronta em cerca de 3,1 s, a pausa não acrescentou bytes e o WAV final
 teve fala detectada por WebRTC VAD. Isso não valida transcrição Whisper nem captação de
 uma pessoa na bancada. Um segundo ensaio isolado consumiu a mesma fila HTTP do touch no
@@ -187,6 +199,10 @@ uma pessoa na bancada. Um segundo ensaio isolado consumiu a mesma fila HTTP do t
 `capture_source=mac_microphone`: calibração `ready/ok` em 3,091 s, crescimento zero na
 pausa, 172800 bytes após retomar, resultado demo persistido e áudio bruto removido.
 Nesse ensaio, serial foi um substituto lógico e ASR/tópicos eram mocks identificados.
+Em um ensaio real posterior, a sessão 3 concluiu 10,92 s de áudio, fala detectada,
+39 palavras reconhecidas, quatro etapas e providers `faster_whisper`/`local_keywords`.
+Os quatro termos extraídos eram genéricos e não refletiram bem a frase sintetizada;
+isso registra uma limitação concreta da combinação modelo tiny, alto-falante e microfone.
 ESP-IDF build/flash não foi executado: placa, controlador touch, pinos e tensão não estão
 definidos. Sem medição de FPS, RAM, PSRAM, latência serial física ou consumo do display.
 

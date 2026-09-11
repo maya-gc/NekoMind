@@ -178,6 +178,47 @@ button:disabled {
   line-height: 1.15;
 }
 
+.touch-proof {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.touch-proof strong {
+  color: var(--neko-check-green);
+  font-size: 17px;
+}
+
+.touch-proof small {
+  color: var(--neko-muted);
+  font-size: 12px;
+}
+
+.touch-topic-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px;
+  max-width: 224px;
+  margin: 7px auto 0;
+  padding: 0;
+  list-style: none;
+}
+
+.touch-topic-cloud li {
+  max-width: 100%;
+  padding: 4px 7px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--neko-signal-cyan) 55%, #334052);
+  border-radius: 999px;
+  color: var(--neko-whisker-white);
+  font-size: 12px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .touch-actions {
   display: grid;
   grid-template-columns: 1fr;
@@ -363,6 +404,13 @@ button:disabled {
   color: var(--neko-whisker-white);
 }
 
+.card-nav span {
+  min-width: 104px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .public-stage,
 .presenter-console {
   min-height: 100vh;
@@ -373,7 +421,8 @@ button:disabled {
 .public-stage {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: clamp(12px, 2vw, 24px);
+  gap: clamp(10px, 1.5vw, 18px);
+  padding: clamp(16px, 2.5vw, 32px);
 }
 
 .public-header {
@@ -390,15 +439,15 @@ button:disabled {
 }
 
 .public-face .cat-face {
-  width: min(34vw, 430px);
-  max-height: 34vh;
+  width: min(30vw, 360px);
+  max-height: 28vh;
   margin: 0;
 }
 
 .public-face h1 {
-  margin: 18px 0 0;
+  margin: 12px 0 0;
   max-width: 13ch;
-  font-size: clamp(36px, 6vw, 78px);
+  font-size: clamp(36px, 5vw, 68px);
   line-height: 0.98;
 }
 
@@ -406,8 +455,81 @@ button:disabled {
 .result-summary p {
   max-width: 54ch;
   color: var(--neko-muted);
-  font-size: clamp(20px, 2.2vw, 34px);
+  font-size: clamp(18px, 1.8vw, 28px);
   line-height: 1.2;
+}
+
+.public-evidence {
+  display: grid;
+  grid-template-columns: minmax(250px, 0.75fr) minmax(320px, 1.25fr);
+  gap: clamp(14px, 2.5vw, 30px);
+  padding: clamp(16px, 2.2vw, 28px);
+  border: 1px solid color-mix(in srgb, var(--neko-check-green) 62%, #334052);
+  border-radius: 12px;
+  background:
+    linear-gradient(115deg, rgba(59, 209, 127, 0.1), transparent 46%),
+    var(--neko-card-surface);
+}
+
+.evidence-heading {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: center;
+}
+
+.evidence-heading small {
+  color: var(--neko-check-green);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.evidence-heading h2,
+.public-topics h3 {
+  margin: 3px 0 0;
+}
+
+.evidence-check {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border: 2px solid var(--neko-check-green);
+  border-radius: 50%;
+  color: var(--neko-check-green);
+  font-size: 30px;
+  font-weight: 900;
+}
+
+.evidence-facts {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.evidence-facts li {
+  padding: 7px 10px;
+  border-left: 3px solid var(--neko-check-green);
+  background: rgba(5, 7, 10, 0.38);
+  color: var(--neko-whisker-white);
+  font-size: clamp(14px, 1.2vw, 18px);
+}
+
+.public-topics {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+.public-topics h3 {
+  margin-bottom: 10px;
+  color: var(--neko-muted);
+  font-size: clamp(16px, 1.4vw, 21px);
 }
 
 .journey-panel,
@@ -636,6 +758,11 @@ button:disabled {
     text-align: left;
   }
 
+  .touch-main.is-result .touch-copy {
+    align-self: start;
+    padding-top: 0;
+  }
+
   .touch-copy h1 {
     font-size: clamp(20px, 7vw, 27px);
   }
@@ -643,6 +770,17 @@ button:disabled {
   .touch-copy p {
     margin-left: 0;
     font-size: 14px;
+  }
+
+  .touch-topic-cloud {
+    justify-content: flex-start;
+    gap: 3px;
+    margin: 3px 0 0;
+  }
+
+  .touch-topic-cloud li {
+    padding: 2px 6px;
+    font-size: 11px;
   }
 
   .touch-actions {
@@ -670,6 +808,20 @@ button:disabled {
     grid-row: 2;
     align-self: end;
     justify-content: flex-start;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .card-nav button {
+    width: 44px;
+  }
+
+  .card-nav > span {
+    min-width: 36px;
+  }
+
+  .card-nav-prefix {
+    display: none;
   }
 
   .diagnostic-list,
@@ -718,6 +870,18 @@ button:disabled {
     line-height: 1.12;
   }
 
+  .touch-topic-cloud {
+    justify-content: flex-start;
+    gap: 3px;
+    margin-left: 0;
+    margin-top: 3px;
+  }
+
+  .touch-topic-cloud li {
+    padding: 3px 6px;
+    font-size: 11px;
+  }
+
   .touch-status-card {
     max-height: 88px;
     padding: 5px 7px;
@@ -739,6 +903,15 @@ button:disabled {
 
   .public-face .cat-face {
     width: min(86vw, 360px);
+  }
+
+  .public-evidence {
+    grid-template-columns: 1fr;
+  }
+
+  .public-topics {
+    grid-column: 1;
+    grid-row: auto;
   }
 }
 

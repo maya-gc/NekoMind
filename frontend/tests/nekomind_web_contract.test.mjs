@@ -115,7 +115,7 @@ test("touch model keeps the cat dominant, labels emulator mode, and resets cards
   const model = touchModelForSnapshot(result, { fixture: "result", emulator: true });
   const html = renderTouch(model);
 
-  assert.equal(firstCard.cardIndex, 3);
+  assert.equal(firstCard.cardIndex, 1);
   assert.equal(resetCard.cardIndex, 0);
   assert.equal(model.badges.some((badge) => badge.text === "EMULADOR"), true);
   assert.equal(model.primaryAction.minTouchTargetPx >= 44, true);
@@ -313,7 +313,7 @@ test("token validation error appears inside the dialog above its actions", () =>
   assert.doesNotMatch(html, /<img/);
 });
 
-test("result cards paginate topics and long phrases instead of overflowing one card", () => {
+test("fair result consolidates proof and at most five terms in two cards", () => {
   const longTopic = "fotossíntese ".repeat(14).trim();
   const snapshot = sanitizePublicSnapshot({
     ...fixtureSnapshot("result"),
@@ -321,22 +321,36 @@ test("result cards paginate topics and long phrases instead of overflowing one c
       ...fixtureSnapshot("result").result,
       summary: "Resumo ".repeat(30).trim(),
       topics: Array.from({ length: 8 }, (_, index) => `${index + 1} ${longTopic}`),
+      evidence: {
+        speech_detected: true,
+        recognized_word_count: 37,
+        completed_steps: 4,
+        local_processing: true,
+      },
     },
   });
   const cards = resultCards(snapshot);
 
-  assert.equal(cards.filter((card) => card.kind === "topic").length >= 8, true);
-  assert.equal(cards.every((card) => card.value.length <= 70), true);
-  assert.equal(cards.some((card) => card.label === "Tópico 8"), true);
+  assert.deepEqual(cards.map((card) => card.kind), ["evidence", "topics"]);
+  assert.equal(cards[1].label, "Termos reconhecidos");
+  assert.equal(cards[1].topics.length, 5);
+  assert.equal(cards.some((card) => card.kind === "summary" || card.kind === "duration"), false);
+
+  const html = renderTouch(touchModelForSnapshot(snapshot));
+  assert.match(html, /Funcionou!/);
+  assert.match(html, /37 palavras/);
+  assert.match(html, /card-nav-prefix">Resultado <\/span>1 de 2/);
 });
 
 test("result cards show real trend deltas only when backend provides them", () => {
   const noTrend = resultCards({
     ...fixtureSnapshot("result"),
+    experience_mode: "normal",
     result: { ...fixtureSnapshot("result").result, trend: null },
   });
   const withTrend = resultCards(sanitizePublicSnapshot({
     ...fixtureSnapshot("result"),
+    experience_mode: "normal",
     result: {
       ...fixtureSnapshot("result").result,
       trend: {
@@ -372,13 +386,38 @@ test("public processing copy avoids real-only and technical student jargon", () 
   assert.doesNotMatch(html, /backend local|evento/i);
 });
 
-test("public result avoids duplicated summary box and keeps topics visible without admin copy", () => {
+test("public fair result shows visual processing evidence and keeps private speech hidden", () => {
   const html = renderPublic(fixtureSnapshot("result"));
 
   assert.doesNotMatch(html, /result-summary/);
+  assert.match(html, /Funcionou!/);
+  assert.match(html, /Fala detectada/);
+  assert.match(html, /31s de áudio/);
+  assert.match(html, /9 palavras reconhecidas/);
+  assert.match(html, /4 etapas concluídas/);
+  assert.match(html, /Processamento local/);
+  assert.match(html, /Termos reconhecidos/);
+  assert.doesNotMatch(html, /Você mencionou|apareceram na fala/);
   assert.match(html, /topic-strip/);
   assert.match(html, /osmose/);
-  assert.equal((html.match(/Você explicou osmose/g) || []).length, 1);
+  assert.doesNotMatch(html, /Você explicou osmose|transcript|clareza/i);
+});
+
+test("public fair result without speech evidence does not claim the Mac captured voice", () => {
+  const result = fixtureSnapshot("result").result;
+  const html = renderPublic(sanitizePublicSnapshot({
+    ...fixtureSnapshot("result"),
+    result: { ...result, evidence: null },
+  }));
+  const touchHtml = renderTouch(touchModelForSnapshot(sanitizePublicSnapshot({
+    ...fixtureSnapshot("result"),
+    result: { ...result, evidence: null },
+  })));
+
+  assert.match(html, /Resultado concluído/);
+  assert.match(html, /Validação de fala indisponível/);
+  assert.doesNotMatch(html, /Funcionou!|captou a voz|Fala detectada|Áudio processado/);
+  assert.doesNotMatch(touchHtml, /0 palavras/);
 });
 
 test("command queue locks pending commands and retries failures with the same request id", async () => {

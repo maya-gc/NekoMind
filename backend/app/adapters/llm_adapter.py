@@ -36,7 +36,16 @@ _STOPWORDS = {
     "este",
     "explica",
     "explicam",
+    "acho",
+    "assim",
+    "entao",
+    "então",
     "formar",
+    "gente",
+    "gosta",
+    "gostar",
+    "gostava",
+    "gosto",
     "isso",
     "mais",
     "mas",
@@ -46,10 +55,15 @@ _STOPWORDS = {
     "pela",
     "pelo",
     "por",
+    "pouco",
+    "quer",
+    "quero",
     "que",
     "uma",
     "uso",
     "usa",
+    "tipo",
+    "eu",
 }
 
 
@@ -168,7 +182,17 @@ class LocalKeywordTopicAdapter(LLMAdapter):
             score = sum(degree[_normalize(word)] / frequency[_normalize(word)] for word in phrase)
             if key not in ranked:
                 ranked[key] = (name, score)
-        choices = sorted(ranked.values(), key=lambda item: -item[1])[:8]
+        choices = []
+        for name, score in sorted(ranked.values(), key=lambda item: -item[1]):
+            words = tuple(_normalize(word) for word in name.split())
+            word_set = set(words)
+            if len(words) == 1 and len(words[0]) < 6 and frequency[words[0]] == 1:
+                continue
+            if any(word_set < set(_normalize(chosen).split()) for chosen, _ in choices):
+                continue
+            choices.append((name, score))
+            if len(choices) == 5:
+                break
         peak = max((score for _, score in choices), default=1)
         return [
             {

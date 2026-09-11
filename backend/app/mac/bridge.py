@@ -192,10 +192,10 @@ class MacBridge:
             **self._base(rid, "result"),
             "asr_provider": row["asr_provider"],
             "topic_provider": row["topic_provider"],
-            "topics": [shorten(t["name"], 120) for t in row["topics"][:8]],
+            "topics": [shorten(t["name"], 120) for t in row["topics"][:5]],
             "summary": "Demonstracao concluida; dados simulados."
             if self.demo
-            else "Assuntos identificados. Isso nao comprova acerto ou dominio.",
+            else "Funcionou! Voz captada e processada.",
         }
         if row.get("duration_seconds") is not None:
             response["duration_seconds"] = round(float(row["duration_seconds"]))

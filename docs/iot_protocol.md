@@ -58,7 +58,7 @@ Extensão nunca gera sucesso por si só.
 Resultado:
 
 ```json
-{"v":1,"type":"result","request_id":"bootNonce-4","session_id":42,"state":"completed","is_demo":false,"asr_provider":"faster_whisper","topic_provider":"local_keywords","topics":["respiração celular"],"summary":"Assuntos identificados. Isso nao comprova acerto ou dominio."}
+{"v":1,"type":"result","request_id":"bootNonce-4","session_id":42,"state":"completed","is_demo":false,"asr_provider":"faster_whisper","topic_provider":"local_keywords","topics":["respiração celular"],"summary":"Funcionou! Voz captada e processada."}
 ```
 
 Este exemplo real documenta `local_keywords` como opção explícita local/offline. Antes de enviar,
@@ -66,7 +66,7 @@ o bridge valida SessionDetail completed, id inteiro correto, texto não vazio, o
 executada e tópicos com session_id correto. Firmware exige tipo/estado/campos/limites,
 sessão atual e solicitação esperada de finish/status (ou heartbeat durante processamento).
 `is_demo` é booleano obrigatório; etapas mock não podem produzir resultado real.
-Até8 tópicos, cada um até120 bytes UTF-8, resumo até240bytes, provedores até64bytes.
+Até5 tópicos, cada um até120 bytes UTF-8, resumo até240bytes, provedores até64bytes.
 O bridge limita sem dividir caracteres. Lista vazia é válida: não inventar assuntos.
 Resultado antigo, outra sessão, simples ACK ou statecompleted sem conteúdo não é sucesso.
 
@@ -81,6 +81,8 @@ até160bytes. Principais códigos do bridge: capture_failed, disconnected, inter
 backend_unavailable, invalid_result, request_conflict, invalid_state, invalid_command.
 Erros de backend persistidos também chegam pelo código, por exemplo audio_unusable.
 O display recebe estado textual, modo, resumo e tópicos em uma view independente do driver.
+Para evitar paginação excessiva, o layout reúne até três tópicos no mesmo cartão e mantém
+resumo, duração e tendência como cartões separados quando existirem.
 
 ## Prazos, retransmissão e recuperação
 

@@ -29,7 +29,7 @@ static size_t result_card_count(const neko_controller_view_t *view)
         count++;
     }
     if (view->topic_count > 0) {
-        count += view->topic_count;
+        count++;
     }
     if (view->duration_seconds > 0) {
         count++;
@@ -404,6 +404,30 @@ static void utf8_copy_safe(char *out, size_t out_size, const char *text)
     out[n] = '\0';
 }
 
+static void grouped_topics_text(const neko_controller_view_t *view,
+                                char *out,
+                                size_t out_size)
+{
+    size_t topic_index;
+    out[0] = '\0';
+    if (view->topics == NULL) {
+        return;
+    }
+    for (topic_index = 0; topic_index < view->topic_count && topic_index < 3U;
+         topic_index++) {
+        size_t used = strlen(out);
+        if (used > 0) {
+            const char separator[] = " / ";
+            if (used + sizeof(separator) >= out_size) {
+                break;
+            }
+            memcpy(out + used, separator, sizeof(separator));
+            used += sizeof(separator) - 1U;
+        }
+        utf8_copy_safe(out + used, out_size - used, view->topics[topic_index]);
+    }
+}
+
 static void card_text(const neko_controller_view_t *view,
                       const neko_layout_model_t *layout,
                       char *out,
@@ -422,15 +446,11 @@ static void card_text(const neko_controller_view_t *view,
         index++;
     }
     if (view->topic_count > 0) {
-        size_t topic_index;
-        for (topic_index = 0; topic_index < view->topic_count; topic_index++) {
-            if (layout->card_index == index) {
-                utf8_copy_safe(out, out_size,
-                               view->topics != NULL ? view->topics[topic_index] : "");
-                return;
-            }
-            index++;
+        if (layout->card_index == index) {
+            grouped_topics_text(view, out, out_size);
+            return;
         }
+        index++;
     }
     if (view->duration_seconds > 0) {
         if (layout->card_index == index) {

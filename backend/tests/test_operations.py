@@ -129,6 +129,81 @@ def test_result_requires_actual_origins_and_never_exposes_transcription(client):
     assert "transcription" not in response.text
 
 
+def test_fair_result_exposes_process_evidence_without_exposing_transcription(client):
+    from app.database.connection import SessionLocal
+    from app.database.models import SessionStatus, StudySession, Topic
+
+    sid = client.post("/api/v1/sessions", json={"request_id": "fair-evidence"}).json()["id"]
+    assert (
+        client.post(
+            "/api/v1/experience/bridge",
+            json={"session_id": sid, "state": "recording", "is_demo": False},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/api/v1/experience/commands",
+            json={
+                "request_id": "fair-evidence-mode",
+                "command": "status",
+                "session_id": sid,
+                "mode": "fair",
+            },
+        ).status_code
+        == 200
+    )
+    with SessionLocal() as db:
+        session = db.get(StudySession, sid)
+        session.status = SessionStatus.completed
+        session.mode = "real"
+        session.is_demo = False
+        session.transcription = "Eu mencionei azul, preto, rosa e estilo nesta fala privada."
+        session.duration_seconds = 21.45
+        session.audio_validation = json.dumps({"speech_seconds": 12.3})
+        session.asr_provider_used = "faster_whisper"
+        session.topic_provider_used = "local_keywords"
+        session.journey_json = json.dumps(
+            {
+                step: {
+                    "status": "completed",
+                    "duration_ms": 100,
+                    "provider": provider,
+                    "is_demo": False,
+                }
+                for step, provider in (
+                    ("capture", "mac_microphone"),
+                    ("transcription", "faster_whisper"),
+                    ("topics", "local_keywords"),
+                    ("result", "backend"),
+                )
+            }
+        )
+        session.topics.extend(
+            [Topic(name=name, relevance=0.9) for name in ("azul", "preto", "rosa", "estilo")]
+        )
+        db.commit()
+
+    published = client.post(
+        "/api/v1/experience/bridge",
+        json={"session_id": sid, "state": "completed", "is_demo": False},
+    )
+    assert published.status_code == 200
+
+    response = client.get("/api/v1/experience/public")
+    payload = response.json()
+    assert payload["result"]["summary"] == "Voz captada e processada."
+    assert payload["result"]["evidence"] == {
+        "speech_detected": True,
+        "recognized_word_count": 10,
+        "completed_steps": 4,
+        "local_processing": True,
+    }
+    assert "fala privada" not in response.text
+    assert "transcription" not in payload
+    assert "transcription" not in payload["result"]
+
+
 def test_reset_clears_visitor_and_rejects_late_publish(client):
     sid = client.post("/api/v1/sessions", json={"request_id": "visitor"}).json()["id"]
     publish(client, sid, "recording")

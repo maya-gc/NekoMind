@@ -140,7 +140,7 @@ sessão. Fila distingue aceitação HTTP de ACK Mac e mantém request_id em retr
 Confirmações destrutivas usam diálogo na página, Escape/foco e escolhas explícitas.
 Avatar original SVG/C possui expressões, sinais textuais e redução de movimento.
 
-**25 testes web e 6 Streamlit aprovados.** Acessibilidade de markup/contrato e imagens
+**28 testes web e 6 Streamlit aprovados.** Acessibilidade de markup/contrato e imagens
 foram verificadas; interação final e auditoria completa WCAG não estão aprovadas.
 [Superfícies](https://github.com/maya-gc/NekoMind/blob/feat/nekomind-touch-mac-mvp/docs/panels.md), [direção visual](https://github.com/maya-gc/NekoMind/blob/feat/nekomind-touch-mac-mvp/docs/ui-design.md).
 
@@ -191,14 +191,14 @@ de enquadramento foram preservados fora do Git. [QA completo](https://github.com
 | Grupo | Comando / método | Quantidade / aprovados | Falhas finais / não executados |
 |---|---|---|---|
 | Estática | Ruff check, Ruff format, compileall, node --check, bash -n, git diff --check | PASS; 68 arquivos Python formatados | Type checker não configurado; scanners externos indisponíveis |
-| Backend | `cd backend; .venv/bin/python -m pytest -q` | 180/180 | 0; 6 avisos de depreciação |
+| Backend | `cd backend; .venv/bin/python -m pytest -q` | 184/184 | 0; 6 avisos de depreciação |
 | ASR/lifespan | `cd backend; .venv/bin/python -m unittest discover -s tests -p test_asr_lifecycle.py -v` | 10/10 | 0; modelo substituto |
-| Frontend web | `node --test frontend/tests/*.test.mjs` | 25/25 | 0 |
+| Frontend web | `node --test frontend/tests/*.test.mjs` | 28/28 | 0 |
 | Streamlit | `python3 -m pytest frontend/streamlit/tests -q` | 6/6 | 0; Python global com dependências |
 | Firmware | `bash iot/nekomind_firmware/scripts/test_firmware.sh` | 22 casos, binário aprovado | Build ESP-IDF não executado |
 | Integração | pytest touch_mac_end_to_end + experience_end_to_end + serial_interop | 6/6, grupo separado | Sem mic/ASR físicos |
 | Privacidade/migração | pytest privacy_failures + session_lifecycle_nm019 + sqlite_migration | 21/21, grupo separado | Backups externos fora da garantia |
-| Painel operacional | pytest test_operations.py | 20/20, grupo separado | Jornada interativa final também executada em loopback |
+| Painel operacional | pytest test_operations.py | 21/21, grupo separado | Jornada interativa final também executada em loopback |
 | Visual | Navegador e capturas abertas | 33 imagens selecionadas e reteste interativo | Tela física e captura integral 1920×1080 pendentes |
 | Desempenho | Limite de telemetria e concorrência com substitutos | Casos automatizados aprovados | Sem benchmark Whisper/RSS/FPS/latência física |
 | Hardware real | Microfone/PortAudio Mac | Executado com voz sintetizada local | Whisper, serial, ESP32 e TFT/touch não executados; nenhuma pessoa gravada |

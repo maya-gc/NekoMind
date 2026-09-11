@@ -259,7 +259,11 @@ def _snapshot(db, *, private=False):
                 result = {
                     "summary": "Demonstracao: dados simulados."
                     if session.is_demo
-                    else "Assuntos identificados; nao comprova acerto ou dominio.",
+                    else (
+                        "Voz captada e processada."
+                        if state["experience_mode"] == "fair"
+                        else "Assuntos identificados; nao comprova acerto ou dominio."
+                    ),
                     "topics": [t.name for t in session.topics],
                     "duration_seconds": session.duration_seconds,
                     "clarity_score": session.clarity_score,
@@ -294,6 +298,8 @@ def _snapshot(db, *, private=False):
             )
         except (TypeError, ValueError):
             journey = []
+        if result is not None:
+            result["evidence"] = _result_evidence(session, journey)
         if session.error_code:
             error = {"code": session.error_code, "message": _public_error(session.error_code)}
     if not connected and effective in {"recording", "paused"}:
@@ -346,6 +352,35 @@ def _snapshot(db, *, private=False):
             )
         ]
     return out
+
+
+def _result_evidence(session, journey):
+    from app.services.clarity_evaluation import word_count
+
+    try:
+        validation = json.loads(session.audio_validation or "{}")
+    except (TypeError, ValueError):
+        validation = {}
+    speech_seconds = validation.get("speech_seconds", 0) if isinstance(validation, dict) else 0
+    speech_detected = (
+        not session.is_demo
+        and isinstance(speech_seconds, (int, float))
+        and not isinstance(speech_seconds, bool)
+        and speech_seconds > 0
+    )
+    completed_steps = sum(
+        1 for step in journey if isinstance(step, dict) and step.get("status") == "completed"
+    )
+    return {
+        "speech_detected": speech_detected,
+        "recognized_word_count": word_count(session.transcription or ""),
+        "completed_steps": min(completed_steps, 4),
+        "local_processing": (
+            not session.is_demo
+            and session.asr_provider_used == "faster_whisper"
+            and session.topic_provider_used == "local_keywords"
+        ),
+    }
 
 
 def _public_diagnostics(items):

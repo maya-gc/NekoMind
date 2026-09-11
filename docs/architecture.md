@@ -26,7 +26,8 @@ Tópicos e métricas heurísticas não comprovam acerto factual nem domínio de 
 - `backend/app/mac/`: bridge serial, captura local, diário de solicitações e recuperação.
 - `iot/nekomind_firmware/main/`: lógica portátil de sessão e limites de integração
   de placa. Escolha de placa/display/controladores/pinos permanece aberta.
-- `frontend/web/`: touch emulador, painel público e presenter local.
+- `frontend/web/`: touch emulador com controles/resultado essencial, painel público do
+  Mac com evidências da jornada e presenter local reservado.
 - `frontend/streamlit/`: histórico, tópicos, proveniência e estados; sem captura.
 
 Uma instância do bridge controla uma captura. Executar backend com um worker, sem
@@ -39,6 +40,8 @@ de comandos e reinícios incertos sem abrir captura automaticamente.
 Demo permanece útil, offline e explicitamente identificado, inclusive quando recebe
 silêncio. Real não pode trocar por mock em falhas. Cada etapa registra a origem
 executada; origem incompleta/desconhecida não equivale a resultado integralmente real.
+No modo feira, a projeção pública deriva fala detectada, duração, contagem de palavras e
+etapas concluídas desses dados persistidos. A projeção não expõe a transcrição completa.
 ASR usa cache lazy por configuração no mesmo processo. `local_keywords` é uma opção
 explícita local/offline para tópicos: não é LLM, não é mock e não chama nuvem. Não
 há chamada de IA remota ou credencial de API necessária ao processamento local.

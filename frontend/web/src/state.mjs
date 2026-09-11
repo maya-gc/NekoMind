@@ -169,6 +169,12 @@ export function fixtureSnapshot(name = "attraction") {
         trend: { duration_delta: -4, clarity_delta: 0.08 },
         asr_provider: "local-whisper",
         topic_provider: "local_keywords",
+        evidence: {
+          speech_detected: true,
+          recognized_word_count: 9,
+          completed_steps: 4,
+          local_processing: true,
+        },
       },
     },
     error: {
@@ -208,6 +214,7 @@ export function sanitizePublicSnapshot(raw = {}, options = {}) {
     trend: raw.result.trend && typeof raw.result.trend === "object" ? raw.result.trend : null,
     asr_provider: stringOrNull(raw.result.asr_provider),
     topic_provider: stringOrNull(raw.result.topic_provider),
+    evidence: sanitizeEvidence(raw.result.evidence),
   } : null;
 
   return {
@@ -253,6 +260,7 @@ export function touchModelForSnapshot(snapshot, options = {}) {
     view: "touch",
     state,
     mode: snapshot.mode,
+    is_demo: snapshot.is_demo,
     sessionLabel: shortSession(snapshot.session_id),
     title: voiceWarning || touchTitle(snapshot) || STATE_COPY[state] || STATE_COPY.idle,
     detail: touchDetail(snapshot),
@@ -281,6 +289,32 @@ export function cardModelForSnapshot(snapshot, cardState = {}) {
 
 export function resultCards(snapshot) {
   if (!snapshot.result) return [];
+  if (snapshot.experience_mode === "fair") {
+    const evidence = snapshot.result.evidence || {};
+    const topics = snapshot.result.topics.slice(0, 5);
+    const duration = formatDuration(snapshot.result.duration_seconds);
+    const words = Number.isInteger(evidence.recognized_word_count)
+      ? evidence.recognized_word_count
+      : null;
+    return [
+      {
+        kind: "evidence",
+        label: snapshot.is_demo
+          ? "Demonstração concluída"
+          : evidence.speech_detected ? "Funcionou!" : "Processamento concluído",
+        value: words === null
+          ? duration
+          : `${duration} · ${words} ${words === 1 ? "palavra" : "palavras"}`,
+        evidence,
+      },
+      {
+        kind: "topics",
+        label: "Termos reconhecidos",
+        value: topics.length ? topics.join(" · ") : "Nenhum termo destacado.",
+        topics,
+      },
+    ];
+  }
   const cards = [
     ...chunkText(snapshot.result.summary || "Sem resumo público.").map((value, index, chunks) => ({
       kind: "summary",
@@ -301,6 +335,28 @@ export function resultCards(snapshot) {
     cards.push(...trendCards);
   }
   return cards;
+}
+
+function sanitizeEvidence(value) {
+  if (!value || typeof value !== "object") return null;
+  return {
+    speech_detected: value.speech_detected === true,
+    recognized_word_count: boundedInteger(value.recognized_word_count, 0, 100000),
+    completed_steps: boundedInteger(value.completed_steps, 0, 4),
+    local_processing: value.local_processing === true,
+  };
+}
+
+function boundedInteger(value, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return min;
+  return Math.min(max, Math.max(min, Math.round(number)));
+}
+
+function formatDuration(value) {
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds) || seconds < 0) return "0s";
+  return `${Number(seconds.toFixed(1))}s`;
 }
 
 export function stepLabel(step) {
