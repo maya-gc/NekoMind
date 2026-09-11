@@ -45,6 +45,12 @@ test("completed result starts a deliberate retry tied to the previous session", 
   assert.equal(model.primaryAction.session_id, 128);
 });
 
+test("unauthenticated presenter does not claim there are no interrupted sessions", () => {
+  const html = renderPresenter(fixtureSnapshot("recovery"), { hasToken: false });
+  assert.doesNotMatch(html, /Sem recuperação pendente/);
+  assert.match(html, /Informe o token para consultar recuperações/);
+});
+
 test("public snapshots are sanitized and fixture mode is visibly labelled", () => {
   const raw = {
     schema_version: 1,

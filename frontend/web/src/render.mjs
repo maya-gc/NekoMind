@@ -88,7 +88,7 @@ export function renderPresenter(snapshot, options = {}) {
           </label>
           ${renderJourney(snapshot.journey)}
           ${snapshot.error ? `<p class="safe-error">${escapeHtml(snapshot.error.code)}: ${escapeHtml(snapshot.error.message)}</p>` : ""}
-          ${renderRecoverable(snapshot.recoverable_sessions)}
+          ${options.hasToken ? renderRecoverable(snapshot.recoverable_sessions) : '<p class="empty-result">Informe o token para consultar recuperações.</p>'}
         </section>
         <section class="ops-panel">
           <h2>Assunto e histórico</h2>
