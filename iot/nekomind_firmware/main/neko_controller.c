@@ -17,6 +17,17 @@ static void build_view(const neko_controller_t *controller,
     view->topics = controller->topics;
     view->topic_count = controller->topic_count;
     view->is_demo = controller->is_demo;
+    view->duration_seconds = controller->duration_seconds;
+    view->subject = controller->subject;
+    view->trend_text = controller->trend_text;
+    view->voice_level = controller->voice_level;
+    view->voice_clipping = controller->voice_clipping;
+    view->voice_quality = controller->voice_quality;
+    view->card_index = controller->result_card_index;
+    view->journey_step = controller->journey_step;
+    view->journey_status = controller->journey_status;
+    view->diagnostic_component = controller->diagnostic_component;
+    view->diagnostic_status = controller->diagnostic_status;
 }
 
 static void render(neko_controller_t *controller, const char *message)
@@ -55,6 +66,18 @@ static const char *command_name(neko_command_t command)
         return "retry";
     case NEKO_COMMAND_STATUS:
         return "status";
+    case NEKO_COMMAND_DIAGNOSE:
+        return "diagnose";
+    case NEKO_COMMAND_CALIBRATE:
+        return "calibrate";
+    case NEKO_COMMAND_RECOVER:
+        return "recover";
+    case NEKO_COMMAND_DISCARD:
+        return "discard";
+    case NEKO_COMMAND_CANCEL:
+        return "cancel";
+    case NEKO_COMMAND_RESET:
+        return "reset";
     case NEKO_COMMAND_NONE:
     default:
         return "";
@@ -87,6 +110,17 @@ static void clear_session_result(neko_controller_t *controller)
     controller->result_request_id[0] = '\0';
     controller->heartbeat_request_id[0] = '\0';
     controller->result_deadline_ms = 0;
+    controller->processing_max_deadline_ms = 0;
+    controller->result_card_index = 0;
+    controller->duration_seconds = 0;
+    controller->subject[0] = '\0';
+    controller->trend_text[0] = '\0';
+    controller->journey_step[0] = '\0';
+    controller->journey_status[0] = '\0';
+    controller->diagnostic_component[0] = '\0';
+    controller->diagnostic_status[0] = '\0';
+    controller->confirmation_command = NEKO_COMMAND_NONE;
+    controller->confirmation_event = 0;
 }
 
 static neko_controller_status_t send_line(neko_controller_t *controller,
@@ -164,6 +198,58 @@ static neko_controller_status_t send_command(neko_controller_t *controller,
     return NEKO_CONTROLLER_OK;
 }
 
+static bool touch_is_debounced(neko_controller_t *controller,
+                               neko_touch_event_t event,
+                               uint32_t now_ms)
+{
+    if (controller->last_touch_event == event
+        && (uint32_t)(now_ms - controller->last_touch_ms) < NEKO_TOUCH_DEBOUNCE_MS) {
+        return true;
+    }
+    controller->last_touch_event = event;
+    controller->last_touch_ms = now_ms;
+    return false;
+}
+
+static bool can_cancel(const neko_controller_t *controller)
+{
+    return controller->state == NEKO_CONTROLLER_CHECKING
+        || controller->state == NEKO_CONTROLLER_READY
+        || controller->state == NEKO_CONTROLLER_RECORDING
+        || controller->state == NEKO_CONTROLLER_PAUSED
+        || controller->state == NEKO_CONTROLLER_PROCESSING
+        || controller->state == NEKO_CONTROLLER_RECOVERY;
+}
+
+static bool command_needs_confirmation(neko_command_t command)
+{
+    return command == NEKO_COMMAND_CANCEL
+        || command == NEKO_COMMAND_DISCARD
+        || command == NEKO_COMMAND_RESET;
+}
+
+static neko_controller_status_t confirm_or_send(neko_controller_t *controller,
+                                                neko_touch_event_t event,
+                                                neko_command_t command,
+                                                int session_id,
+                                                uint32_t now_ms)
+{
+    if (command_needs_confirmation(command)
+        && (controller->confirmation_command != command
+            || controller->confirmation_event != event)) {
+        controller->confirmation_command = command;
+        controller->confirmation_event = event;
+        render(controller, "confirmar acao");
+        return NEKO_CONTROLLER_OK;
+    }
+    controller->confirmation_command = NEKO_COMMAND_NONE;
+    controller->confirmation_event = 0;
+    if (command == NEKO_COMMAND_RESET) {
+        clear_session_result(controller);
+    }
+    return send_command(controller, command, session_id, now_ms, true, false);
+}
+
 neko_controller_status_t neko_controller_init_with_boot_nonce(
     neko_controller_t *controller,
     const neko_controller_callbacks_t *callbacks,
@@ -197,6 +283,10 @@ neko_controller_status_t neko_controller_touch(neko_controller_t *controller,
     if (controller == NULL) {
         return NEKO_CONTROLLER_INVALID_ARGUMENT;
     }
+    if (touch_is_debounced(controller, event, now_ms)) {
+        render(controller, "toque ignorado");
+        return NEKO_CONTROLLER_COMMAND_PENDING;
+    }
     if (event == NEKO_TOUCH_RESEND) {
         return resend_last_command(controller, now_ms);
     }
@@ -204,14 +294,38 @@ neko_controller_status_t neko_controller_touch(neko_controller_t *controller,
         render(controller, "comando pendente");
         return NEKO_CONTROLLER_COMMAND_PENDING;
     }
+    if (controller->confirmation_command != NEKO_COMMAND_NONE
+        && controller->confirmation_event != event
+        && event != NEKO_TOUCH_NEXT_CARD
+        && event != NEKO_TOUCH_PREV_CARD) {
+        controller->confirmation_command = NEKO_COMMAND_NONE;
+        controller->confirmation_event = 0;
+    }
 
     switch (event) {
     case NEKO_TOUCH_START:
-        if (controller->state != NEKO_CONTROLLER_IDLE) {
+        if (controller->state != NEKO_CONTROLLER_IDLE
+            && controller->state != NEKO_CONTROLLER_READY) {
             return NEKO_CONTROLLER_INVALID_STATE;
         }
         clear_session_result(controller);
         return send_command(controller, NEKO_COMMAND_START, 0, now_ms, true, false);
+    case NEKO_TOUCH_DIAGNOSE:
+        if (controller->state == NEKO_CONTROLLER_RECORDING
+            || controller->state == NEKO_CONTROLLER_PAUSED
+            || controller->state == NEKO_CONTROLLER_PROCESSING) {
+            return NEKO_CONTROLLER_INVALID_STATE;
+        }
+        return send_command(controller, NEKO_COMMAND_DIAGNOSE, controller->session_id,
+                            now_ms, true, false);
+    case NEKO_TOUCH_CALIBRATE:
+        if (controller->state == NEKO_CONTROLLER_RECORDING
+            || controller->state == NEKO_CONTROLLER_PAUSED
+            || controller->state == NEKO_CONTROLLER_PROCESSING) {
+            return NEKO_CONTROLLER_INVALID_STATE;
+        }
+        return send_command(controller, NEKO_COMMAND_CALIBRATE, controller->session_id,
+                            now_ms, true, false);
     case NEKO_TOUCH_PAUSE:
         if (controller->state != NEKO_CONTROLLER_RECORDING) {
             return NEKO_CONTROLLER_INVALID_STATE;
@@ -233,7 +347,8 @@ neko_controller_status_t neko_controller_touch(neko_controller_t *controller,
                             now_ms, true, false);
     case NEKO_TOUCH_RETRY:
         if (controller->state != NEKO_CONTROLLER_ERROR
-            && controller->state != NEKO_CONTROLLER_SUCCESS) {
+            && controller->state != NEKO_CONTROLLER_SUCCESS
+            && controller->state != NEKO_CONTROLLER_READY) {
             return NEKO_CONTROLLER_INVALID_STATE;
         }
         clear_session_result(controller);
@@ -245,6 +360,48 @@ neko_controller_status_t neko_controller_touch(neko_controller_t *controller,
     case NEKO_TOUCH_STATUS:
         return send_command(controller, NEKO_COMMAND_STATUS, controller->session_id,
                             now_ms, true, false);
+    case NEKO_TOUCH_RECOVER:
+        if (controller->state != NEKO_CONTROLLER_RECOVERY) {
+            return NEKO_CONTROLLER_INVALID_STATE;
+        }
+        return send_command(controller, NEKO_COMMAND_RECOVER, controller->session_id,
+                            now_ms, true, false);
+    case NEKO_TOUCH_DISCARD:
+        if (controller->state != NEKO_CONTROLLER_RECOVERY) {
+            return NEKO_CONTROLLER_INVALID_STATE;
+        }
+        return confirm_or_send(controller, event, NEKO_COMMAND_DISCARD,
+                               controller->session_id, now_ms);
+    case NEKO_TOUCH_CANCEL:
+        if (!can_cancel(controller)) {
+            return NEKO_CONTROLLER_INVALID_STATE;
+        }
+        return confirm_or_send(controller, event, NEKO_COMMAND_CANCEL,
+                               controller->session_id, now_ms);
+    case NEKO_TOUCH_RESET:
+        if (controller->state == NEKO_CONTROLLER_RECORDING
+            || controller->state == NEKO_CONTROLLER_PAUSED
+            || controller->state == NEKO_CONTROLLER_PROCESSING) {
+            return NEKO_CONTROLLER_INVALID_STATE;
+        }
+        return confirm_or_send(controller, event, NEKO_COMMAND_RESET,
+                               controller->session_id, now_ms);
+    case NEKO_TOUCH_NEXT_CARD:
+        if (controller->state != NEKO_CONTROLLER_SUCCESS) {
+            return NEKO_CONTROLLER_INVALID_STATE;
+        }
+        controller->result_card_index++;
+        render(controller, "proximo cartao");
+        return NEKO_CONTROLLER_OK;
+    case NEKO_TOUCH_PREV_CARD:
+        if (controller->state != NEKO_CONTROLLER_SUCCESS) {
+            return NEKO_CONTROLLER_INVALID_STATE;
+        }
+        if (controller->result_card_index > 0) {
+            controller->result_card_index--;
+        }
+        render(controller, "cartao anterior");
+        return NEKO_CONTROLLER_OK;
     case NEKO_TOUCH_RESEND:
     default:
         return NEKO_CONTROLLER_INVALID_ARGUMENT;
@@ -282,12 +439,20 @@ static bool message_matches_result_request(const neko_controller_t *controller,
         && strcmp(message->request_id, controller->result_request_id) == 0;
 }
 
+static bool message_matches_last_command(const neko_controller_t *controller,
+                                         const neko_mac_message_t *message)
+{
+    return controller->last_command_request_id[0] != '\0'
+        && strcmp(message->request_id, controller->last_command_request_id) == 0;
+}
+
 static bool message_matches_active_request(const neko_controller_t *controller,
                                            const neko_mac_message_t *message)
 {
     return message_matches_pending(controller, message)
         || message_matches_heartbeat(controller, message)
-        || message_matches_result_request(controller, message);
+        || message_matches_result_request(controller, message)
+        || message_matches_last_command(controller, message);
 }
 
 static void clear_pending(neko_controller_t *controller)
@@ -320,12 +485,67 @@ static bool pending_state_is_expected(neko_command_t command, neko_mac_state_t s
             || state == NEKO_MAC_STATE_IDLE;
     case NEKO_COMMAND_STATUS:
         return state == NEKO_MAC_STATE_IDLE
+            || state == NEKO_MAC_STATE_CHECKING
+            || state == NEKO_MAC_STATE_READY
             || state == NEKO_MAC_STATE_RECORDING
             || state == NEKO_MAC_STATE_PAUSED
-            || state == NEKO_MAC_STATE_PROCESSING;
+            || state == NEKO_MAC_STATE_PROCESSING
+            || state == NEKO_MAC_STATE_RECOVERY;
+    case NEKO_COMMAND_DIAGNOSE:
+        return state == NEKO_MAC_STATE_CHECKING
+            || state == NEKO_MAC_STATE_READY
+            || state == NEKO_MAC_STATE_RECOVERY
+            || state == NEKO_MAC_STATE_ERROR;
+    case NEKO_COMMAND_CALIBRATE:
+        return state == NEKO_MAC_STATE_CHECKING
+            || state == NEKO_MAC_STATE_READY
+            || state == NEKO_MAC_STATE_ERROR;
+    case NEKO_COMMAND_RECOVER:
+        return state == NEKO_MAC_STATE_READY
+            || state == NEKO_MAC_STATE_RECORDING
+            || state == NEKO_MAC_STATE_PROCESSING
+            || state == NEKO_MAC_STATE_ERROR;
+    case NEKO_COMMAND_DISCARD:
+    case NEKO_COMMAND_CANCEL:
+    case NEKO_COMMAND_RESET:
+        return state == NEKO_MAC_STATE_IDLE
+            || state == NEKO_MAC_STATE_READY
+            || state == NEKO_MAC_STATE_ERROR;
     case NEKO_COMMAND_NONE:
     default:
         return false;
+    }
+}
+
+static void apply_voice_if_due(neko_controller_t *controller,
+                               const neko_mac_message_t *message,
+                               uint32_t now_ms)
+{
+    if (!message->has_voice || !time_reached(now_ms, controller->next_voice_render_ms)) {
+        return;
+    }
+    controller->voice_level = message->voice_level;
+    controller->voice_clipping = message->voice_clipping;
+    controller->voice_quality = message->voice_quality;
+    controller->next_voice_render_ms = now_ms + NEKO_VOICE_RENDER_THROTTLE_MS;
+}
+
+static void refresh_processing_deadline(neko_controller_t *controller,
+                                        const neko_mac_message_t *message,
+                                        uint32_t now_ms)
+{
+    if (controller->processing_max_deadline_ms == 0) {
+        controller->processing_max_deadline_ms = now_ms + NEKO_PROCESSING_MAX_MS;
+    }
+    if (message->has_journey_progress
+        && !time_reached(now_ms, controller->processing_max_deadline_ms)) {
+        controller->result_deadline_ms = now_ms + NEKO_RESULT_TIMEOUT_MS;
+        if (time_reached(controller->result_deadline_ms,
+                         controller->processing_max_deadline_ms)) {
+            controller->result_deadline_ms = controller->processing_max_deadline_ms;
+        }
+    } else if (controller->result_deadline_ms == 0) {
+        controller->result_deadline_ms = now_ms + NEKO_RESULT_TIMEOUT_MS;
     }
 }
 
@@ -342,15 +562,19 @@ static neko_controller_status_t apply_state_message(neko_controller_t *controlle
 {
     bool from_pending = message_matches_pending(controller, message);
     bool from_heartbeat = message_matches_heartbeat(controller, message);
+    bool from_last = message_matches_last_command(controller, message);
 
-    if (!from_pending && !from_heartbeat) {
+    if (!from_pending && !from_heartbeat && !from_last) {
         return NEKO_CONTROLLER_STALE;
     }
     if (from_pending
         && !pending_state_is_expected(controller->pending_command, message->state)) {
         return reject_unexpected_state(controller);
     }
-    if (!message->has_session_id && message->state != NEKO_MAC_STATE_IDLE) {
+    if (!message->has_session_id
+        && message->state != NEKO_MAC_STATE_IDLE
+        && message->state != NEKO_MAC_STATE_CHECKING
+        && message->state != NEKO_MAC_STATE_READY) {
         return NEKO_CONTROLLER_STALE;
     }
     if (message->has_session_id
@@ -369,7 +593,25 @@ static neko_controller_status_t apply_state_message(neko_controller_t *controlle
         controller->session_id = message->session_id;
     }
     controller->is_demo = message->is_demo;
-    if (from_pending) {
+    apply_voice_if_due(controller, message, now_ms);
+    if (message->journey_step[0] != '\0') {
+        snprintf(controller->journey_step, sizeof(controller->journey_step), "%s",
+                 message->journey_step);
+    }
+    if (message->journey_status[0] != '\0') {
+        snprintf(controller->journey_status, sizeof(controller->journey_status), "%s",
+                 message->journey_status);
+    }
+    if (message->diagnostic_component[0] != '\0') {
+        snprintf(controller->diagnostic_component,
+                 sizeof(controller->diagnostic_component), "%s",
+                 message->diagnostic_component);
+    }
+    if (message->diagnostic_status[0] != '\0') {
+        snprintf(controller->diagnostic_status, sizeof(controller->diagnostic_status),
+                 "%s", message->diagnostic_status);
+    }
+    if (from_pending && message->state != NEKO_MAC_STATE_CHECKING) {
         clear_pending(controller);
     }
     if (from_heartbeat) {
@@ -379,6 +621,18 @@ static neko_controller_status_t apply_state_message(neko_controller_t *controlle
     controller->next_heartbeat_ms = now_ms + NEKO_HEARTBEAT_MS;
 
     switch (message->state) {
+    case NEKO_MAC_STATE_CHECKING:
+        set_state(controller, NEKO_CONTROLLER_CHECKING, "verificando");
+        return NEKO_CONTROLLER_OK;
+    case NEKO_MAC_STATE_READY:
+        set_state(controller, NEKO_CONTROLLER_READY, "pronto");
+        return NEKO_CONTROLLER_OK;
+    case NEKO_MAC_STATE_RECOVERY:
+        if (!message->has_session_id) {
+            return NEKO_CONTROLLER_STALE;
+        }
+        set_state(controller, NEKO_CONTROLLER_RECOVERY, "sessao interrompida");
+        return NEKO_CONTROLLER_OK;
     case NEKO_MAC_STATE_RECORDING:
         set_state(controller, NEKO_CONTROLLER_RECORDING,
                   message->is_demo ? "demo gravando" : "gravando");
@@ -387,9 +641,7 @@ static neko_controller_status_t apply_state_message(neko_controller_t *controlle
         set_state(controller, NEKO_CONTROLLER_PAUSED, "pausado");
         return NEKO_CONTROLLER_OK;
     case NEKO_MAC_STATE_PROCESSING:
-        if (controller->result_deadline_ms == 0) {
-            controller->result_deadline_ms = now_ms + NEKO_RESULT_TIMEOUT_MS;
-        }
+        refresh_processing_deadline(controller, message, now_ms);
         set_state(controller, NEKO_CONTROLLER_PROCESSING, "processando");
         return NEKO_CONTROLLER_OK;
     case NEKO_MAC_STATE_IDLE:
@@ -426,6 +678,10 @@ static neko_controller_status_t apply_result_message(neko_controller_t *controll
     }
     controller->is_demo = message->is_demo;
     snprintf(controller->summary, sizeof(controller->summary), "%s", message->summary);
+    controller->duration_seconds = message->duration_seconds;
+    snprintf(controller->subject, sizeof(controller->subject), "%s", message->subject);
+    snprintf(controller->trend_text, sizeof(controller->trend_text), "%s",
+             message->trend_text);
     controller->topic_count = message->topic_count;
     for (i = 0; i < message->topic_count; i++) {
         snprintf(controller->topics[i], sizeof(controller->topics[i]), "%s",
@@ -436,6 +692,7 @@ static neko_controller_status_t apply_result_message(neko_controller_t *controll
     if (message_matches_heartbeat(controller, message)) {
         controller->heartbeat_request_id[0] = '\0';
     }
+    controller->processing_max_deadline_ms = 0;
     set_state(controller, NEKO_CONTROLLER_SUCCESS,
               message->is_demo ? "demo concluida" : "sessao concluida");
     return NEKO_CONTROLLER_OK;
@@ -552,6 +809,12 @@ const char *neko_controller_state_name(neko_controller_state_t state)
         return "IDLE";
     case NEKO_CONTROLLER_PENDING:
         return "PENDING";
+    case NEKO_CONTROLLER_CHECKING:
+        return "CHECKING";
+    case NEKO_CONTROLLER_READY:
+        return "READY";
+    case NEKO_CONTROLLER_RECOVERY:
+        return "RECOVERY";
     case NEKO_CONTROLLER_RECORDING:
         return "RECORDING";
     case NEKO_CONTROLLER_PAUSED:

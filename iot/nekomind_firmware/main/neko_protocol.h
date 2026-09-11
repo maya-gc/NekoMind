@@ -16,6 +16,10 @@ extern "C" {
 #define NEKO_PROVIDER_MAX 64
 #define NEKO_ERROR_CODE_MAX 64
 #define NEKO_ERROR_MESSAGE_MAX 160
+#define NEKO_SUBJECT_MAX 80
+#define NEKO_TREND_TEXT_MAX 160
+#define NEKO_JOURNEY_TEXT_MAX 32
+#define NEKO_DIAGNOSTIC_TEXT_MAX 48
 
 typedef enum {
     NEKO_PROTOCOL_OK = 0,
@@ -35,12 +39,22 @@ typedef enum {
 
 typedef enum {
     NEKO_MAC_STATE_IDLE = 1,
+    NEKO_MAC_STATE_CHECKING,
+    NEKO_MAC_STATE_READY,
     NEKO_MAC_STATE_RECORDING,
     NEKO_MAC_STATE_PAUSED,
     NEKO_MAC_STATE_PROCESSING,
     NEKO_MAC_STATE_COMPLETED,
-    NEKO_MAC_STATE_ERROR
+    NEKO_MAC_STATE_ERROR,
+    NEKO_MAC_STATE_RECOVERY
 } neko_mac_state_t;
+
+typedef enum {
+    NEKO_VOICE_QUALITY_UNKNOWN = 0,
+    NEKO_VOICE_QUALITY_OK,
+    NEKO_VOICE_QUALITY_LOW,
+    NEKO_VOICE_QUALITY_CLIPPING
+} neko_voice_quality_t;
 
 typedef struct {
     neko_mac_message_kind_t kind;
@@ -56,6 +70,18 @@ typedef struct {
     char summary[NEKO_RESULT_SUMMARY_MAX + 1];
     char code[NEKO_ERROR_CODE_MAX + 1];
     char message[NEKO_ERROR_MESSAGE_MAX + 1];
+    int duration_seconds;
+    char subject[NEKO_SUBJECT_MAX + 1];
+    char trend_text[NEKO_TREND_TEXT_MAX + 1];
+    bool has_voice;
+    int voice_level;
+    bool voice_clipping;
+    neko_voice_quality_t voice_quality;
+    bool has_journey_progress;
+    char journey_step[NEKO_JOURNEY_TEXT_MAX + 1];
+    char journey_status[NEKO_JOURNEY_TEXT_MAX + 1];
+    char diagnostic_component[NEKO_DIAGNOSTIC_TEXT_MAX + 1];
+    char diagnostic_status[NEKO_DIAGNOSTIC_TEXT_MAX + 1];
 } neko_mac_message_t;
 
 bool neko_protocol_request_id_is_valid(const char *request_id);

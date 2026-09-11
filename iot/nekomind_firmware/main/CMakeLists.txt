@@ -6,6 +6,7 @@ idf_component_register(
         "display_ui.c"
         "avatar_state.c"
         "neko_controller.c"
+        "neko_layout.c"
         "neko_protocol.c"
         "session_controller.c"
     INCLUDE_DIRS "."

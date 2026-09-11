@@ -15,7 +15,11 @@ principal do firmware neste MVP.
 
 ## Estados
 
-`IDLE -> PENDING -> RECORDING -> PAUSED -> PROCESSING -> SUCCESS | ERROR`
+`IDLE -> PENDING -> CHECKING -> READY -> RECORDING -> PAUSED -> PROCESSING -> SUCCESS | ERROR`
+
+`RECOVERY` e um estado explicito quando Mac/backend informam sessao
+interrompida. O firmware mostra a bifurcacao de retomada/descarte e nunca
+reativa captura sozinho.
 
 O firmware so entra em `RECORDING` depois de receber estado `recording`
 correlacionado do Mac. Ele so entra em `SUCCESS` depois de receber um
@@ -32,8 +36,9 @@ envia comandos:
 {"v":1,"type":"command","request_id":"req-1","command":"start","session_id":null}
 ```
 
-Comandos suportados: `start`, `pause`, `resume`, `finish`, `retry`, `status`
-e reenvio local da ultima requisicao. O `request_id` inclui nonce de boot de
+Comandos suportados: `start`, `pause`, `resume`, `finish`, `retry`, `status`,
+`diagnose`, `calibrate`, `recover`, `discard`, `cancel`, `reset` e reenvio
+local da ultima requisicao. O `request_id` inclui nonce de boot de
 128 bits injetado pelo ESP (`esp_random` quatro vezes) mais contador monotono,
 para evitar colisao com o journal do Mac apos reboot. Reenvio preserva
 exatamente o mesmo `request_id` para idempotencia quando a confirmacao se
@@ -71,6 +76,43 @@ O Mac responde com `type=state`, `type=error` ou `type=result`. Resultado:
 Topicos vazios sao validos. O firmware nao mostra nota pedagogica; o hook de
 display recebe estado, resumo curto, topicos e origem demo/real conforme
 `is_demo`, sem escolher ainda um driver fisico.
+
+Contrato aditivo NM-019: o `result` v1 essencial acima permanece valido. O Mac
+pode enviar campos opcionais `duration_seconds`, `subject` e `trend_text`; o
+firmware novo usa esses campos para cards touch de duracao/evolucao, e firmwares
+antigos podem ignorar a extensao. O Mac tambem pode anexar `voice` em estados
+com `{level:0..100, clipping:bool, quality:"ok"|"low"|"clipping"|"unknown"}` e
+`journey` com `status:"waiting"|"running"|...`. Essas extensoes nunca produzem
+sucesso; `SUCCESS` continua exigindo `type:"result"`, `state:"completed"`,
+`request_id` correlacionado, `session_id` atual e provedores validos.
+
+Quando `PROCESSING` recebe `journey.status` `waiting` ou `running`, o timeout
+de resultado e renovado de forma limitada ate `NEKO_PROCESSING_MAX_MS`
+(10 minutos). Sem progresso real, o timeout antigo de 120s continua gerando
+erro recuperavel.
+
+## Layout touch portatil
+
+`neko_layout.c` calcula um modelo independente de driver para 240x320 e
+320x240, gera uma display list com primitivas proprias do rosto felino
+(`FACE`, elipses, poligonos, linhas, textos e botoes) e expõe `hit_test` para
+mapear coordenadas futuras do touch em eventos do controlador. O rosto permanece
+presente nos estados centrais, botoes tem alvos de pelo menos 44px e
+`prefers-reduced-motion` pode manter o rosto estatico.
+
+Os cards de resultado sao paginados localmente e montados somente quando dados
+existem: resumo, cada topico em um card proprio, duracao e evolucao. Cada card
+mostra uma informacao principal. A navegacao de cards nao envia comando remoto
+nem muda a sessao. A tela `IDLE` nao oferece `Comecar`; primeiro passa por
+diagnostico e so exibe inicio quando o Mac confirma `READY`. `cancel`,
+`discard` e `reset` exigem confirmacao local por segundo toque antes de emitir
+comando, e o detector de borda evita que segurar o dedo confirme duas vezes. O
+driver fisico futuro deve consumir esse modelo sem inventar pinos, controlador
+touch ou placa ESP32.
+
+O fallback de log do display nao imprime resumo, topicos, transcricao ou texto
+de evolucao; ele registra apenas estado seguro, contagem de operacoes e
+metadados agregados.
 
 ## Hardware pendente
 

@@ -131,6 +131,22 @@ static bool parse_int_value(const char **p, int *out)
     return true;
 }
 
+static bool parse_nonnegative_int_value(const char **p, int *out)
+{
+    char *end = NULL;
+    long value;
+    if (!isdigit((unsigned char)**p)) {
+        return false;
+    }
+    value = strtol(*p, &end, 10);
+    if (end == *p || value < 0 || value > 2147483647L) {
+        return false;
+    }
+    *out = (int)value;
+    *p = end;
+    return true;
+}
+
 static bool parse_bool_value(const char **p, bool *out)
 {
     if (parse_literal(p, "true")) {
@@ -142,6 +158,110 @@ static bool parse_bool_value(const char **p, bool *out)
         return true;
     }
     return false;
+}
+
+static bool skip_json_value(const char **p);
+
+static bool skip_json_object(const char **p)
+{
+    if (**p != '{') {
+        return false;
+    }
+    (*p)++;
+    skip_ws(p);
+    if (**p == '}') {
+        (*p)++;
+        return true;
+    }
+    while (**p != '\0') {
+        char key[32] = {0};
+        bool truncated = false;
+        if (!parse_json_string(p, key, sizeof(key), &truncated) || truncated) {
+            return false;
+        }
+        skip_ws(p);
+        if (**p != ':') {
+            return false;
+        }
+        (*p)++;
+        skip_ws(p);
+        if (!skip_json_value(p)) {
+            return false;
+        }
+        skip_ws(p);
+        if (**p == '}') {
+            (*p)++;
+            return true;
+        }
+        if (**p != ',') {
+            return false;
+        }
+        (*p)++;
+        skip_ws(p);
+    }
+    return false;
+}
+
+static bool skip_json_array(const char **p)
+{
+    if (**p != '[') {
+        return false;
+    }
+    (*p)++;
+    skip_ws(p);
+    if (**p == ']') {
+        (*p)++;
+        return true;
+    }
+    while (**p != '\0') {
+        if (!skip_json_value(p)) {
+            return false;
+        }
+        skip_ws(p);
+        if (**p == ']') {
+            (*p)++;
+            return true;
+        }
+        if (**p != ',') {
+            return false;
+        }
+        (*p)++;
+        skip_ws(p);
+    }
+    return false;
+}
+
+static bool skip_json_number(const char **p)
+{
+    char *end = NULL;
+    (void)strtod(*p, &end);
+    if (end == *p) {
+        return false;
+    }
+    *p = end;
+    return true;
+}
+
+static bool skip_json_value(const char **p)
+{
+    char scratch[8] = {0};
+    bool truncated = false;
+    skip_ws(p);
+    if (**p == '"') {
+        return parse_json_string(p, scratch, sizeof(scratch), &truncated);
+    }
+    if (**p == '{') {
+        return skip_json_object(p);
+    }
+    if (**p == '[') {
+        return skip_json_array(p);
+    }
+    if (**p == '-' || isdigit((unsigned char)**p)) {
+        return skip_json_number(p);
+    }
+    return parse_literal(p, "true")
+        || parse_literal(p, "false")
+        || parse_literal(p, "null");
 }
 
 static bool parse_topics(const char **p, neko_mac_message_t *out,
@@ -186,6 +306,194 @@ static bool parse_topics(const char **p, neko_mac_message_t *out,
         skip_ws(p);
     }
     return false;
+}
+
+static bool voice_quality_from_string(const char *text, neko_voice_quality_t *quality)
+{
+    if (strcmp(text, "unknown") == 0) {
+        *quality = NEKO_VOICE_QUALITY_UNKNOWN;
+    } else if (strcmp(text, "ok") == 0) {
+        *quality = NEKO_VOICE_QUALITY_OK;
+    } else if (strcmp(text, "low") == 0) {
+        *quality = NEKO_VOICE_QUALITY_LOW;
+    } else if (strcmp(text, "clipping") == 0) {
+        *quality = NEKO_VOICE_QUALITY_CLIPPING;
+    } else {
+        return false;
+    }
+    return true;
+}
+
+static bool parse_voice(const char **p, neko_mac_message_t *out)
+{
+    bool saw_level = false;
+    bool saw_clipping = false;
+    bool saw_quality = false;
+    if (**p != '{') {
+        return false;
+    }
+    (*p)++;
+    skip_ws(p);
+    while (**p != '\0' && **p != '}') {
+        char key[32] = {0};
+        char scratch[16] = {0};
+        bool truncated = false;
+        if (!parse_json_string(p, key, sizeof(key), &truncated) || truncated) {
+            return false;
+        }
+        skip_ws(p);
+        if (**p != ':') {
+            return false;
+        }
+        (*p)++;
+        skip_ws(p);
+        if (strcmp(key, "level") == 0) {
+            if (!parse_nonnegative_int_value(p, &out->voice_level)
+                || out->voice_level < 0 || out->voice_level > 100) {
+                return false;
+            }
+            saw_level = true;
+        } else if (strcmp(key, "clipping") == 0) {
+            if (!parse_bool_value(p, &out->voice_clipping)) {
+                return false;
+            }
+            saw_clipping = true;
+        } else if (strcmp(key, "quality") == 0) {
+            if (!parse_json_string(p, scratch, sizeof(scratch), &truncated)
+                || truncated
+                || !voice_quality_from_string(scratch, &out->voice_quality)) {
+                return false;
+            }
+            saw_quality = true;
+        } else {
+            return false;
+        }
+        skip_ws(p);
+        if (**p == ',') {
+            (*p)++;
+            skip_ws(p);
+            continue;
+        }
+        if (**p != '}') {
+            return false;
+        }
+    }
+    if (**p != '}') {
+        return false;
+    }
+    (*p)++;
+    out->has_voice = saw_level && saw_clipping && saw_quality;
+    return out->has_voice;
+}
+
+static bool parse_journey(const char **p, neko_mac_message_t *out)
+{
+    if (**p != '{') {
+        return false;
+    }
+    (*p)++;
+    skip_ws(p);
+    while (**p != '\0' && **p != '}') {
+        char key[32] = {0};
+        bool truncated = false;
+        if (!parse_json_string(p, key, sizeof(key), &truncated) || truncated) {
+            return false;
+        }
+        skip_ws(p);
+        if (**p != ':') {
+            return false;
+        }
+        (*p)++;
+        skip_ws(p);
+        if (strcmp(key, "status") == 0) {
+            if (!parse_json_string(p, out->journey_status,
+                                   sizeof(out->journey_status), &truncated)
+                || truncated) {
+                return false;
+            }
+            if (strcmp(out->journey_status, "running") == 0
+                || strcmp(out->journey_status, "waiting") == 0) {
+                out->has_journey_progress = true;
+            }
+        } else if (strcmp(key, "step") == 0) {
+            if (!parse_json_string(p, out->journey_step,
+                                   sizeof(out->journey_step), &truncated)
+                || truncated) {
+                return false;
+            }
+        } else {
+            if (!skip_json_value(p)) {
+                return false;
+            }
+        }
+        skip_ws(p);
+        if (**p == ',') {
+            (*p)++;
+            skip_ws(p);
+            continue;
+        }
+        if (**p != '}') {
+            return false;
+        }
+    }
+    if (**p != '}') {
+        return false;
+    }
+    (*p)++;
+    return true;
+}
+
+static bool parse_diagnostic(const char **p, neko_mac_message_t *out)
+{
+    if (**p != '{') {
+        return false;
+    }
+    (*p)++;
+    skip_ws(p);
+    while (**p != '\0' && **p != '}') {
+        char key[32] = {0};
+        bool truncated = false;
+        if (!parse_json_string(p, key, sizeof(key), &truncated) || truncated) {
+            return false;
+        }
+        skip_ws(p);
+        if (**p != ':') {
+            return false;
+        }
+        (*p)++;
+        skip_ws(p);
+        if (strcmp(key, "component") == 0) {
+            if (!parse_json_string(p, out->diagnostic_component,
+                                   sizeof(out->diagnostic_component), &truncated)
+                || truncated) {
+                return false;
+            }
+        } else if (strcmp(key, "status") == 0) {
+            if (!parse_json_string(p, out->diagnostic_status,
+                                   sizeof(out->diagnostic_status), &truncated)
+                || truncated) {
+                return false;
+            }
+        } else {
+            if (!skip_json_value(p)) {
+                return false;
+            }
+        }
+        skip_ws(p);
+        if (**p == ',') {
+            (*p)++;
+            skip_ws(p);
+            continue;
+        }
+        if (**p != '}') {
+            return false;
+        }
+    }
+    if (**p != '}') {
+        return false;
+    }
+    (*p)++;
+    return true;
 }
 
 static int key_index(const char *key, key_seen_t *keys, size_t count)
@@ -234,6 +542,10 @@ static bool state_from_string(const char *text, neko_mac_state_t *state)
 {
     if (strcmp(text, "idle") == 0) {
         *state = NEKO_MAC_STATE_IDLE;
+    } else if (strcmp(text, "checking") == 0) {
+        *state = NEKO_MAC_STATE_CHECKING;
+    } else if (strcmp(text, "ready") == 0) {
+        *state = NEKO_MAC_STATE_READY;
     } else if (strcmp(text, "recording") == 0) {
         *state = NEKO_MAC_STATE_RECORDING;
     } else if (strcmp(text, "paused") == 0) {
@@ -244,6 +556,8 @@ static bool state_from_string(const char *text, neko_mac_state_t *state)
         *state = NEKO_MAC_STATE_COMPLETED;
     } else if (strcmp(text, "error") == 0) {
         *state = NEKO_MAC_STATE_ERROR;
+    } else if (strcmp(text, "recovery") == 0) {
+        *state = NEKO_MAC_STATE_RECOVERY;
     } else {
         return false;
     }
@@ -269,6 +583,13 @@ neko_protocol_status_t neko_protocol_parse_mac_line(const char *line,
         {"summary", false},
         {"code", false},
         {"message", false},
+        {"voice", false},
+        {"journey", false},
+        {"duration_seconds", false},
+        {"subject", false},
+        {"trend_text", false},
+        {"trend", false},
+        {"diagnostic", false},
     };
     const char *p = line;
     char type[16] = {0};
@@ -390,6 +711,38 @@ neko_protocol_status_t neko_protocol_parse_mac_line(const char *line,
             if (!parse_json_string(&p, out->message, sizeof(out->message),
                                    &truncated)
                 || truncated) {
+                return NEKO_PROTOCOL_ERR_INVALID_FIELD;
+            }
+        } else if (strcmp(key, "voice") == 0) {
+            if (!parse_voice(&p, out)) {
+                return NEKO_PROTOCOL_ERR_INVALID_FIELD;
+            }
+        } else if (strcmp(key, "journey") == 0) {
+            if (!parse_journey(&p, out)) {
+                return NEKO_PROTOCOL_ERR_INVALID_FIELD;
+            }
+        } else if (strcmp(key, "duration_seconds") == 0) {
+            if (!parse_nonnegative_int_value(&p, &out->duration_seconds)) {
+                return NEKO_PROTOCOL_ERR_INVALID_FIELD;
+            }
+        } else if (strcmp(key, "subject") == 0) {
+            if (!parse_json_string(&p, out->subject, sizeof(out->subject),
+                                   &truncated)
+                || truncated) {
+                return NEKO_PROTOCOL_ERR_INVALID_FIELD;
+            }
+        } else if (strcmp(key, "trend_text") == 0) {
+            if (!parse_json_string(&p, out->trend_text, sizeof(out->trend_text),
+                                   &truncated)
+                || truncated) {
+                return NEKO_PROTOCOL_ERR_INVALID_FIELD;
+            }
+        } else if (strcmp(key, "trend") == 0) {
+            if (!skip_json_value(&p)) {
+                return NEKO_PROTOCOL_ERR_INVALID_FIELD;
+            }
+        } else if (strcmp(key, "diagnostic") == 0) {
+            if (!parse_diagnostic(&p, out)) {
                 return NEKO_PROTOCOL_ERR_INVALID_FIELD;
             }
         }

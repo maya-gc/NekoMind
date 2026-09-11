@@ -9,6 +9,7 @@ cc -std=c11 -Wall -Wextra -Werror \
   -Imain \
   tests/test_neko_controller.c \
   main/neko_controller.c \
+  main/neko_layout.c \
   main/neko_protocol.c \
   -o "$test_binary"
 

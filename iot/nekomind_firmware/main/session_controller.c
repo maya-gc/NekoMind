@@ -13,12 +13,17 @@
 #include "board_touch.h"
 #include "display_ui.h"
 #include "neko_controller.h"
+#include "neko_layout.h"
 
 static const char *TAG = "session_ctrl";
+#define NEKO_DISPLAY_WIDTH 240
+#define NEKO_DISPLAY_HEIGHT 320
 
 static neko_controller_t s_controller;
 static char s_rx_line[NEKO_PROTOCOL_MAX_LINE_BYTES];
 static bool s_touch_driver_ready = false;
+static neko_layout_model_t s_layout;
+static neko_touch_edge_t s_touch_edge;
 
 static uint32_t now_ms(void)
 {
@@ -32,6 +37,12 @@ static neko_state_t avatar_from_controller(neko_controller_state_t state)
         return NEKO_STATE_IDLE;
     case NEKO_CONTROLLER_PENDING:
         return NEKO_STATE_PENDING;
+    case NEKO_CONTROLLER_CHECKING:
+        return NEKO_STATE_PENDING;
+    case NEKO_CONTROLLER_READY:
+        return NEKO_STATE_IDLE;
+    case NEKO_CONTROLLER_RECOVERY:
+        return NEKO_STATE_ERROR;
     case NEKO_CONTROLLER_RECORDING:
         return NEKO_STATE_RECORDING;
     case NEKO_CONTROLLER_PAUSED:
@@ -59,12 +70,17 @@ static void controller_render_view(neko_controller_state_t state,
                                    void *user_data)
 {
     (void)user_data;
+    neko_layout_model_t layout;
+    neko_scene_t scene;
     avatar_state_set(avatar_from_controller(state));
-    display_ui_render_view(view != NULL ? view->message : neko_controller_state_name(state),
-                           view != NULL ? view->summary : "",
-                           view != NULL ? view->topics : NULL,
-                           view != NULL ? view->topic_count : 0,
-                           view != NULL && view->is_demo);
+    if (neko_layout_build(state, view, NEKO_DISPLAY_WIDTH, NEKO_DISPLAY_HEIGHT,
+                          false, view != NULL ? view->card_index : 0, &layout)
+        && neko_scene_build(state, view, &layout, &scene)) {
+        s_layout = layout;
+        display_ui_draw_scene(&scene);
+    } else {
+        display_ui_render(view != NULL ? view->message : neko_controller_state_name(state));
+    }
 }
 
 esp_err_t session_controller_init(void)
@@ -80,13 +96,12 @@ esp_err_t session_controller_init(void)
     ESP_ERROR_CHECK(display_ui_init());
     ESP_ERROR_CHECK(audio_transport_init(NEKO_TRANSPORT_SERIAL));
     s_touch_driver_ready = false;
+    neko_touch_edge_init(&s_touch_edge);
     {
         esp_err_t touch_err = board_touch_init();
         if (touch_err != ESP_OK) {
             avatar_state_set(NEKO_STATE_ERROR);
-            display_ui_render_view("hardware touch indisponivel",
-                                   "selecione placa/controlador touch",
-                                   NULL, 0, false);
+            display_ui_render("hardware touch indisponivel");
             ESP_LOGE(TAG, "touch indisponivel: %s", esp_err_to_name(touch_err));
             return touch_err;
         }
@@ -107,7 +122,18 @@ esp_err_t session_controller_init(void)
 static void poll_touch(uint32_t t_ms)
 {
     neko_touch_event_t event;
+    int x = 0;
+    int y = 0;
+    bool pressed = false;
     if (!s_touch_driver_ready) {
+        return;
+    }
+    if (board_touch_poll_point(&x, &y, &pressed) == ESP_OK) {
+        bool enabled = false;
+        if (neko_touch_edge_update(&s_touch_edge, pressed, t_ms)
+            && neko_layout_hit_test(&s_layout, x, y, &event, &enabled) && enabled) {
+            neko_controller_touch(&s_controller, event, t_ms);
+        }
         return;
     }
     esp_err_t err = board_touch_poll(&event);

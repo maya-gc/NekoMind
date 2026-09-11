@@ -12,12 +12,18 @@ extern "C" {
 
 #define NEKO_ACK_TIMEOUT_MS 5000U
 #define NEKO_RESULT_TIMEOUT_MS 120000U
+#define NEKO_PROCESSING_MAX_MS 600000U
 #define NEKO_HEARTBEAT_MS 2000U
 #define NEKO_DISCONNECT_TIMEOUT_MS 8000U
+#define NEKO_TOUCH_DEBOUNCE_MS 250U
+#define NEKO_VOICE_RENDER_THROTTLE_MS 200U
 
 typedef enum {
     NEKO_CONTROLLER_IDLE = 0,
     NEKO_CONTROLLER_PENDING,
+    NEKO_CONTROLLER_CHECKING,
+    NEKO_CONTROLLER_READY,
+    NEKO_CONTROLLER_RECOVERY,
     NEKO_CONTROLLER_RECORDING,
     NEKO_CONTROLLER_PAUSED,
     NEKO_CONTROLLER_PROCESSING,
@@ -32,7 +38,15 @@ typedef enum {
     NEKO_TOUCH_FINISH,
     NEKO_TOUCH_RETRY,
     NEKO_TOUCH_STATUS,
-    NEKO_TOUCH_RESEND
+    NEKO_TOUCH_RESEND,
+    NEKO_TOUCH_DIAGNOSE,
+    NEKO_TOUCH_CALIBRATE,
+    NEKO_TOUCH_RECOVER,
+    NEKO_TOUCH_DISCARD,
+    NEKO_TOUCH_CANCEL,
+    NEKO_TOUCH_RESET,
+    NEKO_TOUCH_NEXT_CARD,
+    NEKO_TOUCH_PREV_CARD
 } neko_touch_event_t;
 
 typedef enum {
@@ -42,7 +56,13 @@ typedef enum {
     NEKO_COMMAND_RESUME,
     NEKO_COMMAND_FINISH,
     NEKO_COMMAND_RETRY,
-    NEKO_COMMAND_STATUS
+    NEKO_COMMAND_STATUS,
+    NEKO_COMMAND_DIAGNOSE,
+    NEKO_COMMAND_CALIBRATE,
+    NEKO_COMMAND_RECOVER,
+    NEKO_COMMAND_DISCARD,
+    NEKO_COMMAND_CANCEL,
+    NEKO_COMMAND_RESET
 } neko_command_t;
 
 typedef enum {
@@ -62,6 +82,17 @@ typedef struct {
     const char (*topics)[NEKO_TOPIC_MAX + 1];
     size_t topic_count;
     bool is_demo;
+    int duration_seconds;
+    const char *subject;
+    const char *trend_text;
+    int voice_level;
+    bool voice_clipping;
+    neko_voice_quality_t voice_quality;
+    size_t card_index;
+    const char *journey_step;
+    const char *journey_status;
+    const char *diagnostic_component;
+    const char *diagnostic_status;
 } neko_controller_view_t;
 
 typedef void (*neko_controller_render_fn)(neko_controller_state_t state,
@@ -95,12 +126,29 @@ typedef struct {
     char last_command_line[256];
     uint32_t pending_deadline_ms;
     uint32_t result_deadline_ms;
+    uint32_t processing_max_deadline_ms;
     uint32_t next_heartbeat_ms;
     uint32_t disconnect_deadline_ms;
     char summary[NEKO_RESULT_SUMMARY_MAX + 1];
     char topics[NEKO_TOPIC_COUNT_MAX][NEKO_TOPIC_MAX + 1];
     size_t topic_count;
     char last_error[NEKO_ERROR_MESSAGE_MAX + 1];
+    uint32_t last_touch_ms;
+    neko_touch_event_t last_touch_event;
+    uint32_t next_voice_render_ms;
+    int voice_level;
+    bool voice_clipping;
+    neko_voice_quality_t voice_quality;
+    size_t result_card_index;
+    int duration_seconds;
+    char subject[NEKO_SUBJECT_MAX + 1];
+    char trend_text[NEKO_TREND_TEXT_MAX + 1];
+    char journey_step[NEKO_JOURNEY_TEXT_MAX + 1];
+    char journey_status[NEKO_JOURNEY_TEXT_MAX + 1];
+    char diagnostic_component[NEKO_DIAGNOSTIC_TEXT_MAX + 1];
+    char diagnostic_status[NEKO_DIAGNOSTIC_TEXT_MAX + 1];
+    neko_command_t confirmation_command;
+    neko_touch_event_t confirmation_event;
 } neko_controller_t;
 
 neko_controller_status_t neko_controller_init(

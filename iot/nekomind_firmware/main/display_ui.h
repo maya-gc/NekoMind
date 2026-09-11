@@ -13,6 +13,7 @@
 #include "esp_err.h"
 
 #include "avatar_state.h"
+#include "neko_layout.h"
 #include "neko_protocol.h"
 
 #ifdef __cplusplus
@@ -47,7 +48,12 @@ esp_err_t display_ui_render_view(const char *status_line,
                                  const char *summary,
                                  const char (*topics)[NEKO_TOPIC_MAX + 1],
                                  size_t topic_count,
-                                 bool is_demo);
+                                 bool is_demo,
+                                 int duration_seconds,
+                                 const char *trend_text,
+                                 int voice_level,
+                                 bool voice_clipping);
+esp_err_t display_ui_draw_scene(const neko_scene_t *scene);
 
 /** Mostra telemetria curta (ex.: RMS do microfone, heap livre). */
 esp_err_t display_ui_show_telemetry(const char *telemetry_line);
