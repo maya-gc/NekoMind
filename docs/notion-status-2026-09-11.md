@@ -78,6 +78,10 @@ compacta. O painel público do Mac mostra a jornada técnica para a plateia.
   que termos reconhecidos podem divergir da frase reproduzida.
 - Manter Mac ligado, tampa aberta, sem suspensão e com permissão de microfone durante
   a sessão. Não expor backend, token, áudio ou transcrição em rede pública.
+- **Incidente de dados já registrado:** durante uma revisão anterior, o banco local
+  padrão foi recriado indevidamente. O conteúdo anterior não foi recuperado; a cópia
+  pós-incidente foi preservada, e uma restauração adicional depende de backup externo.
+  O incidente e as medidas posteriores estão detalhados no [relatório de QA](qa-report.md).
 
 O software está pronto para revisão e demonstração local no emulador. A integração
 física completa depende das decisões e testes de hardware listados acima.
