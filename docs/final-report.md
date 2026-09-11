@@ -8,7 +8,7 @@ Repositório: [maya-gc/NekoMind](https://github.com/maya-gc/NekoMind). Branch ú
 [feat/nekomind-touch-mac-mvp](https://github.com/maya-gc/NekoMind/tree/feat/nekomind-touch-mac-mvp).
 
 - SHA inicial: `7c987ac4b035cad163867810f9683964162f73b7`.
-- SHA final do código desta rodada: `fa554202593b982f6e133b7dab791f388d4be542`,
+- SHA final do código desta rodada: `9032983246684a5a9c2120c070a17621cb741842`,
   confirmado por `git ls-remote`, novo fetch e API GitHub.
 - `main` permaneceu em `0a4bdfb4278858bd7e10ec69f7825ba1ebdcdafd`.
 - Commits iniciais `2ff3535`, `412146c` e `7c987ac` preservados; bundle local verificado.
@@ -42,6 +42,7 @@ git rev-list --left-right --count HEAD...origin/feat/nekomind-touch-mac-mvp
 
 | SHA completo / URL | Mensagem | Objetivo | Principais arquivos |
 |---|---|---|---|
+| [9032983246684a5a9c2120c070a17621cb741842](https://github.com/maya-gc/NekoMind/commit/9032983246684a5a9c2120c070a17621cb741842) | fix(mvp): corrigir calibração, pausa e histórico | Corrigir janela e primeiro uso da calibração, persistência/exibição da data e instrução de pausa | `backend/app/mac/capture.py`; `backend/app/services/session_analysis.py`; `frontend/web/src`; testes |
 | [fd5c0a2136ad33f55f6b6079f9154005344bf07b](https://github.com/maya-gc/NekoMind/commit/fd5c0a2136ad33f55f6b6079f9154005344bf07b) | feat(backend): integrar operação, recuperação e privacidade NM-008 a NM-019 | APIs, migração aditiva, captura/calibração, retomada, retenção, autenticação e testes | `backend/app; backend/tests` |
 | [d52815dc51502c85ade662bd0e6b760b167a4e82](https://github.com/maya-gc/NekoMind/commit/d52815dc51502c85ade662bd0e6b760b167a4e82) | feat(firmware): renderizar avatar, jornada e cartões touch | Controlador C, parser, display-list e layouts independentes de drivers | `iot/nekomind_firmware` |
 | [9e88e2472f5892aa45d263624a3fa7ef299bb280](https://github.com/maya-gc/NekoMind/commit/9e88e2472f5892aa45d263624a3fa7ef299bb280) | feat(web): integrar feira e painéis público e operacional | Emulador, painéis, cartões, fila com recibos e regressões | `frontend/web; frontend/tests; frontend/streamlit/services/backend_client.py` |
@@ -50,6 +51,14 @@ git rev-list --left-right --count HEAD...origin/feat/nekomind-touch-mac-mvp
 Os três commits anteriores permanecem ancestrais. A revisão documental não altera o
 código desses commits. O relatório distingue publicação, execução automatizada e
 validação física; o MVP físico não está declarado completo.
+
+Em um reteste posterior no mesmo Mac, a jornada conectada percorreu diagnóstico,
+início, pausa, retomada, finalização, cartões, nova tentativa, cancelamento confirmado,
+assunto e histórico. O microfone físico capturou voz sintetizada localmente; a pausa
+não gravou bytes e o WebRTC VAD detectou fala no WAV final. Foram corrigidos a janela
+de calibração, o diretório ausente no primeiro uso, a data final da sessão, o campo de
+data do histórico e a instrução exibida durante a pausa. As contagens atuais na seção
+Testes substituem a baseline `178` indicada na matriz histórica abaixo.
 
 ## Melhorias NM-001 a NM-019
 
@@ -179,17 +188,17 @@ de enquadramento foram preservados fora do Git. [QA completo](https://github.com
 | Grupo | Comando / método | Quantidade / aprovados | Falhas finais / não executados |
 |---|---|---|---|
 | Estática | Ruff check, Ruff format, compileall, node --check, bash -n, git diff --check | PASS; 68 arquivos Python formatados | Type checker não configurado; scanners externos indisponíveis |
-| Backend | `cd backend; .venv/bin/python -m pytest -q` | 178/178 | 0; 6 avisos de depreciação |
+| Backend | `cd backend; .venv/bin/python -m pytest -q` | 180/180 | 0; 6 avisos de depreciação |
 | ASR/lifespan | `cd backend; .venv/bin/python -m unittest discover -s tests -p test_asr_lifecycle.py -v` | 10/10 | 0; modelo substituto |
 | Frontend web | `node --test frontend/tests/*.test.mjs` | 25/25 | 0 |
 | Streamlit | `python3 -m pytest frontend/streamlit/tests -q` | 6/6 | 0; Python global com dependências |
 | Firmware | `bash iot/nekomind_firmware/scripts/test_firmware.sh` | 22 casos, binário aprovado | Build ESP-IDF não executado |
 | Integração | pytest touch_mac_end_to_end + experience_end_to_end + serial_interop | 6/6, grupo separado | Sem mic/ASR físicos |
 | Privacidade/migração | pytest privacy_failures + session_lifecycle_nm019 + sqlite_migration | 21/21, grupo separado | Backups externos fora da garantia |
-| Painel operacional | pytest test_operations.py | 20/20, grupo separado | Interação final do navegador pendente |
-| Visual | Navegador e capturas abertas | 33 imagens selecionadas | QA final parcial; ver seção acima |
+| Painel operacional | pytest test_operations.py | 20/20, grupo separado | Jornada interativa final também executada em loopback |
+| Visual | Navegador e capturas abertas | 33 imagens selecionadas e reteste interativo | Tela física e captura integral 1920×1080 pendentes |
 | Desempenho | Limite de telemetria e concorrência com substitutos | Casos automatizados aprovados | Sem benchmark Whisper/RSS/FPS/latência física |
-| Hardware real | Microfone, ESP32, TFT/touch e Whisper | Não executado | Modelo indisponível e hardware não identificado; nenhuma pessoa gravada |
+| Hardware real | Microfone/PortAudio Mac | Executado com voz sintetizada local | Whisper, serial, ESP32 e TFT/touch não executados; nenhuma pessoa gravada |
 
 Contagens sobrepostas não se somam. O gate agregado do runtime Flow permaneceu FAIL
 pela política herdada de `.env.example`; doctor teve pendência de steering global.
@@ -230,9 +239,8 @@ build. Instalar dependências Streamlit no interpretador usado para seus testes.
   trocar para outro modelo/API seria decisão futura.
 - **Hardware indisponível/sem identificação:** drivers, build ESP-IDF, flash, TFT e touch
   reais. Nenhum teste portátil comprova funcionamento do módulo.
-- **Testes não executados:** gravação autorizada de pessoa, Whisper real, benchmark,
-  latência serial/FPS/RAM no ESP32 e ensaio completo da mesa. QA interativo final do
-  navegador continua parcial por bloqueio da automação.
+- **Testes não executados:** gravação de uma pessoa, Whisper real, benchmark,
+  latência serial/FPS/RAM no ESP32 e ensaio completo da mesa com o dispositivo físico.
 - **Limitações conhecidas:** extração lexical e métricas não verificam fatos/domínio;
   VAD/níveis precisam de calibração real; SQLite/loopback/um worker; apagamento não
   alcança backups externos ou recuperação forense do SSD. Gate global Flow não aprovado.

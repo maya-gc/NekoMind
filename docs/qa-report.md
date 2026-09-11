@@ -12,9 +12,10 @@ dependências. Firmware host compilado com `cc -std=c11 -Wall -Wextra -Werror`.
 
 Pytest configura banco temporário antes de importar o app e diretórios de áudio/Mac
 por teste. O teste unittest de lifespan usa engine/settings temporários explícitos.
-QA no navegador usa backend em `127.0.0.1:8765`, banco e storage em `/tmp`, modo demo
-e recorder sintético. Nenhuma gravação de pessoa, download de modelo ou serviço de
-inferência em nuvem foi usado.
+QA no navegador usa backend em loopback, banco e storage temporários, modo demo e
+recorder sintético. O reteste físico desta rodada usou PortAudio, o microfone e os
+alto-falantes reais do Mac com voz sintetizada por `/usr/bin/say`. Nenhuma gravação de
+pessoa, download de modelo ou serviço de inferência em nuvem foi usado.
 
 ## Incidente durante a execução
 
@@ -56,6 +57,13 @@ storage padrão, e separado o diretório de arquivos de cada teste.
   consumidores, além dos testes unitários.
 - QA visual encontrou overflow do diagnóstico, aviso de voz baixa, botão Pausar
   cortado no landscape e resumo duplicado que escondia tópicos na TV.
+- O uso interativo encontrou instrução genérica durante a pausa; o touch agora informa
+  que a captura está pausada e orienta a ação Retomar.
+- Sessões concluídas perdiam `ended_at` porque um `refresh` ocorria depois da atribuição,
+  e o histórico web ignorava o nome de campo do contrato. A ordem foi corrigida e o
+  renderer passou a consumir `ended_at`.
+- A calibração de três segundos aguardava somente 100 ms e falhava no primeiro uso se
+  `capture/` ainda não existisse. Agora respeita a janela solicitada e cria o diretório.
 
 ## Evidência visual
 
@@ -73,13 +81,13 @@ S1 → retomada S1 → resultado demo persistido S1 → cartão de tópico. Foi 
 DemoRecorder, SQLite e API reais locais, sem microfone/modelo reais. Capturas
 `connected-*` registram esse ensaio anterior ao último ajuste de confirmação.
 
-A confirmação nativa de encerramento bloqueou a automação do navegador embutido.
-Ela foi substituída por diálogo acessível dentro da página, com confirmação/cancelamento
-e teste unitário. Porém a repetição interativa final de encerramento, nova tentativa,
-histórico e exclusão no navegador ficou **não concluída**: as abas passaram a não
-responder a cliques/teclado. Essas operações têm testes de API/estado/contrato; isso
-não substitui sua verificação interativa final. O usuário foi informado do bloqueio.
-Não há aprovação irrestrita de QA visual ou acessibilidade.
+A confirmação nativa de encerramento que bloqueava a automação foi substituída por
+diálogo acessível dentro da página, com confirmação/cancelamento e teste unitário.
+Na repetição interativa final, o navegador percorreu diagnóstico, início, pausa,
+retomada, finalização, cartões, nova tentativa deliberada, cancelamento confirmado,
+assunto e histórico. Uma nova sessão após a correção confirmou `ended_at` tanto no
+detalhe persistido quanto no ponto retornado pelo histórico. O ensaio foi em modo demo;
+não há aprovação irrestrita de QA visual ou acessibilidade.
 
 Na última inspeção de imagens, o resumo em 320×240 ainda invadia os botões.
 A paginação foi reduzida a 32 caracteres por trecho, respeitando palavras; novas
@@ -102,7 +110,7 @@ privacidade e ASR são subconjuntos/execuções adicionais e não devem ser soma
 | Formatação | `cd backend; .venv/bin/ruff format --check app tests` | 68 arquivos conformes | 0 |
 | Sintaxe Python | `cd backend; .venv/bin/python -m compileall -q app tests` | PASS | 0 |
 | Sintaxe JS/shell | `node --check frontend/web/src/*.mjs` individual; `bash -n` por script de produto | PASS | 0; não há type checker configurado |
-| Backend completo | `cd backend; .venv/bin/python -m pytest -q --tb=short` | **178 / 178**, 16,63s | 0; 6 avisos de depreciação Starlette/httpx/AnyIO |
+| Backend completo | `cd backend; .venv/bin/python -m pytest -q --tb=short` | **180 / 180**, 16,75s | 0; 6 avisos de depreciação Starlette/httpx/AnyIO |
 | ASR isolado | `cd backend; .venv/bin/python -m unittest discover -s tests -p test_asr_lifecycle.py -v` | **10 / 10** | 0; modelo substituto, lifespan real isolado |
 | Frontend web | `node --test frontend/tests/*.test.mjs` | **25 / 25** | 0; estados, fila, contratos, cartões e a11y de markup |
 | Streamlit legado | `python3 -m pytest frontend/streamlit/tests -q` | **6 / 6** | 0; usa Python global, venv backend sem Streamlit |
@@ -110,10 +118,10 @@ privacidade e ASR são subconjuntos/execuções adicionais e não devem ser soma
 | Integração | pytest `test_touch_mac_end_to_end.py`, `test_experience_end_to_end.py`, `test_serial_interop.py` | **6 / 6**, execução separada | ASR/microfone substituídos; extrator lexical e C reais |
 | Privacidade/persistência | pytest `test_privacy_failures.py`, `test_session_lifecycle_nm019.py`, `test_sqlite_migration.py` | **21 / 21**, execução separada | 0; isolamento, tombstones, backup e falhas parciais |
 | Operação/painel | pytest `test_operations.py` | **20 / 20** | 0; snapshot público, auth, comandos, reset e ACK antigo |
-| Visual | Navegador local + capturas abertas; 240×320, 320×240, 1440×900 | Estados listados e imagens abaixo | Interação final e captura integral 1920×1080 parciais |
+| Visual | Navegador local + capturas abertas; 240×320, 320×240, 1440×900 | Estados listados e jornada interativa final concluída | Captura integral 1920×1080 parcial; sem tela física |
 | Segredos/arquivos | Inventário Git + padrões de chaves privadas/GitHub/AWS, saída só de caminhos | 182 textos examinados antes do fechamento, 0 achados | Gitleaks/Semgrep/Trivy indisponíveis; não equivale a auditoria completa |
 | Desempenho | Casos de limitação de voz/concorrência, tempos de etapas | Automatizado com substitutos | Sem benchmark de ASR, memória, FPS ou latência física |
-| Hardware real | PortAudio, Whisper, ESP-IDF/flash, TFT/touch | **Não executado** | Sem gravação autorizada de pessoa, modelo/placa/pinagem identificados |
+| Hardware real | PortAudio/microfone Mac | **Executado** com voz sintetizada local; calibração e iniciar/pausar/retomar/finalizar | Whisper, serial, ESP-IDF/flash e TFT/touch não executados |
 
 O gate agregado `.codex/scripts/codex-flow-quality-gates.sh .` permaneceu FAIL pela
 regra que rejeita `.env.example` versionados, embora sejam exemplos sem credenciais
@@ -135,7 +143,7 @@ final ficou em 25 testes aprovados.
 
 | `test_asr_lifecycle.py` | 10 |
 | `test_audio_idempotency_and_capture_state.py` | 11 |
-| `test_calibration.py` | 3 |
+| `test_calibration.py` | 5 |
 | `test_experience_end_to_end.py` | 2 |
 | `test_health.py` | 1 |
 | `test_legacy_transport.py` | 2 |
@@ -168,12 +176,15 @@ final ficou em 25 testes aprovados.
 - [Presenter 1440×900](../ScreenshotsToCloseLoop/runs/feira-nm019/presenter-recovery-1440x900.png)
 - [Reset fixture](../ScreenshotsToCloseLoop/runs/feira-nm019/touch-reset-240x320.png), distinto do reset conectado testado pela API.
 
-## Validações físicas não executadas
+## Validação física e pendências
 
-Faster-whisper real não instalado/carregado; sem benchmark de primeira transcrição,
-reuso ou memória. Microfone/PortAudio reais não acionados. ESP-IDF build/flash não
-executados: placa, controlador touch, pinos e tensão não definidos. Sem medição de
-FPS, RAM, PSRAM, latência serial física ou consumo do display.
+Faster-whisper real não está instalado/carregado; sem benchmark de primeira transcrição,
+reuso ou memória. O microfone/PortAudio real capturou voz sintetizada pelos alto-falantes:
+a calibração ficou pronta em cerca de 3,1 s, a pausa não acrescentou bytes e o WAV final
+teve fala detectada por WebRTC VAD. Isso não valida transcrição Whisper nem captação de
+uma pessoa na bancada. ESP-IDF build/flash não foi executado: placa, controlador touch,
+pinos e tensão não estão definidos. Sem medição de FPS, RAM, PSRAM, latência serial
+física ou consumo do display.
 
 Os comandos do roteiro físico estão em [manual-checklist.md](manual-checklist.md).
 O software não deve ser apresentado como MVP físico totalmente pronto.
