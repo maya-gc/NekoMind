@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import * as stateModule from "../web/src/state.mjs";
+
 import {
   cardModelForSnapshot,
   fixtureSnapshot,
@@ -22,6 +24,24 @@ import {
   renderTouch,
 } from "../web/src/render.mjs";
 import { createExperienceClient } from "../web/src/api.mjs";
+
+test("valid real-mode authentication starts one diagnostic only from idle", () => {
+  assert.equal(typeof stateModule.automaticDiagnosticForSnapshot, "function");
+  assert.deepEqual(stateModule.automaticDiagnosticForSnapshot({
+    state: "idle",
+    mode: "real",
+    experience_mode: "fair",
+  }), {
+    command: "diagnose",
+    session_id: null,
+    confirmed: false,
+    mode: "fair",
+  });
+  for (const state of ["checking", "ready", "recording", "completed", "error", "recovery"]) {
+    assert.equal(stateModule.automaticDiagnosticForSnapshot({ state, mode: "real" }), null);
+  }
+  assert.equal(stateModule.automaticDiagnosticForSnapshot({ state: "idle", mode: "demo" }), null);
+});
 
 test("destructive confirmation is accessible, escaped and offers explicit cancellation", () => {
   const html = renderConfirmation('<img src=x onerror=alert(1)>');

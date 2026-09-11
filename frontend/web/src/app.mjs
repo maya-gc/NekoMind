@@ -1,5 +1,6 @@
 import { createExperienceClient } from "./api.mjs";
 import {
+  automaticDiagnosticForSnapshot,
   createCommandQueue,
   fixtureSnapshot,
   routeFromPath,
@@ -129,17 +130,32 @@ app.addEventListener("click", async (event) => {
     }
     try {
       await client.validateOperatorToken(candidate);
-      state.token = candidate;
-      if (input) input.value = "";
-      state.drafts.tokenInput = "";
-      state.tokenPromptOpen = false;
-      state.commandError = "";
-      await refresh();
     } catch (_error) {
       state.token = "";
       state.commandError = "Token local inválido. Copie o token atual e tente novamente.";
       state.tokenPromptOpen = true;
       render();
+      return;
+    }
+    state.token = candidate;
+    if (input) input.value = "";
+    state.drafts.tokenInput = "";
+    state.tokenPromptOpen = false;
+    state.commandError = "";
+    await refresh();
+    const diagnostic = automaticDiagnosticForSnapshot(state.snapshot);
+    if (diagnostic) {
+      try {
+        state.pendingCommand = true;
+        render();
+        await commandQueue.enqueue(diagnostic);
+        state.pendingCommand = false;
+        await refresh();
+      } catch (error) {
+        state.pendingCommand = false;
+        state.commandError = `Token aceito. O diagnóstico automático falhou: ${error.message || "tente novamente"}`;
+        render();
+      }
     }
     return;
   }

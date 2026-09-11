@@ -58,6 +58,10 @@ A porta acima é um placeholder; depende do hardware. Não abrir duas instância
 a mesma porta/diretório. Após escolher o dispositivo, permitir microfone ao app de
 terminal que executa Python em **Ajustes do Sistema → Privacidade e Segurança →
 Microfone**. Se negado, a captura falha e o touch permite tentar novamente após corrigir.
+No modo real, aceitar um token local válido enquanto a experiência está no início
+dispara o diagnóstico do microfone automaticamente. O macOS mostra o pedido de
+permissão somente quando a decisão ainda está pendente; se a permissão já foi concedida,
+o diagnóstico segue direto para o estado pronto sem repetir a janela do sistema.
 Nenhum áudio é capturado antes de um comando de início. O bridge usa `caffeinate`;
 manter Mac ligado, tampa aberta e sem suspensão manual durante a sessão.
 

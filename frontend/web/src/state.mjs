@@ -41,6 +41,16 @@ export function routeFromPath(pathname = "/public") {
   return { view: "public" };
 }
 
+export function automaticDiagnosticForSnapshot(snapshot) {
+  if (snapshot?.mode !== "real" || snapshot?.state !== "idle") return null;
+  return {
+    command: "diagnose",
+    session_id: null,
+    confirmed: false,
+    mode: snapshot.experience_mode || "fair",
+  };
+}
+
 export function fixtureSnapshot(name = "attraction") {
   const base = sanitizePublicSnapshot({
     schema_version: 1,
