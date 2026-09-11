@@ -2,7 +2,7 @@ export function createExperienceClient({ fetchImpl = globalThis.fetch, tokenProv
   async function request(path, options = {}) {
     const headers = { ...(options.headers || {}) };
     if (options.private) {
-      const token = tokenProvider();
+      const token = options.token ?? tokenProvider();
       if (token) headers.Authorization = `Bearer ${token}`;
     }
     if (options.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
@@ -25,6 +25,9 @@ export function createExperienceClient({ fetchImpl = globalThis.fetch, tokenProv
     },
     getPresenter() {
       return request("/api/v1/experience/presenter", { private: true });
+    },
+    validateOperatorToken(token) {
+      return request("/api/v1/experience/presenter", { private: true, token });
     },
     enqueueCommand(command) {
       return request("/api/v1/experience/commands", {

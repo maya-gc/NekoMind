@@ -518,6 +518,7 @@ test("experience client binds subject, history and delete APIs with bearer auth"
   await client.getCommandStatus("rid-1");
   await client.getSubjectHistory("biologia");
   await client.deleteSession(42);
+  await client.validateOperatorToken("candidate-token");
 
   assert.equal(calls[0].url, "/api/v1/sessions/42/subject");
   assert.deepEqual(JSON.parse(calls[0].init.body), { subject: "biologia", confirmed: true });
@@ -525,5 +526,7 @@ test("experience client binds subject, history and delete APIs with bearer auth"
   assert.equal(calls[2].url, "/api/v1/history/subjects/biologia");
   assert.equal(calls[3].url, "/api/v1/sessions/42");
   assert.deepEqual(JSON.parse(calls[3].init.body), { confirmed: true });
-  assert.equal(calls.every((call) => call.init.headers.Authorization === "Bearer operator-token"), true);
+  assert.equal(calls.slice(0, 4).every((call) => call.init.headers.Authorization === "Bearer operator-token"), true);
+  assert.equal(calls[4].url, "/api/v1/experience/presenter");
+  assert.equal(calls[4].init.headers.Authorization, "Bearer candidate-token");
 });

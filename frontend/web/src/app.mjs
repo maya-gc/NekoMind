@@ -112,10 +112,27 @@ app.addEventListener("click", async (event) => {
   const tokenButton = event.target.closest("[data-token-submit]");
   if (tokenButton) {
     const input = app.querySelector("#presenter-token");
-    state.token = input?.value?.trim() || "";
-    state.tokenPromptOpen = false;
-    if (input) input.value = "";
-    await refresh();
+    const candidate = input?.value?.trim() || "";
+    if (!candidate) {
+      state.commandError = "Cole o token local antes de continuar.";
+      state.tokenPromptOpen = true;
+      render();
+      return;
+    }
+    try {
+      await client.validateOperatorToken(candidate);
+      state.token = candidate;
+      if (input) input.value = "";
+      state.drafts.tokenInput = "";
+      state.tokenPromptOpen = false;
+      state.commandError = "";
+      await refresh();
+    } catch (_error) {
+      state.token = "";
+      state.commandError = "Token local inválido. Copie o token atual e tente novamente.";
+      state.tokenPromptOpen = true;
+      render();
+    }
     return;
   }
 
