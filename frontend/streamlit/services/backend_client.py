@@ -6,7 +6,10 @@ da API do backend por este modulo.
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 from streamlit import session_state as st_state
@@ -87,7 +90,17 @@ def session_origin(session: dict) -> dict:
 
 
 def _client() -> httpx.Client:
-    return httpx.Client(base_url=get_backend_url(), timeout=20.0, trust_env=False)
+    url = get_backend_url()
+    parsed = urlsplit(url)
+    if (parsed.scheme != 'http' or parsed.hostname not in {'127.0.0.1', 'localhost', '::1'}
+        or parsed.username or parsed.password or parsed.query or parsed.fragment):
+        raise ValueError('O historico aceita somente o backend local do Mac.')
+    storage = Path(os.environ.get('NEKOMIND_STORAGE_DIR',
+                   Path(__file__).resolve().parents[3] / 'backend' / 'storage' / 'audio'))
+    token_path = storage.parent / 'operator-token'
+    token = token_path.read_text().strip() if token_path.is_file() else ''
+    return httpx.Client(base_url=url, timeout=20.0, trust_env=False,
+                        follow_redirects=False, headers={'Authorization': f'Bearer {token}'})
 
 
 def _request(method: str, path: str, **kwargs: Any) -> dict | list | None:
