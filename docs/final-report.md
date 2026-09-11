@@ -57,8 +57,11 @@ início, pausa, retomada, finalização, cartões, nova tentativa, cancelamento 
 assunto e histórico. O microfone físico capturou voz sintetizada localmente; a pausa
 não gravou bytes e o WebRTC VAD detectou fala no WAV final. Foram corrigidos a janela
 de calibração, o diretório ausente no primeiro uso, a data final da sessão, o campo de
-data do histórico e a instrução exibida durante a pausa. As contagens atuais na seção
-Testes substituem a baseline `178` indicada na matriz histórica abaixo.
+data do histórico e a instrução exibida durante a pausa. Um segundo ambiente temporário
+confirmou a fila HTTP do touch, `MacBridge`, microfone físico, upload, resultado demo
+persistido e remoção do áudio bruto; serial foi substituído logicamente e ASR/tópicos
+continuaram mocks identificados. As contagens atuais na seção Testes substituem a
+baseline `178` indicada na matriz histórica abaixo.
 
 ## Melhorias NM-001 a NM-019
 

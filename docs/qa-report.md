@@ -182,9 +182,13 @@ Faster-whisper real não está instalado/carregado; sem benchmark de primeira tr
 reuso ou memória. O microfone/PortAudio real capturou voz sintetizada pelos alto-falantes:
 a calibração ficou pronta em cerca de 3,1 s, a pausa não acrescentou bytes e o WAV final
 teve fala detectada por WebRTC VAD. Isso não valida transcrição Whisper nem captação de
-uma pessoa na bancada. ESP-IDF build/flash não foi executado: placa, controlador touch,
-pinos e tensão não estão definidos. Sem medição de FPS, RAM, PSRAM, latência serial
-física ou consumo do display.
+uma pessoa na bancada. Um segundo ensaio isolado consumiu a mesma fila HTTP do touch no
+`MacBridge`, abriu `MacRecorder` no microfone físico e concluiu uma sessão com
+`capture_source=mac_microphone`: calibração `ready/ok` em 3,091 s, crescimento zero na
+pausa, 172800 bytes após retomar, resultado demo persistido e áudio bruto removido.
+Nesse ensaio, serial foi um substituto lógico e ASR/tópicos eram mocks identificados.
+ESP-IDF build/flash não foi executado: placa, controlador touch, pinos e tensão não estão
+definidos. Sem medição de FPS, RAM, PSRAM, latência serial física ou consumo do display.
 
 Os comandos do roteiro físico estão em [manual-checklist.md](manual-checklist.md).
 O software não deve ser apresentado como MVP físico totalmente pronto.
