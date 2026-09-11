@@ -24,6 +24,12 @@ nonce somente em novo boot, nunca ao retransmitir o mesmo comando.
 | finish | id atual; fecha captura, envia chunks e pede análise |
 | retry | id anterior; após erro/conclusão cria nova sessão e captura |
 | status | id atual, ou null para descoberta/idle; consulta, sem iniciar captura |
+| diagnose | executa autoteste local de backend, captura, serial e providers |
+| calibrate | calibração curta e opt-in; não mantém escuta contínua |
+| recover | retoma sessão interrompida apenas por ação explícita |
+| discard | descarta recuperação confirmada |
+| cancel | cancela sessão atual confirmada |
+| reset | limpa a experiência de feira confirmada |
 
 O touch mostra PENDING e bloqueia nova ativação comum até confirmação/timeout.
 A ação RESEND é local ao controlador: retransmite exatamente a linha anterior,
@@ -37,9 +43,17 @@ Confirmação de estado:
 {"v":1,"type":"state","request_id":"bootNonce-1","session_id":42,"state":"recording","is_demo":true}
 ```
 
-`recording` só é emitido depois de o stream iniciar. `pause` espera paused, `resume`
+Estados aceitos: `idle`, `checking`, `ready`, `recording`, `paused`, `processing`,
+`completed`, `error`, `recovery`. `recording` só é emitido depois de o stream iniciar.
+`pause` espera paused, `resume`
 espera recording, `finish` espera processing ou resultado/erro; resposta divergente
 é erro recuperável, não confirmação. `state=idle` pode ter session_id null.
+
+Extensões opcionais v1 podem carregar `voice` com `level` 0..100, `clipping` booleano
+e `quality=ok|low|clipping|unknown`; só são relevantes durante captura confirmada.
+`journey` pode carregar etapas reais com `capture|transcription|topics|result`,
+status `waiting|running|completed|skipped|error`, duração, provider e origem demo.
+Extensão nunca gera sucesso por si só.
 
 Resultado:
 
@@ -47,7 +61,7 @@ Resultado:
 {"v":1,"type":"result","request_id":"bootNonce-4","session_id":42,"state":"completed","is_demo":false,"asr_provider":"faster_whisper","topic_provider":"local_keywords","topics":["respiração celular"],"summary":"Assuntos identificados. Isso nao comprova acerto ou dominio."}
 ```
 
-Este exemplo real documenta o candidato de extração, **não sua adoção**. Antes de enviar,
+Este exemplo real documenta `local_keywords` como opção explícita local/offline. Antes de enviar,
 o bridge valida SessionDetail completed, id inteiro correto, texto não vazio, origem
 executada e tópicos com session_id correto. Firmware exige tipo/estado/campos/limites,
 sessão atual e solicitação esperada de finish/status (ou heartbeat durante processamento).
@@ -87,4 +101,10 @@ Após reinício incerto não há captura automática. Se a resposta de finish se
 GET/status recupera o resultado persistido; backend não analisa novamente a sessão.
 
 Sem seleção dos drivers touch/display/RX serial, o firmware retorna indisponibilidade
-na inicialização. A experiência física de mesa deve seguir o [roteiro manual](manual-validation.md).
+na inicialização. O layout lógico cobre 240x320 e 320x240, mas isso não valida o
+controlador físico. A experiência física de mesa deve seguir o [roteiro manual](manual-validation.md).
+
+Telemetria assíncrona de voz/jornada usa o request_id correlacionado da última ação
+e a sessão ativa. Voz é limitada a 5 Hz, somente durante captura; não usa um ID
+literal genérico. O teste `test_serial_interop.py` codifica a mensagem Python e a
+entrega ao parser/controlador C compilado. Comandos e ACK têm precedência.

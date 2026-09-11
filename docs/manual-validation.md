@@ -1,8 +1,10 @@
 # Validação na mesa — pendente de execução física
 
-Este roteiro não é resultado de teste. A placa, o display touch, os controladores,
-os pinos e as dimensões ainda não foram escolhidos. Não há evidência física de
-firmware, touch, microfone do Mac ou Whisper real nesta entrega automatizada.
+Este roteiro não é resultado de teste. O módulo anunciado é Teknimas TFT touch 2,4",
+240x320, SPI e controlador gráfico ILI9341, mas placa ESP32 final, controlador de
+touch, pinos, tensão lógica e orientação ainda precisam ser confirmados na unidade
+real. Não há evidência física de firmware, touch, microfone do Mac ou Whisper real
+nesta entrega automatizada.
 
 ## Preparação
 

@@ -1,10 +1,12 @@
 # Ciclo de vida do ASR (NM-002)
 
 O modo demo usa MockASRAdapter, sem importar faster-whisper. O modo real usa
-FasterWhisperAdapter, com modelo previamente disponível em disco/cache. A primeira
-transcrição carrega o modelo lazy. O cache é por processo e pela tripla
-(modelo/caminho, dispositivo, compute_type). Um RLock protege inicialização, uso,
-consumo completo do gerador de segmentos e cleanup. Inicialização que falha não
+FasterWhisperAdapter, com modelo previamente disponível em disco/cache. Sem autoteste
+explícito, a primeira transcrição carrega o modelo lazy. Quando o operador chama
+`/api/v1/experience/providers`, o preflight de ASR pode carregar o modelo local offline
+antes da primeira transcrição para provar disponibilidade. O cache é por processo e
+pela tripla (modelo/caminho, dispositivo, compute_type). Um RLock protege inicialização,
+uso, consumo completo do gerador de segmentos e cleanup. Inicialização que falha não
 publica entrada no cache. O idioma permanece português (`language="pt"`).
 
 O lifespan FastAPI chama clear_asr_cache no encerramento, com atexit como proteção

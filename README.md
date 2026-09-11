@@ -6,22 +6,27 @@ extrai assuntos e armazena a sessão localmente. Tópicos e métricas heurístic
 comprovam correção factual nem domínio do conteúdo.
 
 Implementação de software e testes automatizados disponíveis nesta branch.
-**Ainda não validado fisicamente**: placa, display, controlador de toque, pinos e
-transporte USB físico precisam ser escolhidos e integrados. Os hooks de placa retornam
-indisponibilidade explícita. ASR real, microfone real e calibração permanecem pendentes.
-O extrator `local_keywords` é um candidato funcional **opt-in**, cuja adoção ainda
-precisa de decisão; não representa escolha aprovada de modelo/provedor.
+**Ainda não validado fisicamente**: placa ESP32 final, controlador de toque, pinos,
+tensão lógica, orientação de montagem e transporte USB físico precisam ser conferidos
+na unidade real. O módulo anunciado é Teknimas TFT touch 2,4", resolução 240x320,
+SPI e controlador gráfico ILI9341; isso não comprova touch, pinagem ou revisão.
+ASR real, microfone real, calibração física e hardware de mesa permanecem pendentes.
+O extrator `local_keywords` agora é uma opção explícita aceita para execução local
+offline; ele não é LLM, não é mock, não chama nuvem e não prova domínio do assunto.
 
 ## Fluxo
 
 Touch → USB/serial JSON Lines → bridge Mac → microfone Mac → API loopback →
-WAV + WebRTC VAD → ASR → tópicos → SQLite → resultado validado → touch.
+WAV + WebRTC VAD/qualidade → ASR → tópicos → SQLite → resultado validado → touch,
+painel público e painel do apresentador.
 
 A indicação de gravação depende de o stream ter iniciado. Pausa fecha o microfone;
 retomar reabre; finalizar encerra captura antes de avaliar. Somente resultado concluído
 da sessão correta produz conclusão. Há deduplicação, timeout, erro e nova tentativa.
 Streamlit consulta histórico e oferece demo identificada; não grava pelo navegador.
-Microfone embarcado, Wi-Fi e autonomia sem Mac são possibilidades futuras.
+As rotas web novas são `/touch` (emulador autorizado), `/public` (somente leitura,
+sem token) e `/presenter` (reservado ao operador). Microfone embarcado, Wi-Fi e
+autonomia sem Mac são possibilidades futuras.
 
 ## Instalação no macOS
 
@@ -36,6 +41,8 @@ bash scripts/run_backend.sh
 ```
 
 O backend escuta `127.0.0.1:8000`, com **um worker e sem reload**. Não expor em rede.
+No startup ele cria `backend/storage/operator-token` com permissão `0600`; use esse
+valor apenas em memória no presenter/touch emulador, nunca em URL, log ou Git.
 Para o bridge, em outro terminal:
 
 ```bash
@@ -44,6 +51,7 @@ cd backend
 .venv/bin/python -m sounddevice  # listar dispositivos; não grava
 .venv/bin/python -m app.mac --port /dev/cu.PORTA_ESCOLHIDA
 # Opcional: --device 'nome do microfone' --data-dir ./storage/mac
+# Demo operacional sem serial/microfone físico: .venv/bin/python -m app.mac --simulate
 ```
 
 A porta acima é um placeholder; depende do hardware. Não abrir duas instâncias com
@@ -59,7 +67,7 @@ O padrão é `NEKOMIND_MODE=demo`, ASR e extração `mock`. Sem modelo nem chave
 o teste demo com silêncio continua disponível e identificado em cada resultado.
 O bridge real de captura pode operar em demo, mas a análise resultante é simulada.
 
-Para ensaiar processamento real local depois da decisão do extrator:
+Para ensaiar processamento real local com o extrator lexical explícito:
 
 ```bash
 backend/.venv/bin/python -m pip install -r backend/requirements-real.txt
@@ -67,16 +75,18 @@ backend/.venv/bin/python -m pip install -r backend/requirements-real.txt
 
 Configurar `backend/.env`: `NEKOMIND_MODE=real`, `NEKOMIND_ASR_PROVIDER=faster_whisper`,
 `NEKOMIND_ASR_MODEL_SIZE=/caminho/absoluto/modelo-ctranslate2`, dispositivo `cpu`,
-compute_type `int8` e, **se adotado**, `NEKOMIND_LLM_PROVIDER=local_keywords`.
-Esses parâmetros são configuráveis, não um benchmark ou recomendação de modelo validada.
-O modelo precisa ser preparado localmente pelo operador: `local_files_only=True`
-impede download automático. Não há chamada de IA remota nem chave necessária.
+compute_type `int8` e `NEKOMIND_LLM_PROVIDER=local_keywords` se a análise lexical
+offline for a opção desejada. Esses parâmetros são configuráveis, não um benchmark
+ou recomendação de modelo validada. O modelo ASR precisa ser preparado localmente
+pelo operador: `local_files_only=True` impede download automático. Não há chamada
+de IA remota nem chave necessária.
 Configuração desconhecida, modelo ausente, áudio sem fala ou extração inválida geram
 falha explícita, sem fallback. Reiniciar processos após ajustar configuração.
 
 O extrator lexical usa frases literalmente presentes na transcrição, sem lista fixa,
 com máximo de8 tópicos e sem preenchimento artificial. Não faz validação factual;
-a qualidade semântica e a decisão entre este método/modelo/API continuam abertas.
+a qualidade semântica precisa ser avaliada na bancada. Substituir esse método por
+outro modelo ou API é uma decisão futura; nenhuma API de nuvem foi acionada.
 
 ## Testes
 
@@ -87,6 +97,8 @@ cd backend
 .venv/bin/python -m unittest discover -s tests -p test_asr_lifecycle.py -v
 cd ..
 bash iot/nekomind_firmware/scripts/test_firmware.sh
+node --test frontend/tests/*.test.mjs
+python3 -m pytest frontend/streamlit/tests -q
 backend/.venv/bin/python -m ruff check backend/app backend/tests
 ```
 
@@ -98,15 +110,19 @@ testes, ver [frontend](frontend/streamlit/README.md).
 
 ## Dados, recuperação e documentação
 
-Áudio, SQLite, backups e journal ficam em `backend/storage/`, fora do Git. O journal
-precisa ser preservado para reconhecer retransmissões. Reinício durante captura gera
-erro, nunca reabre o microfone automaticamente. Reinício do backend marca sessões
-incompletas como interrompidas. Falhas de captura não viram notas sobre conhecimento.
-A migração é aditiva com backup SQLite consistente; ver rollback antes de usar banco
-existente. Não há política automática de retenção: limpar dados locais só deliberadamente.
+Áudio, SQLite, backups e journal ficam em `backend/storage/`, fora do Git. Por padrão
+`NEKOMIND_RETAIN_RAW_AUDIO=false`: depois de transcrição e persistência bem-sucedidas,
+o backend remove áudio bruto referenciado da sessão; exclusão confirmada remove sessão,
+chunks, temporários, transcrição, tópicos e métricas do escopo local conhecido. Cópias
+externas e backups feitos fora desse diretório continuam responsabilidade do operador.
+O journal precisa ser preservado para reconhecer retransmissões. Reinício durante
+captura gera recuperação, nunca reabre o microfone automaticamente.
 
-- [Mapa NM-001 a NM-007 e evidências](docs/delivery.md)
+- [Entrega e evidências](docs/delivery.md)
+- [Relatório final](docs/final-report.md) · [QA e incidente de banco](docs/qa-report.md)
 - [Arquitetura](docs/architecture.md) · [API](docs/api_contract.md)
 - [USB/serial e estados](docs/iot_protocol.md) · [Dados e migração](docs/data_model.md)
 - [ASR: cache e medição](docs/asr-model-lifecycle.md) · [VAD](docs/speech-validation.md)
-- [Teste real na mesa](docs/manual-validation.md) · [Fontes](docs/implementation-sources.md)
+- [Hardware Teknimas/ILI9341](docs/hardware-teknimas-ili9341.md) · [Modo feira](docs/feira-mode.md)
+- [Painéis](docs/panels.md) · [Privacidade](docs/privacy-retention.md)
+- [Teste real na mesa](docs/manual-validation.md) · [Checklist manual](docs/manual-checklist.md)

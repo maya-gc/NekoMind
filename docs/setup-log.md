@@ -2,7 +2,8 @@
 
 > Histórico da base de 05/09/2026. Os resultados abaixo não validam a implementação
 > touch + Mac desta branch. O hardware, os drivers e o build atual continuam
-> pendentes; consultar README e docs/delivery.md para o estado atual.
+> pendentes; consultar README e docs/delivery.md para o estado documental atual.
+> A evidência final de testes fica em docs/qa-report.md.
 
 Registro do que foi criado, instalado e validado, incluindo falhas e
 soluções. Data: 2026-09-05.

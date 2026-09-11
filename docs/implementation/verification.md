@@ -1,8 +1,9 @@
 # Evidência de verificação
 
-Ambiente local macOS, Python3.12 no venv backend. Somente fixtures sintéticas/demonstração.
-O suite completo executado em10/09/2026 concluiu106 testes backend;6 testes frontend.
-Microfone e modelos são substitutos; PTY usa dispositivo virtual POSIX real, sem ESP.
+Registro histórico da verificação de 10/09/2026. Ele não é a evidência final da rodada
+NM-001..019. Ambiente local macOS, Python3.12 no venv backend, somente fixtures
+sintéticas/demonstração. Microfone e modelos são substitutos; PTY usa dispositivo
+virtual POSIX real, sem ESP. Resultados atuais ficam no relatório de QA da entrega.
 
 ## Regressões observadas antes da correção
 
