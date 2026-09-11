@@ -36,9 +36,62 @@ As rotas web novas são `/touch` (emulador autorizado), `/public` (somente leitu
 sem token) e `/presenter` (reservado ao operador). Microfone embarcado, Wi-Fi e
 autonomia sem Mac são possibilidades futuras.
 
+## Resultado visual para apresentação
+
+A informação foi distribuída entre o gatinho e o Mac para manter o display pequeno
+legível e, ao mesmo tempo, deixar o funcionamento visível para a plateia:
+
+- **Gatinho/display:** preserva o rosto, os estados e os controles grandes. Ao final,
+  mostra dois cartões: uma confirmação curta de que houve fala e processamento e os
+  termos reconhecidos. O emulador limita a lista a cinco termos; o renderer portátil
+  do firmware agrupa até três no cartão compacto enquanto fonte e espaçamento ainda
+  dependem da validação no módulo físico.
+- **Painel público do Mac:** mostra captura, transcrição, extração e persistência,
+  com duração, quantidade de palavras reconhecidas e origem local. Ele serve como
+  evidência visual de que o fluxo percorreu as etapas, sem expor a transcrição.
+- **Resultado honesto:** a tela diz `Termos reconhecidos pelo NekoMind`, pois o ASR
+  pode divergir da fala. Conversas genéricas podem resultar em lista vazia; o sistema
+  não completa uma quantidade fixa nem apresenta os termos como prova de acerto.
+- **Modo demo:** continua disponível e sempre identificado. Dados simulados não são
+  exibidos como resultado real.
+
+Evidências inspecionadas no navegador: [display 320×240](ScreenshotsToCloseLoop/runs/presentation-evidence/touch-proof-320x240.jpg),
+[termos no display](ScreenshotsToCloseLoop/runs/presentation-evidence/touch-terms-320x240.jpg)
+e [painel público 1440×900](ScreenshotsToCloseLoop/runs/presentation-evidence/public-proof-1440x900.jpg).
+
+## Status consolidado da branch
+
+A branch `feat/nekomind-touch-mac-mvp` contém as melhorias NM-001 a NM-019 e os
+ajustes encontrados durante os ensaios locais. A matriz detalhada por requisito está
+no [relatório final](docs/final-report.md).
+
+| Área | Entregue no software |
+|---|---|
+| Sessão e protocolo | Resultado correlacionado por sessão, comandos com `request_id`, ACKs, timeout, deduplicação, nova tentativa deliberada e rejeição de mensagens antigas ou de outra sessão. |
+| Captura no Mac | Iniciar, pausar, retomar e finalizar alteram a captura real; diagnóstico de permissão/dispositivo, calibração, recuperação após interrupção e prevenção de suspensão com `caffeinate`. |
+| Transcrição e fala | Cache lazy do faster-whisper por configuração, cleanup no encerramento, português preservado, WAV validado, WebRTC VAD, nível e clipping antes da análise. |
+| Real e demonstração | Provedores explícitos, falha clara para configuração indisponível e origem efetivamente usada persistida e exibida; qualquer etapa simulada identifica a sessão como demo. |
+| Assuntos | Extração lexical local ancorada na transcrição, sem lista fixa, fallback mock ou preenchimento artificial; remoção de termos genéricos, duplicatas e limite visual. |
+| Dados e privacidade | Migração SQLite aditiva, jornada persistida, retenção configurável, remoção de áudio bruto, exclusão confirmada, tombstones e limpeza de recibos sem conteúdo privado. |
+| Experiência da feira | Avatar e estados, touch/emulador, painel público somente leitura, painel do apresentador protegido por token local, histórico, assunto corrigível e resultado compacto em duas telas. |
+| Firmware independente de placa | Controlador de sessão, parser JSON Lines, eventos de toque, display-list e layouts 240×320/320×240 isolados dos drivers específicos ainda não escolhidos. |
+
+Ajustes confirmados durante QA incluem: aguardar a janela real de calibração;
+criar o diretório de captura no primeiro uso; não gravar bytes durante a pausa;
+preservar e exibir `ended_at`; iniciar o diagnóstico real depois de validar o token;
+posicionar mensagens de token dentro do diálogo; distinguir recuperação ainda não
+consultada; usar confirmações acessíveis na página; corrigir overflow, botões e
+paginação em 240×320 e 320×240; e reduzir resultados de até onze cartões para dois.
+
+Validação atual: **184 testes de backend**, **28 testes web**, **6 testes do
+Streamlit** e **22 casos C portáteis** aprovados. Os gates de evidência do navegador
+e de assets passaram com 11 e 5 checks, respectivamente. Faster-whisper e microfone
+do Mac foram exercitados com voz sintetizada local; voz humana, serial USB, build/flash
+ESP-IDF e display/touch físicos continuam pendentes.
+
 ## Instalação no macOS
 
-Requer Python3.11+ (testado com3.12), Git e compilador C para os testes portáteis.
+Requer Python 3.11+ (testado com 3.12), Git e compilador C para os testes portáteis.
 Na raiz do repositório:
 
 ```bash
@@ -132,6 +185,7 @@ O journal precisa ser preservado para reconhecer retransmissões. Reinício dura
 captura gera recuperação, nunca reabre o microfone automaticamente.
 
 - [Entrega e evidências](docs/delivery.md)
+- [Status pronto para Notion — 11/09/2026](docs/notion-status-2026-09-11.md)
 - [Relatório final](docs/final-report.md) · [QA e incidente de banco](docs/qa-report.md)
 - [Arquitetura](docs/architecture.md) · [API](docs/api_contract.md)
 - [USB/serial e estados](docs/iot_protocol.md) · [Dados e migração](docs/data_model.md)
