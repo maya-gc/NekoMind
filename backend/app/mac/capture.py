@@ -530,6 +530,7 @@ class MacRecorder:
             }
             self._save_calibration(result)
             return result
+        self.directory.mkdir(parents=True, exist_ok=True)
         captured = bytearray()
 
         def callback(data, frames, time_info, status):
@@ -550,7 +551,7 @@ class MacRecorder:
                 callback=callback,
             )
             stream.start()
-            time.sleep(max(0.0, min(duration_seconds, 0.1)))
+            time.sleep(max(0.0, duration_seconds))
             pcm = bytes(captured)
             raw_path.write_bytes(pcm)
             with wave.open(str(wav_path), "wb") as wav:
@@ -580,7 +581,7 @@ class MacRecorder:
                 "status": "ready" if valid else "error",
                 "device_id": device_id,
                 "quality": quality,
-                "message": "Calibracao curta concluida."
+                "message": "Calibracao concluida."
                 if valid
                 else "Calibracao sem fala valida; tente novamente.",
                 "duration_seconds": round(time.monotonic() - started, 3),

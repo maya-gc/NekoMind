@@ -517,6 +517,7 @@ function touchTitle(snapshot) {
 function touchDetail(snapshot) {
   if (snapshot.error?.message) return snapshot.error.message;
   if (snapshot.state === "recording") return "A captura vem do Mac. O navegador não grava áudio.";
+  if (snapshot.state === "paused") return "A captura está pausada. Toque em Retomar quando quiser continuar.";
   if (snapshot.state === "processing") return "Aguarde a bancada confirmar esta etapa.";
   if (snapshot.state === "completed") return "Cartões limpos para o próximo visitante.";
   if (snapshot.state === "recovery") return "Escolha uma ação explícita antes de reabrir captura.";

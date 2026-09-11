@@ -98,6 +98,35 @@ def test_calibrate_uses_vad_quality_and_removes_raw_sample(tmp_path):
     assert not list(tmp_path.glob("*calibration*.raw"))
 
 
+def test_calibrate_waits_for_the_requested_capture_window(tmp_path, monkeypatch):
+    waits = []
+    monkeypatch.setattr("app.mac.capture.time.sleep", waits.append)
+    recorder = MacRecorder(
+        tmp_path,
+        stream_factory=SpeechStream,
+        device_api=DeviceInfo,
+    )
+
+    recorder.calibrate(duration_seconds=3.0, detector=SpeechDetector())
+
+    assert waits == [3.0]
+
+
+def test_calibrate_creates_capture_directory_on_first_use(tmp_path):
+    capture_dir = tmp_path / "capture"
+    recorder = MacRecorder(
+        capture_dir,
+        stream_factory=SpeechStream,
+        device_api=DeviceInfo,
+    )
+
+    result = recorder.calibrate(duration_seconds=0, detector=SpeechDetector())
+
+    assert result["status"] == "ready"
+    assert result["valid"] is True
+    assert capture_dir.is_dir()
+
+
 def test_calibrate_rejects_no_speech_without_treating_level_as_voice(tmp_path):
     recorder = MacRecorder(
         tmp_path,

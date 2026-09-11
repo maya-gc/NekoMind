@@ -35,6 +35,7 @@ def test_demo_silence_still_completes_and_is_identified(client) -> None:
 
     assert response.status_code == 200
     assert detail["status"] == "completed"
+    assert detail["ended_at"] is not None
     assert detail["is_demo"] is True
     assert detail["asr_provider_used"] == "mock"
     assert detail["topic_provider_used"] == "mock"

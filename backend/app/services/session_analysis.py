@@ -191,9 +191,9 @@ def _analyze_session_claimed(
             },
         )
 
+        _raise_if_deleting(db, session)
         now = datetime.now(UTC)
         session.ended_at = now
-        _raise_if_deleting(db, session)
         session.duration_seconds = duration
         session.transcription = transcript_text
         session.clarity_score = clarity

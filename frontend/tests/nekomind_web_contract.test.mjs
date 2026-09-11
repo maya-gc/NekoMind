@@ -137,6 +137,7 @@ test("touch warning, paused, result and error actions stay operator-safe", () =>
   assert.doesNotMatch(lowVoice, /touch-status-card/);
   assert.match(paused, /Retomar/);
   assert.match(paused, /Finalizar/);
+  assert.match(paused, /captura está pausada/i);
   assert.match(result, /Tentar novamente/);
   assert.match(result, /Encerrar/);
   assert.doesNotMatch(result, /Ver cartões/);
@@ -254,7 +255,7 @@ test("rendered command errors and history escape markup and avoid raw JSON", () 
     points: [
       {
         session_id: 44,
-        created_at: "2026-09-11T12:00:00Z",
+        ended_at: "2026-09-11T12:00:00Z",
         duration_seconds: 31,
         clarity_score: 0.82,
         topics: ["osmose", malicious],
@@ -277,6 +278,7 @@ test("rendered command errors and history escape markup and avoid raw JSON", () 
   assert.match(historyHtml, /0.82/);
   assert.match(historyHtml, /heuristic-v1/);
   assert.match(historyHtml, /Tendência não prova domínio/);
+  assert.doesNotMatch(historyHtml, /sem data/);
   assert.doesNotMatch(historyHtml, /"points"|\{|\}|<img/);
 });
 

@@ -129,7 +129,7 @@ export function renderHistory(history = {}) {
   const points = Array.isArray(history.points) ? history.points : Array.isArray(history.sessions) ? history.sessions : [];
   const rows = points.map((point) => {
     const session = point.session_id ?? point.id ?? "-";
-    const when = formatDate(point.created_at || point.completed_at || point.date);
+    const when = formatDate(point.ended_at || point.created_at || point.completed_at || point.date);
     const duration = Number.isFinite(Number(point.duration_seconds)) ? `${Number(point.duration_seconds)}s` : "sem duração";
     const clarity = Number.isFinite(Number(point.clarity_score)) ? Number(point.clarity_score).toFixed(2) : "sem clareza";
     const topics = Array.isArray(point.topics) ? point.topics.slice(0, 3).map(escapeHtml).join(", ") : "sem tópicos";
