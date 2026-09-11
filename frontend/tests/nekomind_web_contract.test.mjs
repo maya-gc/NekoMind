@@ -18,6 +18,7 @@ import {
   renderHistory,
   renderPresenter,
   renderPublic,
+  renderTokenPrompt,
   renderTouch,
 } from "../web/src/render.mjs";
 import { createExperienceClient } from "../web/src/api.mjs";
@@ -280,6 +281,16 @@ test("rendered command errors and history escape markup and avoid raw JSON", () 
   assert.match(historyHtml, /Tendência não prova domínio/);
   assert.doesNotMatch(historyHtml, /sem data/);
   assert.doesNotMatch(historyHtml, /"points"|\{|\}|<img/);
+});
+
+test("token validation error appears inside the dialog above its actions", () => {
+  const malicious = '<img src=x onerror="globalThis.__xss=1">';
+  const html = renderTokenPrompt({ commandError: malicious, tokenInput: "" });
+
+  assert.match(html, /class="token-error" role="alert"/);
+  assert.ok(html.indexOf("token-error") < html.indexOf("token-actions"));
+  assert.match(html, /&lt;img/);
+  assert.doesNotMatch(html, /<img/);
 });
 
 test("result cards paginate topics and long phrases instead of overflowing one card", () => {

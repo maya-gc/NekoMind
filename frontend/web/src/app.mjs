@@ -7,7 +7,15 @@ import {
   sanitizePublicSnapshot,
   touchModelForSnapshot,
 } from "./state.mjs";
-import { renderCommandState, renderConfirmation, renderHistory, renderPresenter, renderPublic, renderTouch } from "./render.mjs";
+import {
+  renderCommandState,
+  renderConfirmation,
+  renderHistory,
+  renderPresenter,
+  renderPublic,
+  renderTokenPrompt as renderTokenPromptMarkup,
+  renderTouch,
+} from "./render.mjs";
 
 const app = document.querySelector("#app");
 const route = routeFromPath(window.location.pathname);
@@ -93,7 +101,7 @@ function render() {
   } else {
     app.innerHTML = renderPublic(snapshot);
   }
-  app.insertAdjacentHTML("beforeend", renderCommandState(state));
+  if (!state.tokenPromptOpen) app.insertAdjacentHTML("beforeend", renderCommandState(state));
   if (state.tokenPromptOpen) appendTokenPrompt();
   restoreDrafts();
   if (state.confirmation) {
@@ -236,16 +244,10 @@ function appendTokenPrompt() {
   panel.className = "token-modal";
   panel.setAttribute("role", "dialog");
   panel.setAttribute("aria-label", "Token local do emulador");
-  panel.innerHTML = `
-    <div>
-      <h2>Token local</h2>
-      <p>Usado só nesta página para autorizar comandos do emulador.</p>
-      <input id="presenter-token" type="password" autocomplete="off" placeholder="colar token" value="${escapeAttr(state.drafts.tokenInput)}" />
-      <div class="token-actions">
-        <button type="button" data-token-submit>Usar token</button>
-        <button type="button" data-token-close>Agora não</button>
-      </div>
-    </div>`;
+  panel.innerHTML = renderTokenPromptMarkup({
+    commandError: state.commandError,
+    tokenInput: state.drafts.tokenInput,
+  });
   app.append(panel);
   panel.querySelector("input")?.focus();
 }
@@ -328,12 +330,4 @@ function restoreDrafts() {
 
 function newRequestId() {
   return globalThis.crypto?.randomUUID?.() || `web-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function escapeAttr(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
 }

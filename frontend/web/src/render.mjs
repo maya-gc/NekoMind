@@ -9,6 +9,22 @@ export function renderConfirmation(label) {
   </section>`;
 }
 
+export function renderTokenPrompt({ commandError = "", tokenInput = "" } = {}) {
+  const error = commandError
+    ? `<p class="token-error" role="alert">${escapeHtml(commandError)}</p>`
+    : "";
+  return `<div>
+      <h2>Token local</h2>
+      <p>Usado só nesta página para autorizar comandos do emulador.</p>
+      <input id="presenter-token" type="password" autocomplete="off" placeholder="colar token" value="${escapeAttr(tokenInput)}" />
+      ${error}
+      <div class="token-actions">
+        <button type="button" data-token-submit>Usar token</button>
+        <button type="button" data-token-close>Agora não</button>
+      </div>
+    </div>`;
+}
+
 export function renderTouch(model) {
   const active = model.activeCard?.card;
   const isResult = Boolean(active);

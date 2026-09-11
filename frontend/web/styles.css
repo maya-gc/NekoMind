@@ -575,6 +575,16 @@ button:disabled {
   font-size: 14px;
 }
 
+.token-modal .token-error {
+  padding: 8px 10px;
+  border-left: 3px solid var(--neko-caution-amber);
+  border-radius: 6px;
+  background: rgba(255, 185, 77, 0.1);
+  color: var(--neko-whisker-white);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .token-modal input {
   min-height: 44px;
   min-width: 0;
