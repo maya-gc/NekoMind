@@ -42,7 +42,13 @@ class MacBridge:
             "CREATE TABLE IF NOT EXISTS uploaded (session_id INTEGER NOT NULL, sequence INTEGER NOT NULL, byte_size INTEGER NOT NULL, PRIMARY KEY(session_id, sequence))"
         )
         row = self.db.execute("SELECT session_id,state,demo,code FROM active WHERE id=1").fetchone()
-        self.sid, self.state, self.demo, self.code = row or (None, "idle", True, None)
+        recorder_is_demo = bool(getattr(self.recorder, "is_demo", False))
+        self.sid, self.state, self.demo, self.code = row or (
+            None,
+            "idle",
+            recorder_is_demo,
+            None,
+        )
         self.demo = bool(self.demo)
         self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="nekomind-analysis")
         self.ops_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="nekomind-ops")
@@ -256,7 +262,11 @@ class MacBridge:
         self.event_rid = rid
         if cmd.command in {"reset", "cancel"} and self.sid is None and cmd.session_id is None:
             self.epoch += 1
-            self.state, self.code = "idle", None
+            self.state, self.demo, self.code = (
+                "idle",
+                bool(getattr(self.recorder, "is_demo", False)),
+                None,
+            )
             self.diagnostics, self.calibration, self.journey = [], None, {}
             self._save_active()
             return self._remember(rid, self._base(rid))
@@ -389,7 +399,12 @@ class MacBridge:
                 self.backend.capture_state(self.sid, "error", "cancelled")
             if command == "discard":
                 self.backend.delete(self.sid, confirmed=True)
-        self.state, self.sid, self.code = "idle", None, None
+        self.state, self.sid, self.demo, self.code = (
+            "idle",
+            None,
+            bool(getattr(self.recorder, "is_demo", False)),
+            None,
+        )
         self.diagnostics, self.calibration, self.journey = [], None, {}
 
     def _start_diagnostics(self, rid, calibrate):

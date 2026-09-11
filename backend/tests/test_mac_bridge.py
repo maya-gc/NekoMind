@@ -7,6 +7,8 @@ import pytest
 
 
 class Recorder:
+    is_demo = True
+
     def __init__(self, path):
         self.path, self.starts, self.stops, self.pauses = path, 0, 0, 0
         self.fail = False
@@ -180,6 +182,24 @@ def command(action, rid, sid=None):
 
 def run_background(bridge):
     bridge.wait_for_operations()
+
+
+def test_real_recorder_marks_fresh_and_reset_idle_states_as_real(tmp_path):
+    class RealRecorder(Recorder):
+        is_demo = False
+
+    bridge = make_bridge(tmp_path, recorder=RealRecorder(tmp_path / "capture.raw"))
+    assert bridge._ops_snapshot()["is_demo"] is False
+
+    bridge.sid = 41
+    bridge.state = "completed"
+    bridge.demo = True
+    bridge._save_active()
+    result = bridge.handle(command("reset", "reset-real", 41))
+
+    assert result["state"] == "idle"
+    assert result["is_demo"] is False
+    bridge.close()
 
 
 def test_start_requires_successful_preflight_and_then_replays(tmp_path):
