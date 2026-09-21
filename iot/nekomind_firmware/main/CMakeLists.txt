@@ -1,6 +1,7 @@
 idf_component_register(
     SRCS
         "nekomind_main.c"
+        "board_spi.c"
         "audio_transport.c"
         "board_touch.c"
         "display_ui.c"
@@ -10,5 +11,5 @@ idf_component_register(
         "neko_protocol.c"
         "session_controller.c"
     INCLUDE_DIRS "."
-    PRIV_REQUIRES esp_timer
+    PRIV_REQUIRES esp_timer driver esp_driver_usb_serial_jtag nvs_flash vfs
 )

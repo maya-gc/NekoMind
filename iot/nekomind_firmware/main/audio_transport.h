@@ -45,7 +45,7 @@ esp_err_t audio_transport_send_chunk(const char *session_id, uint32_t seq,
 /**
  * Tenta receber uma linha JSON do computador.
  * @return ESP_OK se uma linha foi recebida, ESP_ERR_TIMEOUT se nao houver
- *         dados ou ESP_ERR_NOT_SUPPORTED quando o driver RX nao estiver pronto.
+ *         dados, ESP_FAIL para erro de leitura.
  */
 esp_err_t audio_transport_poll_rx(char *out_line, size_t max_len,
                                   uint32_t timeout_ms);

@@ -73,9 +73,8 @@ O Mac responde com `type=state`, `type=error` ou `type=result`. Resultado:
 }
 ```
 
-Topicos vazios sao validos. O firmware nao mostra nota pedagogica; o hook de
-display recebe estado, resumo curto, topicos e origem demo/real conforme
-`is_demo`, sem escolher ainda um driver fisico.
+Topicos vazios sao validos. O firmware nao mostra nota pedagogica; a cena
+ILI9341 recebe estado, resumo curto, topicos e origem demo/real conforme `is_demo`.
 
 Contrato aditivo NM-019: o `result` v1 essencial acima permanece valido. O Mac
 pode enviar campos opcionais `duration_seconds`, `subject` e `trend_text`; o
@@ -101,36 +100,31 @@ presente nos estados centrais, botoes tem alvos de pelo menos 44px e
 `prefers-reduced-motion` pode manter o rosto estatico.
 
 Os cards de resultado sao paginados localmente e montados somente quando dados
-existem: resumo, cada topico em um card proprio, duracao e evolucao. Cada card
-mostra uma informacao principal. A navegacao de cards nao envia comando remoto
+existem: resumo, termos reconhecidos agrupados, duracao e evolucao. A navegacao
+de cards nao envia comando remoto
 nem muda a sessao. A tela `IDLE` nao oferece `Comecar`; primeiro passa por
 diagnostico e so exibe inicio quando o Mac confirma `READY`. `cancel`,
 `discard` e `reset` exigem confirmacao local por segundo toque antes de emitir
 comando, e o detector de borda evita que segurar o dedo confirme duas vezes. O
-driver fisico futuro deve consumir esse modelo sem inventar pinos, controlador
-touch ou placa ESP32.
+driver fisico atual desenha esse modelo no ILI9341 240x320.
 
-O fallback de log do display nao imprime resumo, topicos, transcricao ou texto
-de evolucao; ele registra apenas estado seguro, contagem de operacoes e
-metadados agregados.
+O log serial de diagnostico nao imprime resumo, topicos nem transcricao; ele
+registra inicializacao e estados de hardware. O bridge ignora linhas que nao sao
+JSON valido.
 
-## Hardware pendente
+## Protótipo físico
 
-A placa, display, controlador touch, pinos e tamanho fisico ainda nao foram
-escolhidos. Por isso:
+O alvo atual é o ESP32-S3 de MAC `d8:3b:da:43:19:90` com ILI9341/XPT2046,
+conforme [pinagem e instruções](../../docs/esp32-s3-display-touch.md) derivadas
+da branch `pipeline`. O touch é lido por polling SPI; GPIO6/IRQ não é necessário.
+Os limites iniciais de coordenadas são aproximados. `!touch-calibrate` pelo serial
+mede três pontos e salva calibração no NVS. O comando JSON `calibrate` continua
+reservado à calibração do microfone do Mac.
 
-- `board_touch_init()` e `board_touch_poll()` retornam `ESP_ERR_NOT_SUPPORTED`
-  enquanto nao houver driver fisico. Nessa condicao `session_controller_init`
-  renderiza `hardware touch indisponivel` e falha; o dispositivo nao deve ser
-  tratado como pronto para uso.
-- `display_ui` usa log serial como fallback de desenvolvimento.
-- Nenhum teste automatizado aqui comprova funcionamento fisico do touch.
-- A task do controlador usa stack de 8192 bytes e buffer RX estatico porque a
-  linha serial pode ter ate 4096 bytes; o build ESP-IDF ainda precisa ser
-  executado no ambiente com `esp-idf/export.sh` instalado.
-
-Quando o hardware for escolhido, implemente `board_touch.c` e o driver real do
-display mantendo `neko_controller.c` sem dependencias de placa.
+A main task e a task de sessão têm stack de 12288 bytes para montar a cena
+240x320. O buffer RX de até 4096 bytes é estático. A compilação e a gravação
+foram exercitadas na unidade USB, mas isso não substitui inspeção visual, toque
+e teste completo com bridge/microfone/modelo real.
 
 ## Teste host
 
@@ -151,9 +145,10 @@ direto sem estado `processing` intermediario.
 ```bash
 source scripts/source_idf.sh
 cd iot/nekomind_firmware
-idf.py set-target ALVO_ESCOLHIDO  # placeholder: decidir depois da placa
+idf.py set-target esp32s3
 idf.py build
+idf.py -p /dev/cu.usbmodem101 flash
 ```
 
-O build fisico e a validacao do touch ficam bloqueados ate a selecao da placa e
-do display.
+O layout portatil tambem suporta 320x240, mas o driver fisico desta unidade
+renderiza 240x320. A validacao visual e do touch ainda e obrigatoria.

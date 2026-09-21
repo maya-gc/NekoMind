@@ -1,4 +1,8 @@
-# MVP touch + Mac: hardware ainda nao escolhido.
-# Definir IDF_TARGET, flash, PSRAM e console USB/UART somente apos selecionar
-# placa/controladores. As antigas opcoes ESP32-S3 eram do esboco embarcado.
-# O transporte principal leva comandos/resultados, nunca audio do ESP.
+# Prototipo fisico documentado em origin/pipeline: ESP32-S3 com USB Serial/JTAG.
+# Flash/PSRAM do modulo ainda exigem confirmacao. Serial leva apenas comandos e
+# resultados; o microfone do Mac faz a captura.
+CONFIG_IDF_TARGET="esp32s3"
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+CONFIG_VFS_SUPPORT_IO=y
+# A cena 240x320 e montada na inicializacao e exige mais que o default da main.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=12288

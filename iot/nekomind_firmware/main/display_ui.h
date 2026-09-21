@@ -1,9 +1,8 @@
 /**
  * display_ui.h - Interface do display LCD e do avatar ludico do NekoMind.
  *
- * No MVP o "display" e o proprio log serial (avatar em ASCII). Quando o
- * hardware do LCD for definido, apenas a funcao de renderizacao muda;
- * o restante do firmware continua chamando esta API.
+ * Renderizador para o LCD ILI9341 240x320 do prototipo ESP32-S3.
+ * A logica de estados e layout permanece independente do driver fisico.
  */
 #pragma once
 
@@ -20,18 +19,7 @@
 extern "C" {
 #endif
 
-/* ------------------------------------------------------------------
- * TODO(hardware): pinos do LCD (SPI/I2C, DC, RST, CS, backlight...).
- * Preencha quando o modelo do display for escolhido.
- * ------------------------------------------------------------------ */
-#define NEKO_LCD_PIN_MOSI  (-1) /* TODO */
-#define NEKO_LCD_PIN_CLK   (-1) /* TODO */
-#define NEKO_LCD_PIN_CS    (-1) /* TODO */
-#define NEKO_LCD_PIN_DC    (-1) /* TODO */
-#define NEKO_LCD_PIN_RST   (-1) /* TODO */
-#define NEKO_LCD_PIN_BL    (-1) /* TODO */
-
-/** Inicializa o display (ou o fallback em log). */
+/** Inicializa o display fisico. */
 esp_err_t display_ui_init(void);
 
 /**
@@ -41,8 +29,8 @@ esp_err_t display_ui_init(void);
 esp_err_t display_ui_render(const char *status_line);
 
 /**
- * Renderiza estado com resultado validado quando houver. Drivers fisicos
- * futuros devem usar summary/topics/is_demo para mostrar a conclusao correta.
+ * API legada de texto curto. O fluxo principal renderiza a cena completa via
+ * display_ui_draw_scene() a partir do controlador de sessao.
  */
 esp_err_t display_ui_render_view(const char *status_line,
                                  const char *summary,
@@ -54,6 +42,7 @@ esp_err_t display_ui_render_view(const char *status_line,
                                  int voice_level,
                                  bool voice_clipping);
 esp_err_t display_ui_draw_scene(const neko_scene_t *scene);
+esp_err_t display_ui_calibration_step(int step);
 
 /** Mostra telemetria curta (ex.: RMS do microfone, heap livre). */
 esp_err_t display_ui_show_telemetry(const char *telemetry_line);

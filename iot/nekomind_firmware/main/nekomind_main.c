@@ -1,5 +1,5 @@
 /**
- * nekomind_main.c - Ponto de entrada do firmware NekoMind (familia ESP32; placa pendente).
+ * nekomind_main.c - Ponto de entrada do prototipo ESP32-S3 + ILI9341/XPT2046.
  *
  * MVP: inicializa o controlador touch + serial. A captura acontece no Mac;
  * o ESP nao envia audio no caminho principal.
@@ -27,5 +27,5 @@ void app_main(void)
         return;
     }
 
-    ESP_LOGI(TAG, "controlador pronto; touch fisico depende da placa escolhida");
+    ESP_LOGI(TAG, "controlador pronto; LCD e touch fisicos inicializados");
 }

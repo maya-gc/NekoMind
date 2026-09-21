@@ -1,8 +1,10 @@
 #include "session_controller.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #include "esp_log.h"
+#include "esp_random.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -93,8 +95,17 @@ esp_err_t session_controller_init(void)
     };
 
     avatar_state_init();
-    ESP_ERROR_CHECK(display_ui_init());
-    ESP_ERROR_CHECK(audio_transport_init(NEKO_TRANSPORT_SERIAL));
+    esp_err_t init_err = display_ui_init();
+    if (init_err != ESP_OK) {
+        ESP_LOGE(TAG, "display indisponivel: %s", esp_err_to_name(init_err));
+        return init_err;
+    }
+    init_err = audio_transport_init(NEKO_TRANSPORT_SERIAL);
+    if (init_err != ESP_OK) {
+        display_ui_render("USB indisponivel");
+        ESP_LOGE(TAG, "serial indisponivel: %s", esp_err_to_name(init_err));
+        return init_err;
+    }
     s_touch_driver_ready = false;
     neko_touch_edge_init(&s_touch_edge);
     {
@@ -148,6 +159,11 @@ static void poll_serial(uint32_t t_ms)
 {
     esp_err_t err = audio_transport_poll_rx(s_rx_line, sizeof(s_rx_line), 0);
     if (err == ESP_OK) {
+        if (strcmp(s_rx_line, "!touch-calibrate") == 0) {
+            esp_err_t cal = board_touch_calibrate();
+            ESP_LOGI(TAG, "calibracao touch: %s", esp_err_to_name(cal));
+            return;
+        }
         neko_controller_status_t status =
             neko_controller_receive(&s_controller, s_rx_line, t_ms);
         if (status != NEKO_CONTROLLER_OK && status != NEKO_CONTROLLER_STALE) {
@@ -173,6 +189,6 @@ static void session_task(void *arg)
 esp_err_t session_controller_start_task(void)
 {
     BaseType_t ok = xTaskCreate(session_task, "neko_session",
-                                8192, NULL, 5, NULL);
+                                12288, NULL, 5, NULL);
     return ok == pdPASS ? ESP_OK : ESP_ERR_NO_MEM;
 }
