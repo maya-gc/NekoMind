@@ -5,8 +5,17 @@ Em 21/09/2026, a unidade USB foi identificada como ESP32-S3 com LCD ILI9341
 foram exercitados na bancada. Com backend em demo, a pessoa confirmou gatinho
 estável, diagnóstico, início, pausa, retomada, finalização, resultado demonstrativo
 e nova tentativa. O backend persistiu áudio do microfone do Mac e um resultado
-`is_demo=true`, `asr_provider_used=mock` e `topic_provider_used=mock`. Não houve
-verificação de transcrição ou tópicos reais da fala humana.
+`is_demo=true`, `asr_provider_used=mock` e `topic_provider_used=mock` nesse ensaio.
+
+Também em 21/09/2026, a unidade conectada passou por uma sessão real de voz humana:
+Diagnóstico → Pronto → Começar → Finalizar → conclusão no LCD. O SQLite confirmou
+`is_demo=false`, `capture_source=mac_microphone`, ASR `faster_whisper`, extração
+`local_keywords`, `analysis_origin=real` e estado `completed`, sem código de erro.
+O WebRTC VAD registrou 22,32 s de fala detectada em 25,98 s de áudio. O painel
+`/public` exibiu as quatro etapas concluídas, tempo de captura, contagem de palavras
+e termos reconhecidos, sem expor a transcrição completa. Esta é evidência do
+percurso funcional, não uma medição de precisão ou uma calibração acústica completa.
+O [roteiro de apresentação](day-of-rehearsal.md) registra a configuração local.
 
 ## Preparação
 

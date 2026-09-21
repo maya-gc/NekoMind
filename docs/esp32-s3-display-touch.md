@@ -103,8 +103,11 @@ primeiro ensaio interrompia a captura após ~8 s: eventos de voz adiavam o
 heartbeat indefinidamente. O firmware corrigido manteve comandos `status` a cada
 ~2 s durante a gravação, e a sequência completa passou. O bridge também passou
 a reconciliar a sessão anterior após desconexão; estado `recovery` agora usa um
-quadro `state` aceito pelo parser do firmware. O resultado da bancada foi demo,
-com ASR e extração mock; transcrição real da fala humana não foi validada.
+quadro `state` aceito pelo parser do firmware. Esse primeiro resultado da bancada
+foi demo, com ASR e extração mock. Em um ensaio posterior no mesmo dia, uma sessão
+real com fala humana terminou no LCD como captura e processamento concluídos; o Mac
+confirmou ASR local, extração local e persistência com `is_demo=false`. A qualidade
+da transcrição e dos termos ainda exige avaliação com mais vozes e ambientes.
 
 Quando o reset automático falhar, entre no bootloader com BOOT+RST e grave com
 `esptool --before no_reset --after no_reset write_flash @flash_args` dentro de

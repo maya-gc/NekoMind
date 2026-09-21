@@ -10,13 +10,14 @@ unidade conectada, a referência da branch `pipeline` identifica ESP32-S3 com LC
 ILI9341 240×320 e touch XPT2046. O firmware agora inclui drivers SPI e USB/serial
 para essa pinagem; [ligações, build e calibração](docs/esp32-s3-display-touch.md).
 O build e o flash ESP-IDF passaram; após RST/EN, a pessoa na bancada confirmou que
-o gatinho aparece sem piscar. O touch físico foi calibrado e o fluxo com microfone
-do Mac passou na bancada: Diagnóstico → Começar → Pausar → Retomar → Finalizar →
-resultado identificado como **demo** → Nova tentativa. Esse ensaio confirmou a
-captura e os controles, mas o backend estava em `mode=demo` com ASR e extrator
-`mock`; portanto, o resultado não representa o que foi falado. O ASR real foi
-exercitado separadamente com voz sintetizada local. Transcrição da voz da bancada,
-qualidade acústica e sessão integralmente real ainda precisam de validação.
+o gatinho aparece sem piscar. O touch físico foi calibrado. O fluxo completo de
+controles passou primeiro em demo: Diagnóstico → Começar → Pausar → Retomar →
+Finalizar → resultado identificado como demo → Nova tentativa. Em 21/09/2026,
+também passou uma sessão **real** na unidade conectada: diagnóstico pronto,
+captura de voz humana iniciada e finalizada pelo LCD, ASR local, tópicos locais e
+conclusão correlacionada no LCD e no painel público do Mac. O resultado foi
+persistido com origem real em todas as etapas. A avaliação acústica com diferentes
+vozes, distâncias, ruídos e pausas ainda precisa de ensaios adicionais.
 O extrator `local_keywords` agora é uma opção explícita aceita para execução local
 offline; ele não é LLM, não é mock, não chama nuvem e não prova domínio do assunto.
 
@@ -94,7 +95,9 @@ e de assets passaram com 11 e 5 checks, respectivamente. Faster-whisper e microf
 do Mac foram exercitados com voz sintetizada local. O build ESP-IDF v5.3.1 e a
 gravação USB da unidade ESP32-S3 foram executados nesta etapa; gatinho estável,
 toques, botões e controle da captura pelo Mac foram confirmados na bancada em
-modo demo. A análise real da fala humana e a calibração acústica seguem pendentes.
+modo demo. Uma sessão integralmente real com fala humana foi concluída no hardware
+e conferida no SQLite e em `/public`; isso valida o percurso, mas ainda não mede
+acurácia de transcrição, precisão dos termos nem robustez acústica.
 
 ## Instalação no macOS
 
@@ -199,4 +202,4 @@ captura gera recuperação, nunca reabre o microfone automaticamente.
 - [ASR: cache e medição](docs/asr-model-lifecycle.md) · [VAD](docs/speech-validation.md)
 - [Hardware Teknimas/ILI9341](docs/hardware-teknimas-ili9341.md) · [Modo feira](docs/feira-mode.md)
 - [Painéis](docs/panels.md) · [Privacidade](docs/privacy-retention.md)
-- [Teste real na mesa](docs/manual-validation.md) · [Checklist manual](docs/manual-checklist.md)
+- [Ensaio para apresentação](docs/day-of-rehearsal.md) · [Teste real na mesa](docs/manual-validation.md) · [Checklist manual](docs/manual-checklist.md)

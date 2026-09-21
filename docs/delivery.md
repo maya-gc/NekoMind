@@ -1,5 +1,10 @@
 # Entrega NM-001 a NM-019
 
+Este relatório registra a entrega de software anterior à integração da unidade
+física. Para o estado posterior, incluindo display, touch e uma sessão real com voz
+humana em 21/09/2026, consulte [o ensaio atual](day-of-rehearsal.md). Os status e
+contagens abaixo são históricos.
+
 Escopo: software local Mac, backend, painéis, protocolo e controlador/display-list C independente da placa. **Não equivale a um MVP físico validado.** O módulo Teknimas ILI9341 anunciado orienta os layouts; controlador touch, placa ESP32, pinos, tensão e orientação física ainda precisam ser confirmados.
 
 Os três commits iniciais (`2ff3535`, `412146c`, `7c987ac`) foram preservados. A auditoria reexecutou NM-001..007 e encontrou lacunas, incluindo clipping, recuperação durável, exclusão parcial e contratos entre componentes.

@@ -1,5 +1,10 @@
 # Relatório final — NekoMind
 
+Este relatório registra a entrega anterior à integração da unidade física. Os
+status e contagens abaixo são históricos. A validação posterior do display, touch
+e de uma sessão real com voz humana em 21/09/2026 está no
+[roteiro de apresentação](day-of-rehearsal.md).
+
 ## Publicação
 
 Código **publicado e verificado no GitHub** em 11/09/2026 usando
