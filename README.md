@@ -1,122 +1,81 @@
-# NekoMind
+# NekoMind Touch Lab
 
-Sistema embarcado de apoio ao estudo baseado na **técnica Feynman**: o
-estudante explica um conceito em voz alta, o NekoMind captura o áudio
-(ESP32-S3 + INMP441), transcreve, extrai tópicos e calcula métricas de
-clareza e abrangência — tudo apresentado em um dashboard lúdico.
+Plataforma local para desenvolver, testar, calibrar, controlar e demonstrar o
+LCD ILI9341 240×320 + touch XPT2046 do **ESP32-S3-DevKitC-1** junto ao fluxo
+**NekoMind** — com firmware PlatformIO (driver próprio `ILI9341_Driver`),
+aplicação web local (FastAPI), emulador visual, protocolo serial JSON Lines,
+testes automatizados e documentação técnica.
 
-## Propósito
-
-Transformar a técnica Feynman em um ciclo rápido e visível:
-
-1. O aluno fala sua explicação para o dispositivo (avatar "gatinho").
-2. O firmware envia o áudio ao computador (serial USB; Wi-Fi no futuro).
-3. O backend transcreve (ASR), extrai tópicos (LLM) e calcula métricas.
-4. O dashboard mostra a evolução das explicações.
-
-> ⚠️ **Importante**
-> O processamento por IA deve ser tratado como apoio à reflexão do estudante,
-> não como avaliação pedagógica definitiva. Métricas de clareza e abrangência
-> são heurísticas e devem ser apresentadas como estimativas.
-
-## Arquitetura (visão geral)
-
-```mermaid
-flowchart LR
-    ESP[ESP32-S3 + INMP441] -->|I2S + DMA| FW[Firmware NekoMind]
-    FW -->|JSON Lines / serial USB| BE[Backend FastAPI]
-    FW -.->|Wi-Fi futuro| BE
-    BE --> DB[(SQLite)]
-    BE --> AI[ASR + LLM<br/>mock por padrão]
-    BE --> WS[WebSocket /ws/device]
-    FR[Frontend Streamlit] -->|HTTP API| BE
-```
-
-Mais detalhes em [`docs/architecture.md`](docs/architecture.md).
-
-## Pré-requisitos
-
-- **Python 3.11+** (backend e frontend);
-- **Git**;
-- (Opcional para firmware) **ESP-IDF** instalado pelo próprio projeto
-  (`scripts/setup_espidf_portable.sh`) e **VS Code portátil**;
-- Hardware (para gravar de verdade): ESP32-S3, microfone INMP441, LCD.
+> **Verdade acima de tudo:** nada aqui afirma validação física do touch sem
+> teste na unidade real. Simulação é sempre rotulada como simulação
+> (`docs/risks.md` traz a checklist de validação física).
 
 ## Estrutura
 
-```
-nekomind/
-├── iot/nekomind_firmware/   firmware ESP-IDF (ESP32-S3)
-├── backend/                 FastAPI + SQLite + ASR/LLM
-├── frontend/streamlit/      dashboard (Streamlit)
-├── docs/                    requisitos, arquitetura, protocolo, DER
-├── scripts/                 setup e execução (.sh e .ps1)
-├── esp-idf/ e tools/        ESP-IDF e toolchains (gerados, não versionados)
-└── vscode-portable/         VS Code portátil (gerado, não versionado)
-```
+| Pasta | Conteúdo |
+|---|---|
+| `include/` | Configurações de placa e protocolo (`BoardConfig.h` **sem** GPIO48/backlight) |
+| `src/` | Firmware: main, protocolo serial, sessão NekoMind, UI kawaii |
+| `lib/neko_core` | Lógica pura em C++ (calibração, filtros, debounce, estados, protocolo, layout) |
+| `lib/neko_display` | Driver ILI9341 (baseline validado) + fonte 5×7 |
+| `lib/neko_touch` | TouchManager (XPT2046, polling, NVS) |
+| `firmware/` | Snapshot de proveniência do baseline + notas de firmware |
+| `host/neko_bridge` | Ponte serial Python: JSON Lines, ACK/timeout/retry/dedup, adaptador de backend |
+| `app/` | Aplicação web local FastAPI (127.0.0.1: Dashboard, Diagnóstico, Touch Lab, UI Lab, NekoMind) |
+| `emulator/` | Emulador do LCD 240×320/320×240 + dispositivo virtual (modo demo) |
+| `assets/` | Sprites kawaii originais (PNG + arrays C RGB565 + gerador + licença) |
+| `tests/` | Testes Python (pytest) |
+| `test/native/` | Testes C++ nativos (Unity via PlatformIO) |
+| `scripts/` | Automação PowerShell (build, upload, monitor, testes, app) |
+| `docs/` | Protocolo, decisões, riscos, validação física, assets |
+| `reports/` | Relatórios de implementação e diagnóstico |
+| `storage/` | Dados em runtime (logs, backups de calibração) — não versionado |
 
-## Setup
+## Início rápido (Windows PowerShell)
 
-### 1. Backend e frontend (Python)
+```powershell
+cd C:\Users\mayac\Desktop\high_level_projects\nekomind-touch-platform
 
-```bash
-# Linux/macOS
-bash scripts/setup_backend.sh
-bash scripts/setup_frontend.sh
-# Windows (PowerShell)
-.\scripts\setup_backend.ps1
-.\scripts\setup_frontend.ps1
-```
+# 1. Ambiente Python local (.venv dentro do projeto)
+powershell -ExecutionPolicy Bypass -File scripts\install_env.ps1
 
-### 2. Firmware (opcional)
+# 2. Compilar o firmware
+powershell -ExecutionPolicy Bypass -File scripts\build.ps1
 
-```bash
-bash scripts/setup_espidf_portable.sh   # baixa ESP-IDF + toolchains em ./esp-idf e ./tools
-source scripts/source_idf.sh
-cd iot/nekomind_firmware
-idf.py set-target esp32s3
-idf.py build
-```
+# 3. Testes automatizados (lógica C++ pura + Python)
+powershell -ExecutionPolicy Bypass -File scripts\run_native_tests.ps1
+powershell -ExecutionPolicy Bypass -File scripts\run_tests.ps1
 
-### 3. VS Code portátil
+# 4. Conectar a placa e gravar
+powershell -ExecutionPolicy Bypass -File scripts\detect_ports.ps1
+powershell -ExecutionPolicy Bypass -File scripts\upload.ps1     # escolhe a porta com voce
+powershell -ExecutionPolicy Bypass -File scripts\monitor.ps1
 
-Ver [`vscode-portable/README.md`](vscode-portable/README.md) e
-`scripts/launch_vscode.sh`/`.ps1`.
-
-## Execução
-
-```bash
-# Tudo (backend + frontend):
-bash scripts/run_all.sh            # ou .\scripts\run_all.ps1
-# Separadamente:
-bash scripts/run_backend.sh        # http://127.0.0.1:8000
-bash scripts/run_frontend.sh       # http://127.0.0.1:8501
-# Testes:
-bash scripts/run_tests.sh          # pytest do backend
+# 5. Aplicação local (funciona sem hardware, em modo emulador/demo)
+powershell -ExecutionPolicy Bypass -File scripts\run_app.ps1
+# → http://127.0.0.1:8700
 ```
 
-## Comandos úteis
+## Requisitos de hardware (validados no baseline)
 
-| Ação | Linux/macOS | Windows |
-|---|---|---|
-| Setup backend | `bash scripts/setup_backend.sh` | `.\scripts\setup_backend.ps1` |
-| Setup frontend | `bash scripts/setup_frontend.sh` | `.\scripts\setup_frontend.ps1` |
-| Setup ESP-IDF | `bash scripts/setup_espidf_portable.sh` | `.\scripts\setup_espidf_portable.ps1` |
-| Rodar tudo | `bash scripts/run_all.sh` | `.\scripts\run_all.ps1` |
-| Testes | `bash scripts/run_tests.sh` | `.\scripts\run_tests.ps1` |
-| Abrir VS Code | `bash scripts/launch_vscode.sh` | `.\scripts\launch_vscode.ps1` |
+- ESP32-S3-DevKitC-1 (USB CDC, `ARDUINO_USB_CDC_ON_BOOT=1`)
+- Display ILI9341 240×320 — MOSI 11, SCK 12, MISO 13, CS 10, DC 9, RST 8, SPI 20 MHz
+- Touch XPT2046 — CS 7, IRQ 6 (opcional; leitura forçada com `isrWake=true`)
+- Backlight em **3V3** — GPIO48 é o LED RGB da placa e **nunca** deve ser usado
+  para backlight
 
-## Limitações do MVP
+Pinagem completa: `TECHNICAL_REFERENCE.md`. Contrato serial: `docs/protocol.md`.
 
-- **ASR e LLM em modo mock**: sem chaves de API e sem baixar modelos;
-  transcrições e tópicos são dados fictícios marcados como `[DEMO]`.
-- **Firmware simulado**: captura I2S e LCD por logs até os pinos serem
-  definidos (ver TODOs nos headers em `iot/nekomind_firmware/main/`).
-- **Transporte serial no MVP**: a ingestão real pelo dispositivo ainda
-  será ligada; por ora os uploads ocorrem via API (multipart) ou WebSocket.
-- **SQLite** como banco padrão (PostgreSQL planejado).
-- Métricas de clareza/abrangência são **heurísticas** de demonstração.
+## Limitações honestas
 
-## Licença
+- Testes automatizados da lógica (calibração, filtros, debounce, protocolo) rodam
+  no **host** — não comprovam precisão física do touch.
+- A integração com o backend NekoMind usa adaptador + mock; a validação ponta a
+  ponta com o backend real está pendente (`docs/risks.md` R10).
+- O emulador espelha os comandos de render do firmware — não é validação física.
 
-MIT — ver [LICENSE](LICENSE).
+## Licença de assets
+
+Todos os sprites são gerados pelo próprio projeto
+(`assets/generator/generate_assets.py`) — origem e licença em `docs/assets.md`.
+Nada é copiado de projetos com licença desconhecida.
