@@ -34,6 +34,13 @@ funcionamento. A transcrição completa continua privada e nenhuma dessas evidê
 é apresentada como nota ou prova de domínio. Os termos refletem o que o ASR local
 reconheceu e podem divergir da fala quando o modelo ou a captação forem insuficientes.
 
+O rosto no LCD e no painel do Mac usa a referência de gatinha branca com laço
+vermelho, olhos escuros, nariz amarelo e bigodes, desenhada com primitivas locais
+(sem imagem externa). No LCD há um botão **ESCURO/CLARO** no canto superior direito
+em todos os estados. Ele alterna imediatamente a paleta suave rosa e creme ou
+ameixa escura, persiste a escolha no NVS do ESP32 e não altera a captura nem envia
+comando ao Mac. O painel web conserva sua paleta própria.
+
 A indicação de gravação depende de o stream ter iniciado. Pausa fecha o microfone;
 retomar reabre; finalizar encerra captura antes de avaliar. Somente resultado concluído
 da sessão correta produz conclusão. Há deduplicação, timeout, erro e nova tentativa.

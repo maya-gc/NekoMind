@@ -16,7 +16,7 @@ import {
   renderPublic,
   renderTokenPrompt as renderTokenPromptMarkup,
   renderTouch,
-} from "./render.mjs";
+} from "./render.mjs?v=kitty-1";
 
 const app = document.querySelector("#app");
 const route = routeFromPath(window.location.pathname);

@@ -52,6 +52,14 @@ completo, configure backend local e bridge conforme o README. O Mac captura áud
 o ESP troca somente JSON Lines. O botão **Calibrar** da sessão é a calibração do
 microfone do Mac, diferente da calibração física do touch descrita abaixo.
 
+O botão **ESCURO/CLARO** fica no canto superior direito (alvo de 70×44 px) em
+todos os estados, inclusive enquanto um comando de sessão está pendente. A troca
+é local e imediata, não entra no protocolo USB; o tema é salvo em `neko_ui/dark`
+no NVS, sem apagar `neko_touch` nem a calibração. A opção clara usa fundo creme e
+controles rosa; a escura usa fundo ameixa e texto claro. O rosto branco com laço
+vermelho conserva contraste nas duas paletas. Testes portáteis cobrem layout,
+alvos e cenas; a aparência e o toque precisam ser observados no módulo físico.
+
 ## Calibrar touch físico
 
 O mapeamento inicial é aproximado. Com backend/bridge/monitor **fechados**, envie

@@ -9,6 +9,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "nvs.h"
 
 #include "avatar_state.h"
 #include "audio_transport.h"
@@ -26,6 +27,53 @@ static char s_rx_line[NEKO_PROTOCOL_MAX_LINE_BYTES];
 static bool s_touch_driver_ready = false;
 static neko_layout_model_t s_layout;
 static neko_touch_edge_t s_touch_edge;
+static neko_scene_t s_scene;
+static bool s_have_ui_scene;
+static bool s_dark_theme;
+static uint32_t s_theme_last_toggle_ms;
+
+static void load_theme(void)
+{
+    nvs_handle_t nvs;
+    uint8_t value = 0;
+    if (nvs_open("neko_ui", NVS_READONLY, &nvs) == ESP_OK) {
+        if (nvs_get_u8(nvs, "dark", &value) == ESP_OK) s_dark_theme = value == 1;
+        nvs_close(nvs);
+    }
+}
+
+static void toggle_theme(uint32_t t_ms)
+{
+    if (s_theme_last_toggle_ms != 0
+        && (uint32_t)(t_ms - s_theme_last_toggle_ms) < NEKO_TOUCH_DEBOUNCE_MS)
+        return;
+    s_theme_last_toggle_ms = t_ms;
+    s_dark_theme = !s_dark_theme;
+    neko_layout_set_theme(&s_layout, s_dark_theme);
+    if (s_have_ui_scene) {
+        s_scene.dark_theme = s_dark_theme;
+        for (size_t i = 0; i < s_scene.op_count; i++) {
+            neko_scene_op_t *op = &s_scene.ops[i];
+            if (op->kind == NEKO_SCENE_OP_BUTTON
+                && op->rect.x == s_layout.hits[0].rect.x
+                && op->rect.y == s_layout.hits[0].rect.y) {
+                snprintf(op->text, sizeof(op->text), "%s",
+                         s_dark_theme ? "CLARO" : "ESCURO");
+                break;
+            }
+        }
+        display_ui_draw_scene(&s_scene);
+    }
+    nvs_handle_t nvs;
+    if (nvs_open("neko_ui", NVS_READWRITE, &nvs) == ESP_OK) {
+        esp_err_t err = nvs_set_u8(nvs, "dark", s_dark_theme ? 1 : 0);
+        if (err == ESP_OK) err = nvs_commit(nvs);
+        if (err != ESP_OK) ESP_LOGW(TAG, "tema nao persistido: %s", esp_err_to_name(err));
+        nvs_close(nvs);
+    } else {
+        ESP_LOGW(TAG, "tema nao persistido: NVS indisponivel");
+    }
+}
 
 static uint32_t now_ms(void)
 {
@@ -76,13 +124,17 @@ static void controller_render_view(neko_controller_state_t state,
     neko_scene_t scene;
     avatar_state_set(avatar_from_controller(state));
     if (neko_layout_build(state, view, NEKO_DISPLAY_WIDTH, NEKO_DISPLAY_HEIGHT,
-                          false, view != NULL ? view->card_index : 0, &layout)
-        && neko_scene_build(state, view, &layout, &scene)) {
-        s_layout = layout;
-        display_ui_draw_scene(&scene);
-    } else {
-        display_ui_render(view != NULL ? view->message : neko_controller_state_name(state));
+                          false, view != NULL ? view->card_index : 0, &layout)) {
+        neko_layout_set_theme(&layout, s_dark_theme);
+        if (neko_scene_build(state, view, &layout, &scene)) {
+            s_layout = layout;
+            s_scene = scene;
+            s_have_ui_scene = true;
+            display_ui_draw_scene(&scene);
+            return;
+        }
     }
+    display_ui_render(view != NULL ? view->message : neko_controller_state_name(state));
 }
 
 esp_err_t session_controller_init(void)
@@ -117,6 +169,7 @@ esp_err_t session_controller_init(void)
             return touch_err;
         }
     }
+    load_theme();
     snprintf(boot_nonce, sizeof(boot_nonce), "esp%08lx%08lx%08lx%08lx",
              (unsigned long)esp_random(),
              (unsigned long)esp_random(),
@@ -143,7 +196,8 @@ static void poll_touch(uint32_t t_ms)
         bool enabled = false;
         if (neko_touch_edge_update(&s_touch_edge, pressed, t_ms)
             && neko_layout_hit_test(&s_layout, x, y, &event, &enabled) && enabled) {
-            neko_controller_touch(&s_controller, event, t_ms);
+            if (event == NEKO_TOUCH_THEME) toggle_theme(t_ms);
+            else neko_controller_touch(&s_controller, event, t_ms);
         }
         return;
     }

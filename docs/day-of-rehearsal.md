@@ -13,6 +13,8 @@ mostra o painel público em `http://127.0.0.1:8000/public`.
    com `backend/.venv/bin/python -m serial.tools.list_ports`; no ensaio ela foi
    `/dev/cu.usbmodem101`, mas pode mudar após reconexão. Fechar monitor serial e
    qualquer outro processo que use essa porta.
+   Tocar **ESCURO/CLARO** no canto superior direito para escolher a paleta do LCD;
+   conferir legibilidade dos botões e que a escolha permanece após RST/EN.
 2. Confirmar as dependências de `backend/requirements-mac.txt` e
    `backend/requirements-real.txt`. O modelo usado neste Mac é o snapshot público
    `Systran/faster-whisper-small`, revisão

@@ -119,7 +119,7 @@ test("touch model keeps the cat dominant, labels emulator mode, and resets cards
   assert.equal(resetCard.cardIndex, 0);
   assert.equal(model.badges.some((badge) => badge.text === "EMULADOR"), true);
   assert.equal(model.primaryAction.minTouchTargetPx >= 44, true);
-  assert.match(html, /Rosto-instrumento/);
+  assert.match(html, /Rosto da gatinha/);
   assert.match(html, /EMULADOR/);
   assert.match(html, /title="QA fixture: result"/);
   assert.doesNotMatch(html, /getUserMedia|microfone do navegador|browser mic/i);
@@ -190,8 +190,10 @@ test("cat face and required state contracts render for all central states", () =
   for (const state of states) {
     const html = renderCatFace({ state, voice: { level: 62, clipping: false, quality: "ok" } });
     assert.match(html, /<svg/);
-    assert.match(html, /aria-label="Rosto-instrumento NekoMind/);
+    assert.match(html, /aria-label="Rosto da gatinha NekoMind/);
     assert.match(html, new RegExp(`data-state="${state}"`));
+    assert.match(html, /class="cat-bow"/);
+    assert.match(html, /class="cat-nose"/);
   }
 });
 

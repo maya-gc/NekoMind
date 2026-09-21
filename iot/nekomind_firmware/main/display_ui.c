@@ -25,12 +25,26 @@ static bool s_have_scene;
 static bool s_calibrating;
 static int s_tile_y;
 
-static const uint16_t C_BG = RGB565(10, 13, 19);
-static const uint16_t C_PANEL = RGB565(31, 40, 53);
-static const uint16_t C_WHITE = RGB565(246, 249, 255);
-static const uint16_t C_MUTED = RGB565(156, 171, 189);
-static const uint16_t C_CYAN = RGB565(70, 205, 239);
-static const uint16_t C_AMBER = RGB565(255, 185, 80);
+typedef struct {
+    uint16_t bg, panel, text, muted, accent, border, soft;
+} theme_palette_t;
+
+static const theme_palette_t LIGHT = {
+    RGB565(255, 246, 248), RGB565(255, 255, 255), RGB565(55, 43, 53),
+    RGB565(105, 82, 95), RGB565(199, 51, 92), RGB565(218, 161, 181),
+    RGB565(255, 225, 234)
+};
+static const theme_palette_t DARK = {
+    RGB565(32, 27, 39), RGB565(55, 46, 63), RGB565(255, 242, 247),
+    RGB565(202, 180, 194), RGB565(255, 150, 179), RGB565(161, 106, 131),
+    RGB565(79, 55, 74)
+};
+static const theme_palette_t *s_palette = &LIGHT;
+static const uint16_t FACE_INK = RGB565(48, 40, 45);
+static const uint16_t FACE_WHITE = RGB565(255, 254, 251);
+static const uint16_t BOW_RED = RGB565(235, 55, 83);
+static const uint16_t NOSE_YELLOW = RGB565(248, 202, 77);
+static const uint16_t CHEEK_PINK = RGB565(255, 223, 229);
 
 /* Fonte 5x7 local, suficiente para os textos curtos da interface. */
 static const uint8_t FONT[][5] = {
@@ -153,6 +167,108 @@ static void oval(int x, int y, int w, int h, uint16_t color)
     }
 }
 
+static void triangle(int ax, int ay, int bx, int by, int cx, int cy,
+                     uint16_t color)
+{
+    int left = ax < bx ? ax : bx, right = ax > bx ? ax : bx;
+    int top = ay < by ? ay : by, bottom = ay > by ? ay : by;
+    if (cx < left) left = cx;
+    if (cx > right) right = cx;
+    if (cy < top) top = cy;
+    if (cy > bottom) bottom = cy;
+    if (top < s_tile_y) top = s_tile_y;
+    if (bottom >= s_tile_y + TILE_H) bottom = s_tile_y + TILE_H - 1;
+    for (int y = top; y <= bottom; y++) {
+        for (int x = left; x <= right; x++) {
+            int64_t a = (int64_t)(bx - ax) * (y - ay) - (int64_t)(by - ay) * (x - ax);
+            int64_t b = (int64_t)(cx - bx) * (y - by) - (int64_t)(cy - by) * (x - bx);
+            int64_t c = (int64_t)(ax - cx) * (y - cy) - (int64_t)(ay - cy) * (x - cx);
+            if ((a >= 0 && b >= 0 && c >= 0) || (a <= 0 && b <= 0 && c <= 0))
+                pixel(x, y, color);
+        }
+    }
+}
+
+static void stroke(int x0, int y0, int x1, int y1, uint16_t color)
+{
+    int dx = x1 > x0 ? x1 - x0 : x0 - x1;
+    int dy = y1 > y0 ? y1 - y0 : y0 - y1;
+    int sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    int err = dx - dy;
+    while (true) {
+        pixel(x0, y0, color);
+        pixel(x0, y0 + 1, color);
+        if (x0 == x1 && y0 == y1) break;
+        int e2 = 2 * err;
+        if (e2 > -dy) { err -= dy; x0 += sx; }
+        if (e2 < dx) { err += dx; y0 += sy; }
+    }
+}
+
+static int fx(const neko_layout_rect_t *r, int percent)
+{
+    return r->x + r->width * percent / 100;
+}
+
+static int fy(const neko_layout_rect_t *r, int percent)
+{
+    return r->y + r->height * percent / 100;
+}
+
+static void draw_face(const neko_layout_rect_t *r, const char *expression)
+{
+    int inset = r->height < 110 ? 3 : 4;
+    /* Orelhas, silhueta arredondada e laço são desenhados em RGB565 no LCD. */
+    triangle(fx(r, 9), fy(r, 35), fx(r, 11), fy(r, 4),
+             fx(r, 39), fy(r, 23), FACE_INK);
+    triangle(fx(r, 61), fy(r, 23), fx(r, 86), fy(r, 3),
+             fx(r, 93), fy(r, 37), FACE_INK);
+    triangle(fx(r, 12), fy(r, 33), fx(r, 14), fy(r, 10),
+             fx(r, 37), fy(r, 25), FACE_WHITE);
+    triangle(fx(r, 63), fy(r, 25), fx(r, 84), fy(r, 9),
+             fx(r, 90), fy(r, 34), FACE_WHITE);
+    int hx = fx(r, 6), hy = fy(r, 22);
+    int hw = r->width * 88 / 100, hh = r->height * 73 / 100;
+    oval(hx, hy, hw, hh, FACE_INK);
+    oval(hx + inset, hy + inset, hw - 2 * inset, hh - 2 * inset, FACE_WHITE);
+
+    /* Olhos e nariz preservam a leitura mesmo no rosto compacto de resultado. */
+    int ey = fy(r, 56);
+    bool closed = strstr(expression, "paused") != NULL;
+    bool worried = strstr(expression, "error") != NULL
+                   || strstr(expression, "clipping") != NULL;
+    if (closed) {
+        stroke(fx(r, 31), ey + 3, fx(r, 39), ey + 3, FACE_INK);
+        stroke(fx(r, 64), ey + 3, fx(r, 72), ey + 3, FACE_INK);
+    } else {
+        int eye_h = worried ? r->height * 10 / 100 : r->height * 12 / 100;
+        oval(fx(r, 33), ey, r->width * 6 / 100, eye_h, FACE_INK);
+        oval(fx(r, 66), ey, r->width * 6 / 100, eye_h, FACE_INK);
+    }
+    oval(fx(r, 21), fy(r, 73), r->width * 11 / 100, r->height * 6 / 100,
+         CHEEK_PINK);
+    oval(fx(r, 70), fy(r, 73), r->width * 11 / 100, r->height * 6 / 100,
+         CHEEK_PINK);
+    oval(fx(r, 46), fy(r, 69), r->width * 9 / 100, r->height * 9 / 100,
+         FACE_INK);
+    oval(fx(r, 47), fy(r, 70), r->width * 7 / 100, r->height * 7 / 100,
+         NOSE_YELLOW);
+
+    for (int i = 0; i < 3; i++) {
+        int shift = i == 0 ? -10 : i == 2 ? 10 : 0;
+        stroke(fx(r, 27), fy(r, 70 + i * 6), fx(r, 0), fy(r, 67 + i * 6 + shift / 2), FACE_INK);
+        stroke(fx(r, 73), fy(r, 70 + i * 6), fx(r, 99), fy(r, 67 + i * 6 + shift / 2), FACE_INK);
+    }
+
+    /* Laço vermelho sobre a orelha direita (direita da personagem). */
+    oval(fx(r, 54), fy(r, 3), r->width * 23 / 100, r->height * 35 / 100, FACE_INK);
+    oval(fx(r, 56), fy(r, 6), r->width * 20 / 100, r->height * 30 / 100, BOW_RED);
+    oval(fx(r, 75), fy(r, 16), r->width * 22 / 100, r->height * 30 / 100, FACE_INK);
+    oval(fx(r, 77), fy(r, 19), r->width * 18 / 100, r->height * 24 / 100, BOW_RED);
+    oval(fx(r, 68), fy(r, 21), r->width * 17 / 100, r->height * 19 / 100, FACE_INK);
+    oval(fx(r, 70), fy(r, 23), r->width * 13 / 100, r->height * 15 / 100, BOW_RED);
+}
+
 static void character(int x, int y, char ch, int scale, uint16_t color)
 {
     const uint8_t *bits = glyph(ch);
@@ -198,41 +314,44 @@ static void draw_op(const neko_scene_op_t *op)
     const neko_layout_rect_t *r = &op->rect;
     switch (op->kind) {
     case NEKO_SCENE_OP_FACE:
-        oval(r->x + 3, r->y + 3, r->width - 6, r->height - 6, C_PANEL);
+        draw_face(r, op->text);
         break;
     case NEKO_SCENE_OP_POLYGON:
         for (int yy = 0; yy < r->height; yy++) {
             int span = (yy * r->width) / (2 * r->height);
             int cx = strstr(op->text, "direita") != NULL
                 ? r->x + r->width - 2 - span : r->x + 1 + span;
-            rect(cx - span, r->y + yy, 2 * span + 1, 1, C_AMBER);
+            rect(cx - span, r->y + yy, 2 * span + 1, 1, s_palette->accent);
         }
         break;
     case NEKO_SCENE_OP_ELLIPSE:
         if (strstr(op->text, "cabeca") != NULL) {
-            oval(r->x, r->y, r->width, r->height, C_WHITE);
-            oval(r->x + 5, r->y + 5, r->width - 10, r->height - 10, C_BG);
+            oval(r->x, r->y, r->width, r->height, s_palette->text);
+            oval(r->x + 5, r->y + 5, r->width - 10, r->height - 10, s_palette->bg);
         } else {
-            oval(r->x, r->y, r->width, r->height, C_WHITE);
+            oval(r->x, r->y, r->width, r->height, s_palette->text);
             oval(r->x + r->width / 3, r->y + r->height / 3,
-                 r->width / 3, r->height / 3, C_CYAN);
+                 r->width / 3, r->height / 3, s_palette->accent);
         }
         break;
     case NEKO_SCENE_OP_LINE:
-        rect(r->x, r->y, r->width, 2, C_CYAN);
-        oval(r->x + r->width / 2 - 4, r->y - 4, 8, 7, C_CYAN);
+        rect(r->x, r->y, r->width, 2, s_palette->accent);
+        oval(r->x + r->width / 2 - 4, r->y - 4, 8, 7, s_palette->accent);
         break;
     case NEKO_SCENE_OP_BUTTON:
-        rect(r->x, r->y, r->width, r->height, op->enabled ? C_CYAN : C_MUTED);
-        rect(r->x + 2, r->y + 2, r->width - 4, r->height - 4, C_PANEL);
-        text_in_rect(r, op->text, 1, op->enabled ? C_WHITE : C_MUTED);
+        rect(r->x, r->y, r->width, r->height,
+             op->enabled ? s_palette->accent : s_palette->border);
+        rect(r->x + 2, r->y + 2, r->width - 4, r->height - 4,
+             s_palette->panel);
+        text_in_rect(r, op->text, 1,
+                     op->enabled ? s_palette->text : s_palette->muted);
         break;
     case NEKO_SCENE_OP_TEXT:
         if (r->height >= 30) {
-            rect(r->x, r->y, r->width, r->height, C_PANEL);
-            text_in_rect(r, op->text, 2, C_WHITE);
+            rect(r->x, r->y, r->width, r->height, s_palette->panel);
+            text_in_rect(r, op->text, 2, s_palette->text);
         } else {
-            text_in_rect(r, op->text, 2, C_CYAN);
+            text_in_rect(r, op->text, 2, s_palette->accent);
         }
         break;
     default:
@@ -281,10 +400,11 @@ esp_err_t display_ui_draw_scene(const neko_scene_t *scene)
         return ESP_ERR_INVALID_ARG;
     if (s_have_scene && memcmp(scene, &s_last_scene, sizeof(*scene)) == 0)
         return ESP_OK;
+    s_palette = scene->dark_theme ? &DARK : &LIGHT;
     for (s_tile_y = 0; s_tile_y < LCD_H; s_tile_y += TILE_H) {
         for (size_t i = 0; i < sizeof(s_tile); i += 2) {
-            s_tile[i] = (uint8_t)(C_BG >> 8);
-            s_tile[i + 1] = (uint8_t)C_BG;
+            s_tile[i] = (uint8_t)(s_palette->bg >> 8);
+            s_tile[i + 1] = (uint8_t)s_palette->bg;
         }
         for (size_t i = 0; i < scene->op_count; i++) draw_op(&scene->ops[i]);
         ESP_RETURN_ON_ERROR(lcd_window(s_tile_y, s_tile_y + TILE_H - 1), TAG, "janela");

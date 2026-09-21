@@ -885,6 +885,36 @@ static void test_scene_hit_actions_for_core_states(void)
     assert_hit_event(NEKO_CONTROLLER_RECOVERY, NEKO_TOUCH_CANCEL, true);
 }
 
+static void test_local_theme_button_across_session_states(void)
+{
+    neko_controller_view_t view = {.message = "Pronto", .is_demo = false};
+    for (int state = NEKO_CONTROLLER_IDLE; state <= NEKO_CONTROLLER_ERROR; state++) {
+        neko_layout_model_t layout;
+        neko_scene_t scene;
+        neko_touch_event_t event = 0;
+        bool enabled = false;
+        assert(neko_layout_build((neko_controller_state_t)state, &view,
+                                 240, 320, false, 0, &layout));
+        assert(layout.hits[0].event == NEKO_TOUCH_THEME);
+        assert(layout.hits[0].rect.width >= NEKO_LAYOUT_HIT_TARGET_MIN);
+        assert(layout.hits[0].rect.height >= NEKO_LAYOUT_HIT_TARGET_MIN);
+        assert(neko_layout_hit_test(&layout, 190, 20, &event, &enabled));
+        assert(event == NEKO_TOUCH_THEME && enabled);
+        assert(!layout.dark_theme);
+        assert(strcmp(layout.hits[0].label, "ESCURO") == 0);
+        neko_layout_set_theme(&layout, true);
+        assert(strcmp(layout.hits[0].label, "CLARO") == 0);
+        assert(neko_scene_build((neko_controller_state_t)state, &view,
+                                &layout, &scene));
+        assert(scene.dark_theme && scene_has_text(&scene, "CLARO"));
+        assert_scene_no_important_overlap(&scene);
+        neko_layout_set_theme(&layout, false);
+        assert(neko_scene_build((neko_controller_state_t)state, &view,
+                                &layout, &scene));
+        assert(!scene.dark_theme && scene_has_text(&scene, "ESCURO"));
+    }
+}
+
 static void test_result_card_navigation_updates_view_only(void)
 {
     neko_controller_t controller;
@@ -978,6 +1008,7 @@ int main(void)
     test_result_optional_duration_trend_and_processing_progress();
     test_portable_touch_layout_faces_cards_and_targets();
     test_scene_hit_actions_for_core_states();
+    test_local_theme_button_across_session_states();
     test_result_card_navigation_updates_view_only();
     test_recovery_discard_confirmation_and_async_diagnose_ready();
     test_scene_result_content_badges_and_grouped_topics();

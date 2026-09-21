@@ -70,11 +70,11 @@ static neko_layout_rect_t rect_make(int x, int y, int width, int height)
 
 static void build_portrait(neko_controller_state_t state, neko_layout_model_t *out)
 {
-    int face_h = state == NEKO_CONTROLLER_SUCCESS ? 104 : 150;
+    int face_h = state == NEKO_CONTROLLER_SUCCESS ? 96 : 134;
     int face_w = clamp_int(out->width - 48, 120, 176);
     int action_y = out->height - 58;
 
-    out->face = rect_make((out->width - face_w) / 2, 36, face_w, face_h);
+    out->face = rect_make((out->width - face_w) / 2, 52, face_w, face_h);
     out->primary_action = rect_make(12, action_y, out->width - 24, 48);
     out->secondary_action = rect_make(12, action_y - 50, out->width - 24, 44);
     out->previous_action = rect_make(12, action_y, 54, 48);
@@ -89,7 +89,7 @@ static void build_landscape(neko_controller_state_t state, neko_layout_model_t *
     int action_w = out->width - action_x - 12;
     int action_y = out->height - 56;
 
-    out->face = rect_make(12, 28, face_w, face_h);
+    out->face = rect_make(12, 48, face_w, face_h);
     out->primary_action = rect_make(action_x, action_y, action_w, 46);
     out->secondary_action = rect_make(action_x, action_y - 48, action_w, 44);
     out->previous_action = rect_make(action_x, action_y, 54, 46);
@@ -224,8 +224,22 @@ bool neko_layout_build(neko_controller_state_t state,
         build_portrait(state, out);
     }
 
+    add_hit(out, NEKO_TOUCH_THEME, rect_make(width - 82, 4, 70, 44), true,
+            "ESCURO");
     add_state_actions(state, out);
     return true;
+}
+
+void neko_layout_set_theme(neko_layout_model_t *layout, bool dark_theme)
+{
+    if (layout == NULL) return;
+    layout->dark_theme = dark_theme;
+    for (size_t i = 0; i < layout->hit_count; i++) {
+        if (layout->hits[i].event == NEKO_TOUCH_THEME) {
+            snprintf(layout->hits[i].label, sizeof(layout->hits[i].label), "%s",
+                     dark_theme ? "CLARO" : "ESCURO");
+        }
+    }
 }
 
 bool neko_layout_hit_test(const neko_layout_model_t *layout,
@@ -338,39 +352,9 @@ static void add_face_ops(neko_scene_t *scene,
                          const neko_controller_view_t *view,
                          bool reduced_motion)
 {
-    int ear_w = face->width / 4;
-    int eye_w = face->width / 7;
-    int eye_y = face->y + face->height / 3;
-    int mouth_y = state == NEKO_CONTROLLER_SUCCESS
-        ? face->y + (face->height * 3) / 4
-        : face->y + (face->height * 2) / 3;
+    /* A arte vetorial inteira cabe num único op; o driver escala para o LCD. */
     add_scene_op(scene, NEKO_SCENE_OP_FACE, *face,
                  face_expression(state, view, reduced_motion), true);
-    add_scene_op(scene, NEKO_SCENE_OP_POLYGON,
-                 rect_make(face->x + 8, face->y, ear_w, face->height / 3),
-                 "orelha esquerda", true);
-    add_scene_op(scene, NEKO_SCENE_OP_POLYGON,
-                 rect_make(face->x + face->width - ear_w - 8, face->y,
-                           ear_w, face->height / 3),
-                 "orelha direita", true);
-    add_scene_op(scene, NEKO_SCENE_OP_ELLIPSE,
-                 rect_make(face->x + face->width / 2 - face->width / 3,
-                           face->y + face->height / 7,
-                           (face->width * 2) / 3,
-                           (face->height * 5) / 7),
-                 "cabeca", true);
-    add_scene_op(scene, NEKO_SCENE_OP_ELLIPSE,
-                 rect_make(face->x + face->width / 3 - eye_w / 2, eye_y,
-                           eye_w, eye_w),
-                 "olho esquerdo", true);
-    add_scene_op(scene, NEKO_SCENE_OP_ELLIPSE,
-                 rect_make(face->x + (face->width * 2) / 3 - eye_w / 2, eye_y,
-                           eye_w, eye_w),
-                 "olho direito", true);
-    add_scene_op(scene, NEKO_SCENE_OP_LINE,
-                 rect_make(face->x + face->width / 5, mouth_y,
-                           (face->width * 3) / 5, 2),
-                 state == NEKO_CONTROLLER_RECORDING ? "bigodes-voz" : "bigodes", true);
 }
 
 static void utf8_copy_safe(char *out, size_t out_size, const char *text)
@@ -484,6 +468,7 @@ bool neko_scene_build(neko_controller_state_t state,
     out->width = layout->width;
     out->height = layout->height;
     out->reduced_motion = layout->reduced_motion;
+    out->dark_theme = layout->dark_theme;
 
     add_face_ops(out, &layout->face, state, view, layout->reduced_motion);
     badge_rect = layout->landscape
@@ -492,7 +477,7 @@ bool neko_scene_build(neko_controller_state_t state,
     add_scene_op(out, NEKO_SCENE_OP_TEXT, badge_rect,
                  view != NULL && view->is_demo ? "DEMO" : "REAL", true);
     text_rect = layout->landscape
-        ? rect_make(layout->face.x + layout->face.width + 14, 30,
+        ? rect_make(layout->face.x + layout->face.width + 14, 58,
                     layout->width - layout->face.x - layout->face.width - 26, 28)
         : rect_make(12, layout->face.y + layout->face.height + 8,
                     layout->width - 24, 16);
@@ -503,17 +488,17 @@ bool neko_scene_build(neko_controller_state_t state,
     if (state == NEKO_CONTROLLER_SUCCESS) {
         card_text(view, layout, card, sizeof(card));
         card_rect = layout->landscape
-            ? rect_make(text_rect.x, 64, text_rect.width, 42)
-            : rect_make(12, text_rect.y + 28, layout->width - 24, 36);
+            ? rect_make(text_rect.x, 92, text_rect.width, 34)
+            : rect_make(12, text_rect.y + 24, layout->width - 24, 26);
         add_scene_op(out, NEKO_SCENE_OP_TEXT,
                      card_rect, card, true);
     } else if (view != NULL && has_text(view->journey_step)) {
         add_scene_op(out, NEKO_SCENE_OP_TEXT,
-                     rect_make(text_rect.x, text_rect.y + 52, text_rect.width, 20),
+                     rect_make(text_rect.x, text_rect.y + 48, text_rect.width, 20),
                      view->journey_step, true);
     } else if (view != NULL && has_text(view->diagnostic_component)) {
         add_scene_op(out, NEKO_SCENE_OP_TEXT,
-                     rect_make(text_rect.x, text_rect.y + 52, text_rect.width, 20),
+                     rect_make(text_rect.x, text_rect.y + 48, text_rect.width, 20),
                      view->diagnostic_component, true);
     }
     for (i = 0; i < layout->hit_count; i++) {

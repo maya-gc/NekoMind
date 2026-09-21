@@ -46,7 +46,8 @@ typedef enum {
     NEKO_TOUCH_CANCEL,
     NEKO_TOUCH_RESET,
     NEKO_TOUCH_NEXT_CARD,
-    NEKO_TOUCH_PREV_CARD
+    NEKO_TOUCH_PREV_CARD,
+    NEKO_TOUCH_THEME /* local ao display; nunca enviado ao Mac */
 } neko_touch_event_t;
 
 typedef enum {

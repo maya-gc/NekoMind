@@ -34,6 +34,7 @@ typedef struct {
     int height;
     bool landscape;
     bool reduced_motion;
+    bool dark_theme;
     neko_layout_rect_t face;
     neko_layout_rect_t primary_action;
     neko_layout_rect_t secondary_action;
@@ -65,6 +66,7 @@ typedef struct {
     int width;
     int height;
     bool reduced_motion;
+    bool dark_theme;
     size_t op_count;
     neko_scene_op_t ops[NEKO_SCENE_MAX_OPS];
 } neko_scene_t;
@@ -81,6 +83,7 @@ bool neko_layout_build(neko_controller_state_t state,
                        bool reduced_motion,
                        size_t requested_card_index,
                        neko_layout_model_t *out);
+void neko_layout_set_theme(neko_layout_model_t *layout, bool dark_theme);
 bool neko_layout_hit_test(const neko_layout_model_t *layout,
                           int x,
                           int y,

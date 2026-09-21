@@ -170,27 +170,29 @@ export function renderCatFace({ state = "idle", voice = null, compact = false } 
   const level = voice?.level ?? 0;
   const clipping = voice?.clipping || voice?.quality === "clipping";
   const low = voice?.quality === "low";
-  const eyeY = state === "paused" ? 73 : state === "error" ? 79 : 70;
-  const mouth = state === "completed" ? "M96 121 Q120 139 144 121" : state === "error" ? "M102 130 Q120 120 138 130" : "M106 122 Q120 130 134 122";
+  const eyes = state === "paused"
+    ? `<path class="cat-eye-closed" d="M82 105 Q89 111 96 105 M145 105 Q152 111 159 105" />`
+    : `<ellipse class="cat-eye" cx="89" cy="105" rx="5" ry="9" />
+       <ellipse class="cat-eye" cx="152" cy="105" rx="5" ry="9" />`;
   return `
     <svg class="cat-face ${compact ? "is-compact" : ""} ${clipping ? "is-clipping" : ""} ${low ? "is-low" : ""}"
       data-state="${escapeAttr(state)}"
       viewBox="0 0 240 180"
       role="img"
-      aria-label="Rosto-instrumento NekoMind em estado ${escapeAttr(state)}">
-      <title>Rosto-instrumento NekoMind</title>
-      <path class="cat-ear" d="M55 54 L74 12 L94 62 Z" />
-      <path class="cat-ear right" d="M145 62 L166 12 L186 54 Z" />
-      <path class="cat-head" d="M50 73 C50 35 190 35 190 73 L190 118 C190 155 50 155 50 118 Z" />
-      <circle class="cat-eye" cx="91" cy="${eyeY}" r="14" />
-      <circle class="cat-eye" cx="149" cy="${eyeY}" r="14" />
-      <circle class="cat-pupil" cx="${state === "processing" ? 96 : 91}" cy="${eyeY}" r="5" />
-      <circle class="cat-pupil" cx="${state === "processing" ? 154 : 149}" cy="${eyeY}" r="5" />
-      <path class="cat-nose" d="M113 102 L127 102 L120 111 Z" />
-      <path class="cat-mouth" d="${mouth}" />
-      <path class="cat-whisker left" style="--voice:${level}" d="M108 112 L50 102 M108 120 L43 120 M108 128 L50 139" />
-      <path class="cat-whisker right" style="--voice:${level}" d="M132 112 L190 102 M132 120 L197 120 M132 128 L190 139" />
-      <circle class="voice-dot" cx="120" cy="151" r="${Math.max(5, Math.min(18, 5 + level / 7))}" />
+      aria-label="Rosto da gatinha NekoMind em estado ${escapeAttr(state)}">
+      <title>Gatinha NekoMind com laço</title>
+      <path class="cat-head" d="M40 78 Q33 59 42 27 Q45 17 59 21 L98 35 Q120 27 144 29 L180 20 Q196 17 199 31 Q204 54 200 76 Q211 89 211 110 Q210 151 164 162 Q120 175 76 161 Q29 148 29 109 Q29 89 40 78 Z" />
+      <ellipse class="cat-cheek" cx="65" cy="128" rx="12" ry="6" />
+      <ellipse class="cat-cheek" cx="175" cy="128" rx="12" ry="6" />
+      ${eyes}
+      <ellipse class="cat-nose-outline" cx="120" cy="126" rx="10" ry="7" />
+      <ellipse class="cat-nose" cx="120" cy="126" rx="7" ry="5" />
+      <path class="cat-whisker left" style="--voice:${level}" d="M75 118 L21 111 M75 129 L17 130 M79 139 L27 151" />
+      <path class="cat-whisker right" style="--voice:${level}" d="M165 118 L219 111 M165 129 L223 130 M161 139 L213 151" />
+      <ellipse class="cat-bow" cx="155" cy="45" rx="20" ry="29" transform="rotate(24 155 45)" />
+      <ellipse class="cat-bow" cx="191" cy="59" rx="22" ry="20" transform="rotate(-28 191 59)" />
+      <ellipse class="cat-bow-knot" cx="174" cy="55" rx="15" ry="13" />
+      <circle class="voice-dot" cx="120" cy="174" r="${Math.max(3, Math.min(6, 3 + level / 25))}" />
     </svg>`;
 }
 

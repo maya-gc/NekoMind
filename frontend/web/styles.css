@@ -253,37 +253,48 @@ button:disabled {
   max-height: 92px;
 }
 
-.cat-ear,
 .cat-head {
-  fill: #121a26;
-  stroke: var(--neko-whisker-white);
-  stroke-width: 6;
+  fill: #fffefa;
+  stroke: #30282d;
+  stroke-width: 5;
   stroke-linejoin: round;
 }
 
-.cat-ear.right {
-  transform-origin: 165px 60px;
+.cat-cheek {
+  fill: #ffe0e7;
 }
 
 .cat-eye {
-  fill: var(--neko-whisker-white);
+  fill: #30282d;
 }
 
-.cat-pupil,
-.cat-nose {
-  fill: var(--neko-signal-cyan);
-}
-
-.cat-mouth,
-.cat-whisker {
+.cat-eye-closed {
   fill: none;
-  stroke: var(--neko-whisker-white);
+  stroke: #30282d;
   stroke-width: 5;
   stroke-linecap: round;
 }
 
+.cat-nose-outline {
+  fill: #30282d;
+}
+
+.cat-nose {
+  fill: #f6c747;
+}
+
+.cat-bow,
+.cat-bow-knot {
+  fill: #e93656;
+  stroke: #30282d;
+  stroke-width: 5;
+}
+
 .cat-whisker {
-  stroke: var(--neko-signal-cyan);
+  fill: none;
+  stroke: #30282d;
+  stroke-width: 4;
+  stroke-linecap: round;
   transform-box: fill-box;
   transform-origin: center;
 }
@@ -298,19 +309,18 @@ button:disabled {
   transform: scaleX(0.72);
 }
 
-.cat-face.is-clipping .cat-ear,
+.cat-face.is-clipping .cat-bow,
 .cat-face.is-clipping .voice-dot {
-  fill: color-mix(in srgb, var(--neko-error-red) 35%, #121a26);
+  fill: color-mix(in srgb, var(--neko-error-red) 65%, #e93656);
   stroke: var(--neko-error-red);
 }
 
-.state-completed .cat-pupil,
 .state-completed .voice-dot {
   fill: var(--neko-check-green);
 }
 
-.state-error .cat-ear,
-.state-recovery .cat-ear {
+.state-error .cat-bow,
+.state-recovery .cat-bow {
   stroke: var(--neko-caution-amber);
 }
 
