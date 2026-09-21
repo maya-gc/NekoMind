@@ -24,8 +24,8 @@ Tópicos e métricas heurísticas não comprovam acerto factual nem domínio de 
 
 - `backend/app/`: API, serviços, adaptadores, schemas, persistência e migração.
 - `backend/app/mac/`: bridge serial, captura local, diário de solicitações e recuperação.
-- `iot/nekomind_firmware/main/`: lógica portátil de sessão e limites de integração
-  de placa. Escolha de placa/display/controladores/pinos permanece aberta.
+- `iot/nekomind_firmware/main/`: lógica portátil de sessão mais drivers SPI/USB
+  específicos do protótipo ESP32-S3 + ILI9341/XPT2046 documentado em `pipeline`.
 - `frontend/web/`: touch emulador com controles/resultado essencial, painel público do
   Mac com evidências da jornada e presenter local reservado.
 - `frontend/streamlit/`: histórico, tópicos, proveniência e estados; sem captura.
@@ -64,7 +64,8 @@ o backend remove áudio bruto local da sessão. A propriedade `mac_directory` us
 
 Microfone embarcado, Wi-Fi, autonomia sem Mac e serviços de IA em nuvem ficam fora
 desta implementação. O antigo esboço I2S é histórico e não prova captura real.
-Escolha de modelo ASR local e validação física do display Teknimas/ILI9341 têm gates
-separados.
+Escolha de modelo ASR local e observação/calibração física do display e touch do
+protótipo têm gates separados. A pinagem assumida e a estratégia de flash estão em
+[ESP32-S3/display/touch](esp32-s3-display-touch.md).
 Ver [protocolo](iot_protocol.md), [dados](data_model.md),
 [validação manual](manual-validation.md) e mapa de entrega.

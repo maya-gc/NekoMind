@@ -3,7 +3,8 @@
 JSON Lines UTF-8, uma mensagem por LF, até4096 bytes incluindo LF, baud115200.
 O driver deve reservar terminador NUL no C. Sem áudio do ESP nesse canal. Logs de
 hardware devem ficar separados ou claramente descartados; não são respostas válidas.
-O transporte RX físico depende da placa; os testes host não comprovam USB físico.
+No protótipo ESP32-S3, o RX usa o console USB Serial/JTAG do ESP-IDF. Os testes host
+não comprovam recepção USB nem acionamento por toque na unidade física.
 
 ## Comandos
 
@@ -45,6 +46,9 @@ Confirmação de estado:
 
 Estados aceitos: `idle`, `checking`, `ready`, `recording`, `paused`, `processing`,
 `completed`, `error`, `recovery`. `recording` só é emitido depois de o stream iniciar.
+Uma sessão interrompida responde a `status` com `type=state, state=recovery`,
+`session_id` da sessão e `code`/`message` opcionais. `type=error` exige
+`state=error`; misturar `type=error` com `state=recovery` é rejeitado pelo firmware.
 `pause` espera paused, `resume`
 espera recording, `finish` espera processing ou resultado/erro; resposta divergente
 é erro recuperável, não confirmação. `state=idle` pode ter session_id null.
@@ -89,7 +93,12 @@ resumo, duração e tendência como cartões separados quando existirem.
 - ACK de comando:5s no firmware. HTTP comum:5s no bridge. Permissão/driver lentos
   podem exceder janela; isso vira timeout, não sucesso. Corrigir no Mac e reenviar/consultar.
 - Heartbeat status a cada2s; ausência de resposta por8s indica desconexão. O bridge
-  também encerra captura ao perder comandos válidos por8s. Processing continua localmente.
+  também encerra captura ao perder comandos válidos por8s. Eventos de voz/progresso
+  reutilizam o ID anterior e não adiam o próximo `status`; caso contrário, a
+  telemetria contínua deixaria o Mac sem heartbeat. Processing continua localmente.
+  A captura interrompida é marcada como erro recuperável no backend. Um novo início
+  deliberado só prossegue depois de reconciliar a sessão antiga; as gravações e
+  registros anteriores são preservados.
 - Resultado:120s de janela no firmware; HTTP finish aguarda até125s. Não é promessa de
   tempo de ASR. Timeout permite STATUS manual com nova janela, sem pedir nova análise.
   Heartbeats não estendem indefinidamente essa janela.
@@ -102,9 +111,12 @@ microfone. Início concorrente usa unicidade backend; finalização usa claim at
 Após reinício incerto não há captura automática. Se a resposta de finish se perder,
 GET/status recupera o resultado persistido; backend não analisa novamente a sessão.
 
-Sem seleção dos drivers touch/display/RX serial, o firmware retorna indisponibilidade
-na inicialização. O layout lógico cobre 240x320 e 320x240, mas isso não valida o
-controlador físico. A experiência física de mesa deve seguir o [roteiro manual](manual-validation.md).
+O protótipo usa drivers ILI9341/XPT2046 e USB Serial/JTAG com a pinagem de
+[ESP32-S3/display/touch](esp32-s3-display-touch.md). A calibração física do touch usa
+o comando local `!touch-calibrate` fora do JSON v1; `calibrate` no protocolo JSON
+é para o microfone do Mac. O layout lógico cobre 240x320 e 320x240, mas o driver
+físico atual renderiza 240x320. A experiência de mesa deve seguir o
+[roteiro manual](manual-validation.md).
 
 Telemetria assíncrona de voz/jornada usa o request_id correlacionado da última ação
 e a sessão ativa. Voz é limitada a 5 Hz, somente durante captura; não usa um ID

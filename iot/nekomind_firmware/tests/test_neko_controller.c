@@ -267,6 +267,32 @@ static void test_heartbeat_does_not_replace_finish_result_request(void)
     assert(neko_controller_state(&controller) == NEKO_CONTROLLER_SUCCESS);
 }
 
+static void test_voice_events_do_not_starve_status_heartbeat(void)
+{
+    neko_controller_t controller;
+    fake_io_t io;
+    init_controller(&controller, &io);
+    assert(neko_controller_touch(&controller, NEKO_TOUCH_START, 0) == NEKO_CONTROLLER_OK);
+    assert(neko_controller_receive(&controller,
+        "{\"v\":1,\"type\":\"state\",\"request_id\":\"boot-1\",\"session_id\":11,"
+        "\"state\":\"recording\",\"is_demo\":true}", 10) == NEKO_CONTROLLER_OK);
+    for (uint32_t t = 210; t < 2010; t += 200) {
+        assert(neko_controller_receive(&controller,
+            "{\"v\":1,\"type\":\"state\",\"request_id\":\"boot-1\",\"session_id\":11,"
+            "\"state\":\"recording\",\"is_demo\":true,"
+            "\"voice\":{\"level\":30,\"clipping\":false,\"quality\":\"ok\"}}", t)
+            == NEKO_CONTROLLER_OK);
+        assert(neko_controller_tick(&controller, t) == NEKO_CONTROLLER_OK);
+    }
+    assert(neko_controller_tick(&controller, 2010) == NEKO_CONTROLLER_OK);
+    assert(io.line_count == 2);
+    assert(strstr(io.lines[1], "\"command\":\"status\"") != NULL);
+    assert(neko_controller_receive(&controller,
+        "{\"v\":1,\"type\":\"state\",\"request_id\":\"boot-2\",\"session_id\":11,"
+        "\"state\":\"recording\",\"is_demo\":true}", 2020) == NEKO_CONTROLLER_OK);
+    assert(neko_controller_state(&controller) == NEKO_CONTROLLER_RECORDING);
+}
+
 static void test_retry_accepts_new_session_and_direct_result(void)
 {
     neko_controller_t controller;
@@ -940,6 +966,7 @@ int main(void)
     test_pause_resume_double_touch_and_retry();
     test_request_ids_include_boot_nonce_and_resend_preserves_request();
     test_heartbeat_does_not_replace_finish_result_request();
+    test_voice_events_do_not_starve_status_heartbeat();
     test_retry_accepts_new_session_and_direct_result();
     test_null_session_idle_and_start_error_are_not_parser_failures();
     test_pending_command_rejects_unexpected_state_ack();

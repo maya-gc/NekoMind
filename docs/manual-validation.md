@@ -1,16 +1,18 @@
-# Validação na mesa — pendente de execução física
+# Validação na mesa
 
-Este roteiro não é resultado de teste. O módulo anunciado é Teknimas TFT touch 2,4",
-240x320, SPI e controlador gráfico ILI9341, mas placa ESP32 final, controlador de
-touch, pinos, tensão lógica e orientação ainda precisam ser confirmados na unidade
-real. Não há evidência física de firmware, touch, microfone do Mac ou Whisper real
-nesta entrega automatizada.
+Em 21/09/2026, a unidade USB foi identificada como ESP32-S3 com LCD ILI9341
+240×320 e touch XPT2046. O [driver e pinagem deste protótipo](esp32-s3-display-touch.md)
+foram exercitados na bancada. Com backend em demo, a pessoa confirmou gatinho
+estável, diagnóstico, início, pausa, retomada, finalização, resultado demonstrativo
+e nova tentativa. O backend persistiu áudio do microfone do Mac e um resultado
+`is_demo=true`, `asr_provider_used=mock` e `topic_provider_used=mock`. Não houve
+verificação de transcrição ou tópicos reais da fala humana.
 
 ## Preparação
 
-1. Selecionar placa ESP32, display touch e drivers compatíveis; implementar os
-   hooks de placa documentados no firmware. Compilar com ESP-IDF para o alvo
-   escolhido, revisar pinos e tensão antes de conectar.
+1. Conferir ligações 3V3 e GPIOs contra o protótipo documentado; compilar e gravar
+   o firmware ESP-IDF para esp32s3. Observar rosto, rótulos e contraste no LCD.
+   Calibrar o touch localmente e confirmar que cada botão responde na área correta.
 2. Configurar o backend e o bridge no Mac em loopback. Modo demo é explicitamente
    demonstrativo; modo real exige modelo local e dependências indicadas.
 3. Em Ajustes do Sistema → Privacidade e Segurança → Microfone, permitir captura
@@ -56,7 +58,7 @@ modelo/device/compute_type e parâmetros VAD. Testar voz normal e baixa, sotaque
 pausas e temas distintos. Comparar transcrição com a fala por avaliação local
 consentida; não versionar áudio/transcrição. Verificar tamanho e separação dos
 controles, contraste, rótulos textuais de estado, modo demo persistente, leitura dos
-tópicos e reenvio com uma mão. Ajustar layout depois de escolher o display.
+tópicos e reenvio com uma mão. Ajustar layout conforme a observação no display.
 
 Registrar data, responsável, passos, esperado/observado e limitações. Teste com
 microfone/serial/modelo substituto não marca nenhum item físico como aprovado.

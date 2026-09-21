@@ -66,13 +66,18 @@ int main(void) {
         telemetry = next(event for event in bridge.drain_events() if event.get("voice"))
         assert telemetry["request_id"] == "boot-1"
         assert isinstance(telemetry["journey"], dict)
+        bridge.disconnect()
+        recovery = bridge.handle(command("start", "boot-1"))
+        assert recovery["type"] == "state" and recovery["state"] == "recovery"
         result = subprocess.run(
             [str(binary)],
-            input=encode_line(ack) + encode_line(telemetry),
+            input=encode_line(ack) + encode_line(telemetry) + encode_line(recovery),
             capture_output=True,
             check=True,
         )
-        assert result.stdout.decode().splitlines()[-1] == "0 68 capture"
+        assert result.stdout.decode().splitlines() == [
+            "0 68 capture", "0 68 capture", "0 68 capture"
+        ]
         json.loads(encode_line(telemetry))
     finally:
         bridge.close()

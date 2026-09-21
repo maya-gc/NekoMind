@@ -260,7 +260,7 @@ def test_restart_does_not_restart_microphone_or_replay_recording(tmp_path):
     bridge.handle(command("start", "s"))
     bridge.close()
     fresh = make_bridge(tmp_path, b, r)
-    assert fresh.handle(command("start", "s"))["type"] == "error"
+    assert fresh.handle(command("start", "s"))["state"] == "recovery"
     assert r.starts == b.creates == 1
     fresh.close()
 
@@ -273,9 +273,53 @@ def test_disconnect_stops_capture_and_allows_retry(tmp_path):
     bridge.handle(command("start", "s"))
     bridge.disconnect()
     assert r.stops == 1
+    assert b.rows[1]["status"] == "error"
+    assert b.rows[1]["error_code"] == "disconnected"
     status = bridge.handle(command("status", "check", 1))
-    assert status["type"] == "error" and status["state"] == "recovery"
+    assert status["type"] == "state" and status["state"] == "recovery"
     assert bridge.handle(command("retry", "new", 1))["session_id"] == 2
+    assert b.cancellations == []
+    bridge.close()
+
+
+def test_new_start_after_recovery_diagnosis_closes_previous_capture(tmp_path):
+    b = Backend()
+    bridge = make_bridge(tmp_path, b)
+    bridge.handle(command("diagnose", "first-diag"))
+    run_background(bridge)
+    bridge.handle(command("start", "first-start"))
+    bridge.disconnect()
+    bridge.handle(command("diagnose", "second-diag", 1))
+    run_background(bridge)
+    second = bridge.handle(command("start", "second-start"))
+    assert second["state"] == "recording" and second["session_id"] == 2
+    assert b.rows[1]["status"] == "error"
+    assert b.rows[2]["status"] == "recording"
+    assert b.cancellations == []
+    bridge.close()
+
+
+def test_new_start_cancels_stale_backend_capture_after_reconcile_failure(tmp_path):
+    b = Backend()
+    bridge = make_bridge(tmp_path, b)
+    bridge.handle(command("diagnose", "first-diag"))
+    run_background(bridge)
+    bridge.handle(command("start", "first-start"))
+    original = b.capture_state
+
+    def unavailable(*args, **kwargs):
+        raise RuntimeError("backend offline")
+
+    b.capture_state = unavailable
+    bridge.disconnect()
+    assert b.rows[1]["status"] == "recording"
+    b.capture_state = original
+    bridge.handle(command("diagnose", "second-diag", 1))
+    run_background(bridge)
+    second = bridge.handle(command("start", "second-start"))
+    assert second["state"] == "recording" and second["session_id"] == 2
+    assert b.rows[1]["status"] == "cancelled"
+    assert b.cancellations == [(1, True)]
     bridge.close()
 
 

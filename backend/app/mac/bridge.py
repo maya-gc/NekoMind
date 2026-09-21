@@ -67,6 +67,9 @@ class MacBridge:
         if self.state in {"recording", "paused"}:
             self.state, self.code = "recovery", "interrupted"
             self._save_active()
+            self._mark_capture_interrupted("interrupted")
+        elif self.state == "recovery" and self.code in {"disconnected", "interrupted"}:
+            self._mark_capture_interrupted(self.code)
         self.db.commit()
 
     def _save_active(self):
@@ -153,8 +156,7 @@ class MacBridge:
     def _snapshot(self, rid):
         if self.state == "recovery":
             return {
-                **self._base(rid, "error"),
-                "state": "recovery",
+                **self._base(rid),
                 "code": self.code or "interrupted",
                 "message": MESSAGES.get(self.code or "interrupted", MESSAGES["interrupted"]),
             }
@@ -353,6 +355,16 @@ class MacBridge:
         )
         if not (valid_start or valid_retry):
             return self._remember(rid, self._error(rid, "invalid_state"))
+        # Diagnose can follow an interrupted capture. Starting a new attempt is
+        # an explicit choice; close the old backend session before creating it.
+        # Cancel preserves the session and its uploaded chunks for inspection.
+        if self.sid is not None:
+            try:
+                previous = self.backend.get(self.sid)
+                if previous.get("status") not in {"completed", "error", "cancelled"}:
+                    self.backend.cancel(self.sid, confirmed=True)
+            except Exception:  # noqa: BLE001 - do not start two active sessions
+                return self._remember(rid, self._error(rid, "backend_unavailable"))
         try:
             try:
                 row = self.backend.create(
@@ -657,6 +669,15 @@ class MacBridge:
                 self.recorder.abort()
                 self.state, self.code = "recovery", "disconnected"
                 self._save_active()
+                self._mark_capture_interrupted("disconnected")
+
+    def _mark_capture_interrupted(self, code):
+        if self.sid is None:
+            return
+        try:
+            self.backend.capture_state(self.sid, "error", code)
+        except Exception:  # noqa: BLE001 - local journal remains recoverable
+            logger.warning("Captura interrompida no diario local; backend indisponivel.")
 
     def drain_events(self):
         while True:

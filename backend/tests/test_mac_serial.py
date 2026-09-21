@@ -106,6 +106,57 @@ def test_serial_partial_frames_and_disconnect_watchdog():
     os.close(slave)
 
 
+def test_slow_capture_ack_does_not_trigger_immediate_disconnect():
+    from app.mac.serial_loop import run_serial
+    import serial
+
+    master, slave = pty.openpty()
+    stop = threading.Event()
+
+    class SlowBridge:
+        disconnections = 0
+
+        def handle(self, msg):
+            time.sleep(0.15)  # permissao/dispositivo podem bloquear o inicio
+            stop.set()
+            return {
+                "v": 1,
+                "type": "state",
+                "request_id": msg["request_id"],
+                "session_id": 1,
+                "state": "recording",
+                "is_demo": True,
+            }
+
+        def check_capture(self):
+            pass
+
+        def drain_events(self):
+            return []
+
+        def disconnect(self):
+            self.disconnections += 1
+
+    bridge = SlowBridge()
+    try:
+        with serial.Serial(os.ttyname(slave), 115200, timeout=0.02) as port:
+            thread = threading.Thread(
+                target=run_serial, args=(port, bridge, stop),
+                kwargs={"heartbeat_timeout": 0.06},
+            )
+            thread.start()
+            os.write(master, encode_line({
+                "v": 1, "type": "command", "request_id": "slow-1",
+                "command": "start", "session_id": None,
+            }))
+            thread.join(2)
+            assert not thread.is_alive()
+            assert bridge.disconnections == 1  # somente o teardown, nao o watchdog
+    finally:
+        os.close(master)
+        os.close(slave)
+
+
 def test_result_rejects_boolean_topic_session_id():
     from app.mac.protocol import validate_result
 

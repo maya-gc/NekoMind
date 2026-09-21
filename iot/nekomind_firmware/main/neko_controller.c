@@ -618,7 +618,11 @@ static neko_controller_status_t apply_state_message(neko_controller_t *controlle
         controller->heartbeat_request_id[0] = '\0';
     }
     controller->disconnect_deadline_ms = now_ms + NEKO_DISCONNECT_TIMEOUT_MS;
-    controller->next_heartbeat_ms = now_ms + NEKO_HEARTBEAT_MS;
+    /* Voice/progress events reuse the last command ID. They show the Mac is
+     * alive, but must not postpone the ESP status command indefinitely. */
+    if (from_pending || from_heartbeat) {
+        controller->next_heartbeat_ms = now_ms + NEKO_HEARTBEAT_MS;
+    }
 
     switch (message->state) {
     case NEKO_MAC_STATE_CHECKING:

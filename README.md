@@ -5,13 +5,18 @@ com **display touch obrigatório**. O microfone do **Mac** captura; o Mac transc
 extrai assuntos e armazena a sessão localmente. Tópicos e métricas heurísticas não
 comprovam correção factual nem domínio do conteúdo.
 
-Implementação de software e testes automatizados disponíveis nesta branch.
-**Ainda não validado fisicamente**: placa ESP32 final, controlador de toque, pinos,
-tensão lógica, orientação de montagem e transporte USB físico precisam ser conferidos
-na unidade real. O módulo anunciado é Teknimas TFT touch 2,4", resolução 240x320,
-SPI e controlador gráfico ILI9341; isso não comprova touch, pinagem ou revisão.
-O ASR real e o microfone do Mac foram exercitados com voz sintetizada local. Validação
-com voz humana, calibração da bancada e hardware físico de mesa permanecem pendentes.
+Implementação de software e testes automatizados disponíveis nesta branch. Para a
+unidade conectada, a referência da branch `pipeline` identifica ESP32-S3 com LCD
+ILI9341 240×320 e touch XPT2046. O firmware agora inclui drivers SPI e USB/serial
+para essa pinagem; [ligações, build e calibração](docs/esp32-s3-display-touch.md).
+O build e o flash ESP-IDF passaram; após RST/EN, a pessoa na bancada confirmou que
+o gatinho aparece sem piscar. O touch físico foi calibrado e o fluxo com microfone
+do Mac passou na bancada: Diagnóstico → Começar → Pausar → Retomar → Finalizar →
+resultado identificado como **demo** → Nova tentativa. Esse ensaio confirmou a
+captura e os controles, mas o backend estava em `mode=demo` com ASR e extrator
+`mock`; portanto, o resultado não representa o que foi falado. O ASR real foi
+exercitado separadamente com voz sintetizada local. Transcrição da voz da bancada,
+qualidade acústica e sessão integralmente real ainda precisam de validação.
 O extrator `local_keywords` agora é uma opção explícita aceita para execução local
 offline; ele não é LLM, não é mock, não chama nuvem e não prova domínio do assunto.
 
@@ -74,7 +79,7 @@ no [relatório final](docs/final-report.md).
 | Assuntos | Extração lexical local ancorada na transcrição, sem lista fixa, fallback mock ou preenchimento artificial; remoção de termos genéricos, duplicatas e limite visual. |
 | Dados e privacidade | Migração SQLite aditiva, jornada persistida, retenção configurável, remoção de áudio bruto, exclusão confirmada, tombstones e limpeza de recibos sem conteúdo privado. |
 | Experiência da feira | Avatar e estados, touch/emulador, painel público somente leitura, painel do apresentador protegido por token local, histórico, assunto corrigível e resultado compacto em duas telas. |
-| Firmware independente de placa | Controlador de sessão, parser JSON Lines, eventos de toque, display-list e layouts 240×320/320×240 isolados dos drivers específicos ainda não escolhidos. |
+| Firmware e protótipo | Controlador de sessão, parser JSON Lines, eventos de toque e layouts portáteis; drivers ILI9341/XPT2046 e USB Serial/JTAG específicos do ESP32-S3 conectado. |
 
 Ajustes confirmados durante QA incluem: aguardar a janela real de calibração;
 criar o diretório de captura no primeiro uso; não gravar bytes durante a pausa;
@@ -83,11 +88,13 @@ posicionar mensagens de token dentro do diálogo; distinguir recuperação ainda
 consultada; usar confirmações acessíveis na página; corrigir overflow, botões e
 paginação em 240×320 e 320×240; e reduzir resultados de até onze cartões para dois.
 
-Validação atual: **184 testes de backend**, **28 testes web**, **6 testes do
-Streamlit** e **22 casos C portáteis** aprovados. Os gates de evidência do navegador
+Validação atual: **187 testes de backend**, **28 testes web**, **6 testes do
+Streamlit** e **23 casos C portáteis** aprovados. Os gates de evidência do navegador
 e de assets passaram com 11 e 5 checks, respectivamente. Faster-whisper e microfone
-do Mac foram exercitados com voz sintetizada local; voz humana, serial USB, build/flash
-ESP-IDF e display/touch físicos continuam pendentes.
+do Mac foram exercitados com voz sintetizada local. O build ESP-IDF v5.3.1 e a
+gravação USB da unidade ESP32-S3 foram executados nesta etapa; gatinho estável,
+toques, botões e controle da captura pelo Mac foram confirmados na bancada em
+modo demo. A análise real da fala humana e a calibração acústica seguem pendentes.
 
 ## Instalação no macOS
 
