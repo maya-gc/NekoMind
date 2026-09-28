@@ -208,3 +208,16 @@ definidos. Sem medição de FPS, RAM, PSRAM, latência serial física ou consumo
 
 Os comandos do roteiro físico estão em [manual-checklist.md](manual-checklist.md).
 O software não deve ser apresentado como MVP físico totalmente pronto.
+# QA adicional — NM-020 a NM-025 (28/09/2026)
+
+Testes automatizados do novo caminho: CRUD/snapshot/versionamento/migração,
+relatório determinístico, reenvio de finish, modo livre preservado, seleção
+idempotente, janela parcial/retaguarda, frame provisório/sessão/ordem e parser
+C. A suíte existente foi executada sem alterar expectativas. Resultados e
+comandos finais estão em [conteúdo guiado](guided-content.md).
+
+As medições em Apple M4 Max usaram fala sintetizada local e modelo
+faster-whisper-small CPU/int8; números e método constam no mesmo documento.
+Ainda faltam ensaio com voz humana, verificação visual no LCD, condições da
+sala/feira e impacto concorrente de outras aplicações no Mac. O batimento
+lexical não prova correção factual nem domínio.

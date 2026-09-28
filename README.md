@@ -171,6 +171,21 @@ máximo de cinco tópicos e sem preenchimento artificial. Não faz validação f
 a qualidade semântica precisa ser avaliada na bancada. Substituir esse método por
 outro modelo ou API é uma decisão futura; nenhuma API de nuvem foi acionada.
 
+## Conteúdo guiado opcional
+
+No painel local `/presenter`, o operador pode cadastrar texto ou abrir `.txt`/`.md`,
+revisar os pontos-chave e selecionar um conteúdo para a **próxima** sessão. O
+modo livre continua padrão; basta deixar “Modo livre” selecionado. No modo real
+guiado, o Mac produz parciais provisórios de fala, calcula cobertura lexical
+local e envia apenas um sinal compacto de expressão para a gatinha. O relatório
+final compara os pontos com a transcrição final validada; o painel público mostra
+detalhes e o LCD, um resumo curto. Demo continua marcado como simulado.
+
+Cobertura e expressão não são nota, prova de correção factual ou de domínio.
+O texto e a fala permanecem locais; nenhuma API externa ou Ollama é necessária.
+Veja [método, limites e medições](docs/guided-content.md). A aparência e a
+latência do novo fluxo no LCD/microfone reais ainda exigem o roteiro físico.
+
 ## Testes
 
 ```bash

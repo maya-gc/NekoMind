@@ -20,6 +20,25 @@ exige confirmação do stream no Mac. Pausa para o stream; retomar o reabre. Fin
 para e fecha o arquivo antes de processamento. Silêncio não finaliza a sessão.
 Tópicos e métricas heurísticas não comprovam acerto factual nem domínio de conteúdo.
 
+## Extensão opcional: conteúdo guiado
+
+O operador escolhe um texto local antes da sessão. O backend preserva uma cópia
+do conteúdo e versão na sessão; o modo livre não consulta o matcher nem inicia
+ASR parcial. No modo guiado real, o callback PCM oferece cópias a uma fila
+limitada, o worker usa o faster-whisper local em janelas com sobreposição e o
+serviço `content_matching.py` transforma parciais em sinais provisórios. Nenhum
+parcial substitui a transcrição final, entra no SQLite ou percorre o serial.
+O relatório final é calculado após a validação de fala e transcrição final,
+e é persistido junto ao resultado da sessão. O painel público mostra somente
+o sinal compacto ao vivo e os detalhes do relatório depois da conclusão;
+o operador gerencia conteúdos em endpoints autenticados. A gatinha recebe
+somente estado/percentual/expressão com sessão e sequência.
+
+O protocolo v1 mantém `result` como único caminho de sucesso. `content` é
+ignorado por firmware antigo (Mac novo não o envia sem prefixo de capacidade)
+e por Mac antigo os comandos novos preservam a forma anterior. Detalhes,
+limiares e limites estão em [conteúdo guiado](guided-content.md).
+
 ## Componentes e ownership
 
 - `backend/app/`: API, serviços, adaptadores, schemas, persistência e migração.

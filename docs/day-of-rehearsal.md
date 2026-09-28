@@ -88,3 +88,19 @@ mostra o painel público em `http://127.0.0.1:8000/public`.
 O ensaio real de 21/09 comprovou uma sessão completa, sem avaliar estatisticamente
 a qualidade do ASR ou do extrator. Antes de uma apresentação pública, repetir o
 teste com a pessoa que vai falar, na posição real da mesa e no ruído do local.
+# Roteiro alternativo: conteúdo guiado
+
+Antes de abrir a bancada ao público, o operador escolhe no `/presenter` um
+texto curto já revisado e confirma a seleção. A pessoa toca **Começar** no LCD
+e explica o texto em voz alta. A gatinha mostra expressão e texto de aderência
+**provisórios**, enquanto a tela do Mac mostra a jornada e um percentual
+compacto, sem expor a transcrição parcial. **Finalizar** produz o relatório
+somente após áudio/fala/transcrição final válidos; a tela pública mostra pontos
+mencionados/não mencionados com trechos curtos e o LCD um resumo. Dizer ao
+público que isso demonstra batimento com o texto, não avaliação de conhecimento.
+
+Se o batimento ao vivo estiver indisponível, continuar a captura e observar o
+aviso; não atribuir erro ao visitante. Se o modelo ASR não estiver pronto,
+voltar ao modo livre/demo identificado, sem simular resultado real. Para testar
+fala espontânea sem texto, selecionar **Modo livre** antes da próxima sessão.
+Não mudar a seleção durante uma sessão em andamento.

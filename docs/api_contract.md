@@ -132,3 +132,34 @@ completed válido e rejeita `recording/paused` sem reconciliação de sessão.
 responder; ASR mock é `skipped`; ASR real tenta disponibilidade local sem baixar modelo;
 o extrator de tópicos executa uma frase curta e informa `local_keywords`, `mock`,
 `skipped` ou erro.
+# Extensão opcional de conteúdo guiado (NM-020/024/025)
+
+Todas as rotas abaixo são locais e exigem token do operador, exceto o snapshot
+público já existente. `POST /api/v1/contents` recebe `title`, `text`,
+`language: "pt"`, `source: "typed"|"txt"|"md"`, `points?: string[]` e
+`fair_available?: bool`; devolve id, versão 1 e pontos derivados/revisados.
+`GET /api/v1/contents` lista metadados; `GET /api/v1/contents/{id}` devolve
+o texto; `PUT` com o mesmo corpo cria uma nova versão; `DELETE` remove a
+biblioteca, preservando snapshots de sessões antigas.
+
+`PUT /api/v1/experience/selection` com `{"content_id": 4}` seleciona para a
+próxima sessão; `null` volta ao modo livre. Reenvio idêntico é idempotente.
+`GET /api/v1/experience/selection` consulta o valor atual. Troca durante
+gravação/processamento recebe 409. O bridge lê a seleção imediatamente antes
+de iniciar a captura, evitando depender do último heartbeat.
+
+`POST /api/v1/sessions` aceita `reference_content_id?: int` sem alterar o
+payload antigo. A sessão responde com `reference_content_id`,
+`reference_version` e, após conclusão, `content_report` opcional. O texto
+integral congelado só sai por `GET /api/v1/sessions/{id}/reference` autenticado.
+O `content_report` tem `method_version: "lexical-pt-v1"`, `origin`,
+`coverage_percent`, `points[]` com estado/evidência/tempo aproximado,
+`mention_order`, `possible_divergences[]`, `stages` (provedor e origem de captura,
+transcrição, tópicos e batimento) e aviso de limites. `finish` repetido retorna
+o registro já persistido. Sessões livres seguem com `content_report:null`.
+
+`POST /api/v1/experience/bridge` aceita `content?` compacto apenas durante
+`recording`; `GET /api/v1/experience/public` mostra esse sinal provisório
+sem parciais de transcrição. A consulta pública do relatório concluído contém
+trechos curtos de evidência, mas não a transcrição completa. O formato serial
+está em [protocolo](iot_protocol.md). Cobertura não prova acerto ou domínio.

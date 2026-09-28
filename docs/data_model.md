@@ -86,3 +86,27 @@ automática ou comando que apague dados em execução.
 `DeletedSessionTombstone` conserva IDs de sessão e de pedido excluídos, sem conteúdo.
 A alocação de sessão adquire `BEGIN IMMEDIATE` antes de calcular o próximo ID,
 considerando sessões vivas e tombstones. IDs excluídos não voltam a identificar outro visitante.
+
+## Conteúdo guiado opcional — migração 20260928_nm020_guided_content
+
+`ReferenceContent` é biblioteca local com `id`, título, texto, idioma, origem,
+versão, pontos JSON, flag feira e datas. `StudySession` recebe quatro colunas
+anexáveis: `reference_content_id`, `reference_version`,
+`reference_snapshot_json` e `content_report_json`, todas nulas em sessões
+livres/antigas. O snapshot guarda o texto e pontos exatos da versão usada;
+por isso uma edição ou exclusão da biblioteca não altera o histórico.
+O relatório tem `method_version` próprio e não entra nas métricas antigas.
+
+`migrate_sqlite_schema` inspeciona colunas, faz backup SQLite consistente via
+API de backup se faltar alguma coluna **ou** a nova tabela, aplica somente
+`ALTER TABLE ... ADD COLUMN` e registra a versão em `schema_migrations`.
+`create_all` é usado depois apenas para criar **tabelas novas**, não como
+migração de colunas. O teste `test_sqlite_migration.py` cria um banco legado,
+verifica backup/tabela/colunas e os dados preservados. Não há `drop_all` em
+produção, nem down migration automática. Restauração exige parar backend e
+bridge e escolher explicitamente o backup apropriado, considerando WAL/SHM.
+
+Conteúdo de referência, relatório e transcrição permanecem no SQLite local;
+parciais de ASR não são colunas e não são persistidos. Exclusão de sessão pelo
+fluxo NM-010 remove snapshot e relatório junto com a linha. Backups externos
+seguem sob responsabilidade do operador.

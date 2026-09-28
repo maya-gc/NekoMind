@@ -71,3 +71,24 @@ tópicos e reenvio com uma mão. Ajustar layout conforme a observação no displ
 
 Registrar data, responsável, passos, esperado/observado e limitações. Teste com
 microfone/serial/modelo substituto não marca nenhum item físico como aprovado.
+# Ensaio adicional — conteúdo guiado opcional (NM-020 a NM-025)
+
+Com backend real, bridge e ESP32-S3 já ligados, confirmar o token no painel
+`/presenter`. Cadastrar dois textos curtos e distintos (por exemplo ciclo da
+água e fotossíntese), cada um em dois ou três parágrafos. Revisar os pontos
+derivados, salvar e selecionar o primeiro. Esperar a seleção aparecer no
+painel, tocar **Começar** no LCD e explicar o conteúdo pelo microfone do Mac.
+Enquanto fala, observar a sinalização provisória no painel e a expressão/texto
+da gatinha. Pausar por alguns segundos: nenhum novo parcial deve ser emitido;
+retomar. Finalizar: conferir relatório persistido, pontos/evidências/origem,
+resultado breve no LCD e ausência da transcrição completa no painel público.
+
+Repetir com fala fora do assunto, voz baixa, ruído e silêncio; áudio ruim não
+pode causar carinha triste nem nota pedagógica. Testar toque duplo, reenvio de
+finish, reset e perda temporária da USB. Editar/excluir o conteúdo original e
+confirmar que o relatório e a versão da sessão anterior continuam acessíveis.
+Voltar a **Modo livre** e repetir um fluxo real e um demo: visual/resultado
+antigos devem permanecer. Medir com cronômetro: intervalo e latência dos
+parciais, taxa de frames, tempo entre finalizar e resultado, CPU/memória do
+Mac. Anotar hardware/modelo/ambiente; o ensaio com fala sintetizada em
+[conteúdo guiado](guided-content.md) não substitui esta validação física.

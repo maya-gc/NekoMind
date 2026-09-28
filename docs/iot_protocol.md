@@ -122,3 +122,24 @@ Telemetria assíncrona de voz/jornada usa o request_id correlacionado da última
 e a sessão ativa. Voz é limitada a 5 Hz, somente durante captura; não usa um ID
 literal genérico. O teste `test_serial_interop.py` codifica a mensagem Python e a
 entrega ao parser/controlador C compilado. Comandos e ACK têm precedência.
+
+## Frames opcionais de conteúdo guiado (NM-025)
+
+Dispositivos atualizados usam `request_id` iniciado por `c2-`; o comando v1
+continua igual. Mac novo só envia `type: content` quando há conteúdo guiado,
+captura real e esse prefixo foi recebido. Mac antigo aceita o ID novo como
+string normal. Sem suporte, o feedback guiado degrada para as telas antigas.
+
+Exemplo provisório, nunca resultado:
+
+```json
+{"v":1,"type":"content","request_id":"c2-esp123-7","session_id":42,"state":"recording","is_demo":false,"origin":"real","seq":2,"status":"partial","expression":"content","coverage_percent":25}
+```
+
+`seq` cresce por sessão. O firmware descarta duplicados, atrasados e sessão
+errada; dois sinais iguais e pelo menos 6 s são necessários para trocar a
+expressão. Status `unavailable` mostra aviso e mantém a gravação. Não existe
+áudio/transcrição no frame. A linha continua sujeita a 4096 bytes. Padrão:
+uma janela de 6 s, teto configurável de 0,5 frame/s. Frames desconhecidos
+válidos são ignorados; conteúdo malformado é descartado sem transformar
+captura em sucesso ou erro pedagógico. `result` exige validação independente.
