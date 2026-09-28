@@ -16,7 +16,7 @@ import {
   renderPublic,
   renderTokenPrompt as renderTokenPromptMarkup,
   renderTouch,
-} from "./render.mjs?v=kitty-1";
+} from "./render.mjs?v=guided-2";
 
 const app = document.querySelector("#app");
 const route = routeFromPath(window.location.pathname);
@@ -35,6 +35,7 @@ const state = {
   tokenPromptOpen: false,
   confirmation: null,
   contents: [],
+  contentNotice: "",
   editingContentId: null,
   skipCaptureOnce: false,
   drafts: {
@@ -111,7 +112,7 @@ function render() {
     state.cardIndex = model.activeCard?.cardIndex || 0;
     state.currentGeneration = snapshot.generation;
   } else if (route.view === "presenter") {
-    app.innerHTML = renderPresenter(snapshot, { hasToken: Boolean(state.token), contents: state.contents });
+    app.innerHTML = renderPresenter(snapshot, { hasToken: Boolean(state.token), contents: state.contents, contentNotice: state.contentNotice });
   } else {
     app.innerHTML = renderPublic(snapshot);
   }
@@ -264,10 +265,12 @@ async function handleContentAction(button) {
   try {
     if (button.hasAttribute("data-content-new")) {
       state.editingContentId = null;
+      state.contentNotice = "";
       Object.assign(state.drafts, { contentTitle: "", contentText: "", contentPoints: "", contentFair: false, contentSource: "typed" });
     } else if (button.hasAttribute("data-content-select")) {
       await client.selectContent(selected);
       state.drafts.contentSelection = null;
+      state.contentNotice = selected ? "Conteúdo aplicado à próxima sessão." : "Modo livre aplicado à próxima sessão.";
       state.skipCaptureOnce = true;
       await refresh();
       return;
@@ -275,14 +278,18 @@ async function handleContentAction(button) {
       if (!selected) throw new Error("Escolha um conteúdo para editar.");
       const item = await client.getContent(selected);
       state.editingContentId = selected;
+      state.contentNotice = "Editando conteúdo selecionado.";
       Object.assign(state.drafts, { contentTitle: item.title, contentText: item.text,
         contentPoints: item.points.join("\n"), contentFair: item.fair_available, contentSource: item.source });
     } else if (button.hasAttribute("data-content-save")) {
       const d = state.drafts;
-      await client.saveContent(state.editingContentId, { title: d.contentTitle.trim(), text: d.contentText.trim(),
+      const saved = await client.saveContent(state.editingContentId, { title: d.contentTitle.trim(), text: d.contentText.trim(),
         source: d.contentSource, fair_available: d.contentFair,
         points: d.contentPoints.trim() ? d.contentPoints.split("\n").map((s) => s.trim()).filter(Boolean) : null });
       state.editingContentId = null;
+      Object.assign(state.drafts, { contentTitle: "", contentText: "", contentPoints: "", contentFair: false, contentSource: "typed", contentSelection: String(saved.id) });
+      state.contentNotice = `Conteúdo salvo · v${saved.version}. Clique em Aplicar seleção para usá-lo na próxima sessão.`;
+      state.skipCaptureOnce = true;
       await refresh();
       return;
     } else if (button.hasAttribute("data-content-delete")) {
@@ -290,6 +297,7 @@ async function handleContentAction(button) {
       await client.deleteContent(selected);
       if (state.snapshot?.selected_content_id === selected) await client.selectContent(null);
       state.drafts.contentSelection = null;
+      state.contentNotice = "Conteúdo excluído da biblioteca.";
       state.skipCaptureOnce = true;
       await refresh();
       return;

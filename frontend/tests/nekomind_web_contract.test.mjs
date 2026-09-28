@@ -633,4 +633,9 @@ test("operator content library uses local authenticated APIs", async () => {
   assert(calls.every((call) => call.init.headers.Authorization === "Bearer operator-token"));
   assert.match(renderPresenter(sanitizePrivateSnapshot({ state: "idle", selected_content_id: 3 }),
     { hasToken: true, contents: [{ id: 3, title: "Água", version: 1 }] }), /data-content-selection/);
+  const saved = renderPresenter(sanitizePrivateSnapshot({ state: "idle", selected_content_id: 3 }),
+    { hasToken: true, contents: [{ id: 3, title: "Água", version: 2 }],
+      contentNotice: "Conteúdo salvo <v2>. Clique em Aplicar seleção." });
+  assert.match(saved, /Conteúdo salvo &lt;v2&gt;\. Clique em Aplicar seleção\./);
+  assert.doesNotMatch(saved, /Conteúdo salvo <v2>/);
 });

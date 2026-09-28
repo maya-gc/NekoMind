@@ -89,11 +89,8 @@ def terms(text: str) -> set[str]:
 
 
 def derive_points(text: str) -> list[str]:
-    """Use only explicit paragraphs/list items; no generated claims."""
-    raw = [
-        re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", p).strip()
-        for p in re.split(r"\n\s*\n|\n(?=\s*[-*•]\s)", text)
-    ]
+    """Use explicit nonempty lines as points; no generated claims."""
+    raw = [re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", p).strip() for p in text.splitlines()]
     return [p for p in raw if p and terms(p)][:30]
 
 

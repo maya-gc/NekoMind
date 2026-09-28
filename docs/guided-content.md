@@ -8,7 +8,7 @@ local autenticado; o navegador não grava áudio. Ao selecionar **Modo livre**,
 nenhum serviço de transcrição parcial ou batimento é iniciado.
 
 O conteúdo tem título, idioma `pt`, origem (`typed`, `txt`, `md`), versão e até 30
-pontos de até 500 caracteres. Por padrão cada parágrafo ou item de lista vira
+pontos de até 500 caracteres. Por padrão cada linha não vazia, inclusive item de lista, vira
 um ponto. A edição manual pode combinar termos presentes no texto, mas não
 introduzir termos alheios. A sessão conserva uma cópia exata do texto, pontos e
 versão; editar ou excluir a biblioteca não reescreve sessões anteriores. Excluir

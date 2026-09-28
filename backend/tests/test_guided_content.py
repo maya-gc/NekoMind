@@ -40,6 +40,22 @@ def test_content_crud_and_immutable_session_snapshot(client):
     )
 
 
+def test_each_nonempty_line_becomes_one_reference_point(client):
+    response = client.post(
+        "/api/v1/contents",
+        json={
+            "title": "Ciclo da agua",
+            "text": "O sol evapora a agua.\nO vapor forma nuvens.\n\n- A chuva devolve agua ao solo.",
+        },
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["points"] == [
+        "O sol evapora a agua.",
+        "O vapor forma nuvens.",
+        "A chuva devolve agua ao solo.",
+    ]
+
+
 def test_free_session_unchanged(client):
     row = client.post("/api/v1/sessions", json={"request_id": "free-1"}).json()
     assert row["reference_content_id"] is None

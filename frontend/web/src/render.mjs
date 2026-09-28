@@ -131,6 +131,7 @@ export function renderPresenter(snapshot, options = {}) {
             </select>
           </label>
           <button type="button" data-content-select>Aplicar seleção</button>
+          ${options.contentNotice ? `<p class="content-notice" role="status">${escapeHtml(options.contentNotice)}</p>` : ""}
           <label class="field-row">Título<input data-content-title maxlength="200" placeholder="Ex.: ciclo da água"></label>
           <label class="field-row">Texto de referência<textarea data-content-text rows="5" maxlength="50000" placeholder="Cole parágrafos ou uma lista de pontos..."></textarea></label>
           <label class="field-row">Arquivo .txt/.md<input type="file" data-content-file accept=".txt,.md,text/plain,text/markdown"></label>
