@@ -65,6 +65,7 @@ export function renderPublic(snapshot) {
         <aside class="journey-panel" aria-label="Jornada da sessão">
           <h2>Jornada da sessão</h2>
           ${renderJourney(snapshot.journey)}
+          ${snapshot.content ? `<p class="live-content" role="status">${snapshot.content.status === "unavailable" ? "Batimento indisponível; gravação continua." : `Conteúdo guiado · ${escapeHtml(snapshot.content.coverage_percent)}% dos pontos reconhecidos até agora · ${escapeHtml(snapshot.content.origin)} · provisório`}</p>` : ""}
         </aside>
       </div>
       <section class="public-result" aria-label="Resultado público">
@@ -103,6 +104,7 @@ export function renderPresenter(snapshot, options = {}) {
             </select>
           </label>
           ${renderJourney(snapshot.journey)}
+          ${snapshot.content ? `<p class="live-content">${snapshot.content.status === "unavailable" ? "Batimento indisponível; captura continua." : `Batimento provisório: ${escapeHtml(snapshot.content.coverage_percent)}% · ${escapeHtml(snapshot.content.origin)}`}</p>` : ""}
           ${snapshot.error ? `<p class="safe-error">${escapeHtml(snapshot.error.code)}: ${escapeHtml(snapshot.error.message)}</p>` : ""}
           ${options.hasToken ? renderRecoverable(snapshot.recoverable_sessions) : '<p class="empty-result">Informe o token para consultar recuperações.</p>'}
         </section>
@@ -118,6 +120,28 @@ export function renderPresenter(snapshot, options = {}) {
             <button type="button" data-session-delete data-confirmed="true">Excluir sessão</button>
           </div>
           <div class="history-panel" data-history-panel></div>
+        </section>
+        <section class="ops-panel guided-content-panel">
+          <h2>Conteúdo guiado (opcional)</h2>
+          <p>Sem seleção, o modo livre continua igual. Cobertura de termos não comprova acerto.</p>
+          <label class="field-row">Conteúdo da próxima sessão
+            <select data-content-selection>
+              <option value="">Modo livre</option>
+              ${(options.contents || []).map((item) => `<option value="${item.id}" ${snapshot.selected_content_id === item.id ? "selected" : ""}>${escapeHtml(item.title)} · v${item.version}</option>`).join("")}
+            </select>
+          </label>
+          <button type="button" data-content-select>Aplicar seleção</button>
+          <label class="field-row">Título<input data-content-title maxlength="200" placeholder="Ex.: ciclo da água"></label>
+          <label class="field-row">Texto de referência<textarea data-content-text rows="5" maxlength="50000" placeholder="Cole parágrafos ou uma lista de pontos..."></textarea></label>
+          <label class="field-row">Arquivo .txt/.md<input type="file" data-content-file accept=".txt,.md,text/plain,text/markdown"></label>
+          <label class="field-row">Pontos-chave (um por linha; deixe vazio para derivar do texto)<textarea data-content-points rows="3"></textarea></label>
+          <label class="field-row"><input type="checkbox" data-content-fair> Disponível para feira</label>
+          <div class="button-stack">
+            <button type="button" data-content-new>Novo</button>
+            <button type="button" data-content-edit>Carregar para editar</button>
+            <button type="button" data-content-save>Salvar conteúdo</button>
+            <button type="button" data-content-delete>Excluir conteúdo</button>
+          </div>
         </section>
         <section class="ops-panel danger-zone">
           <h2>Ações seguras</h2>
@@ -154,7 +178,7 @@ export function renderHistory(history = {}) {
       <strong>S${escapeHtml(session)}</strong>
       <span>${escapeHtml(when)}</span>
       <span>${escapeHtml(duration)} · clareza ${escapeHtml(clarity)}</span>
-      <small>${topics}${method ? ` · método ${method}` : ""}</small>
+      <small>${topics}${method ? ` · método ${method}` : ""}${point.content_report ? ` · conteúdo v${escapeHtml(point.content_report.content_version)}: ${escapeHtml(point.content_report.coverage_percent)}% mencionado` : ""}</small>
     </li>`;
   }).join("");
   const trend = renderHistoryTrend(history);
@@ -246,6 +270,11 @@ function renderPublicResult(snapshot) {
       <h3>Termos reconhecidos pelo NekoMind</h3>
       ${topics ? `<ul class="topic-strip">${topics}</ul>` : `<p class="empty-result">Nenhum termo destacado.</p>`}
     </div>
+    ${result.content_report ? `<section class="guided-report">
+      <h3>Conteúdo guiado · ${escapeHtml(result.content_report.coverage_percent)}% dos pontos mencionados</h3>
+      <p>${escapeHtml(result.content_report.disclaimer)}</p>
+      <ul>${result.content_report.points.map((item) => `<li><strong>${escapeHtml(item.point)}</strong> · ${escapeHtml(item.status === "covered" ? "mencionado" : item.status === "partial" ? "parcial" : item.status === "possible_divergence" ? "possível divergência" : "não mencionado")}${item.evidence ? `<small>Trecho: ${escapeHtml(item.evidence)}</small>` : ""} <em>${escapeHtml(item.origin)}</em></li>`).join("")}</ul>
+    </section>` : ""}
   </div>`;
 }
 

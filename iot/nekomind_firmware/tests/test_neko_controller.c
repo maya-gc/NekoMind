@@ -988,6 +988,94 @@ static void test_touch_edge_requires_release_before_second_confirm(void)
     assert(neko_touch_edge_update(&edge, true, 220));
 }
 
+static void test_guided_content_frames_are_provisional_and_correlated(void)
+{
+    neko_controller_t controller;
+    fake_io_t io;
+    neko_mac_message_t parsed;
+    char huge[NEKO_PROTOCOL_MAX_LINE_BYTES + 64];
+    const char *content =
+        "{\"v\":1,\"type\":\"content\",\"request_id\":\"boot-1\",\"session_id\":42,"
+        "\"state\":\"recording\",\"is_demo\":false,\"origin\":\"real\","
+        "\"seq\":1,\"coverage_percent\":50,\"expression\":\"happy\",\"status\":\"covered\"}";
+    init_controller(&controller, &io);
+    assert(neko_controller_touch(&controller, NEKO_TOUCH_START, 1000) == NEKO_CONTROLLER_OK);
+    assert(neko_controller_receive(&controller,
+        "{\"v\":1,\"type\":\"state\",\"request_id\":\"boot-1\",\"session_id\":42,"
+        "\"state\":\"recording\",\"is_demo\":false}", 1100) == NEKO_CONTROLLER_OK);
+    assert(neko_protocol_parse_mac_line(content, &parsed) == NEKO_PROTOCOL_OK);
+    assert(neko_controller_receive(&controller, content, 1200) == NEKO_CONTROLLER_OK);
+    assert(neko_controller_state(&controller) == NEKO_CONTROLLER_RECORDING);
+    memset(huge, 'x', sizeof(huge));
+    memcpy(huge, "{\"type\":\"content\",", strlen("{\"type\":\"content\","));
+    huge[sizeof(huge) - 1] = '\0';
+    assert(neko_controller_receive(&controller, huge, 1270) == NEKO_CONTROLLER_INVALID_MESSAGE);
+    assert(neko_controller_state(&controller) == NEKO_CONTROLLER_RECORDING);
+    assert(neko_controller_receive(&controller,
+        "{\"type\":\"content\",\"broken\":", 1250) == NEKO_CONTROLLER_INVALID_MESSAGE);
+    assert(neko_controller_state(&controller) == NEKO_CONTROLLER_RECORDING);
+    assert(neko_controller_receive(&controller, content, 1300) == NEKO_CONTROLLER_STALE);
+    assert(neko_controller_receive(&controller,
+        "{\"v\":1,\"type\":\"content\",\"request_id\":\"boot-1\",\"session_id\":43,"
+        "\"state\":\"recording\",\"is_demo\":false,\"origin\":\"real\","
+        "\"seq\":2,\"coverage_percent\":50,\"expression\":\"happy\",\"status\":\"covered\"}",
+        1400) == NEKO_CONTROLLER_STALE);
+    assert(neko_controller_receive(&controller,
+        "{\"v\":1,\"type\":\"content\",\"request_id\":\"boot-1\",\"session_id\":42,"
+        "\"state\":\"recording\",\"is_demo\":false,\"origin\":\"real\","
+        "\"seq\":2,\"coverage_percent\":50,\"expression\":\"happy\",\"status\":\"covered\"}",
+        7500) == NEKO_CONTROLLER_OK);
+    assert(strcmp(controller.content_expression, "happy") == 0);
+    assert(neko_controller_state(&controller) == NEKO_CONTROLLER_RECORDING);
+    controller.voice_quality = NEKO_VOICE_QUALITY_LOW;
+    assert(neko_controller_receive(&controller,
+        "{\"v\":1,\"type\":\"content\",\"request_id\":\"boot-1\",\"session_id\":42,"
+        "\"state\":\"recording\",\"is_demo\":false,\"origin\":\"real\","
+        "\"seq\":3,\"coverage_percent\":0,\"expression\":\"sad\","
+        "\"status\":\"possible_divergence\"}", 8100) == NEKO_CONTROLLER_STALE);
+    assert(strcmp(controller.content_expression, "happy") == 0);
+    controller.voice_quality = NEKO_VOICE_QUALITY_OK;
+    assert(neko_controller_receive(&controller,
+        "{\"v\":1,\"type\":\"future\",\"request_id\":\"boot-1\",\"session_id\":42,"
+        "\"state\":\"recording\",\"extra\":42}", 7600) == NEKO_CONTROLLER_STALE);
+    assert(neko_controller_state(&controller) == NEKO_CONTROLLER_RECORDING);
+}
+
+static void test_guided_expression_keeps_accessible_text_and_theme(void)
+{
+    neko_controller_view_t view = {
+        .message = "gravando", .is_demo = false,
+        .content_expression = "happy", .content_text = "Pontos mencionados",
+    };
+    neko_layout_model_t layout;
+    neko_scene_t scene;
+    const neko_scene_op_t *face;
+    assert(neko_layout_build(NEKO_CONTROLLER_RECORDING, &view, 240, 320,
+                             true, 0, &layout));
+    neko_layout_set_theme(&layout, true);
+    assert(neko_scene_build(NEKO_CONTROLLER_RECORDING, &view, &layout, &scene));
+    face = first_op(&scene, NEKO_SCENE_OP_FACE);
+    assert(face != NULL);
+    assert(strcmp(face->text, "face-content-happy") == 0);
+    assert(scene_has_text(&scene, "Pontos mencionados"));
+    assert(scene.dark_theme);
+    assert(scene.reduced_motion);
+}
+
+static void test_capability_request_id_keeps_v1_command_shape(void)
+{
+    neko_controller_t controller;
+    fake_io_t io;
+    init_controller_with_nonce(&controller, &io, "c2-esp-test");
+    assert(neko_controller_touch(&controller, NEKO_TOUCH_START, 100) == NEKO_CONTROLLER_OK);
+    assert(strstr(io.lines[0], "\"request_id\":\"c2-esp-test-1\"") != NULL);
+    assert(strstr(io.lines[0], "\"command\":\"start\"") != NULL);
+    assert(neko_controller_receive(&controller,
+        "{\"v\":1,\"type\":\"state\",\"request_id\":\"c2-esp-test-1\","
+        "\"session_id\":42,\"state\":\"recording\",\"is_demo\":false}",
+        200) == NEKO_CONTROLLER_OK);
+}
+
 int main(void)
 {
     test_valid_completion_requires_correlated_result();
@@ -1014,6 +1102,9 @@ int main(void)
     test_scene_result_content_badges_and_grouped_topics();
     test_scene_confirmation_badge_face_expression_and_overlap_both_orientations();
     test_touch_edge_requires_release_before_second_confirm();
+    test_guided_content_frames_are_provisional_and_correlated();
+    test_guided_expression_keeps_accessible_text_and_theme();
+    test_capability_request_id_keeps_v1_command_shape();
     puts("firmware controller tests passed");
     return 0;
 }

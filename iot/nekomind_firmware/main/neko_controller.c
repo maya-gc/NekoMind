@@ -28,6 +28,8 @@ static void build_view(const neko_controller_t *controller,
     view->journey_status = controller->journey_status;
     view->diagnostic_component = controller->diagnostic_component;
     view->diagnostic_status = controller->diagnostic_status;
+    view->content_expression = controller->content_expression;
+    view->content_text = controller->content_text;
 }
 
 static void render(neko_controller_t *controller, const char *message)
@@ -121,6 +123,11 @@ static void clear_session_result(neko_controller_t *controller)
     controller->diagnostic_status[0] = '\0';
     controller->confirmation_command = NEKO_COMMAND_NONE;
     controller->confirmation_event = 0;
+    controller->content_expression[0] = '\0';
+    controller->content_text[0] = '\0';
+    controller->pending_content_expression[0] = '\0';
+    controller->pending_content_count = 0;
+    controller->last_content_seq = 0;
 }
 
 static neko_controller_status_t send_line(neko_controller_t *controller,
@@ -730,6 +737,56 @@ static neko_controller_status_t apply_error_message(neko_controller_t *controlle
     return NEKO_CONTROLLER_OK;
 }
 
+static neko_controller_status_t apply_content_message(neko_controller_t *controller,
+                                                       const neko_mac_message_t *message,
+                                                       uint32_t now_ms)
+{
+    if (controller->state != NEKO_CONTROLLER_RECORDING
+        || !message_matches_session(controller, message)
+        || !message_matches_active_request(controller, message)
+        || message->content_seq <= controller->last_content_seq
+        || message->is_demo != controller->is_demo) {
+        return NEKO_CONTROLLER_STALE;
+    }
+    controller->last_content_seq = message->content_seq;
+    if (strcmp(message->content_status, "unavailable") == 0) {
+        controller->content_expression[0] = '\0';
+        snprintf(controller->content_text, sizeof(controller->content_text),
+                 "Batimento indisponivel");
+        render(controller, controller->content_text);
+        return NEKO_CONTROLLER_OK;
+    }
+    if (controller->voice_quality == NEKO_VOICE_QUALITY_LOW
+        || controller->voice_quality == NEKO_VOICE_QUALITY_CLIPPING) {
+        return NEKO_CONTROLLER_STALE;
+    }
+    if (strcmp(message->content_expression, controller->pending_content_expression) != 0) {
+        snprintf(controller->pending_content_expression,
+                 sizeof(controller->pending_content_expression), "%s",
+                 message->content_expression);
+        controller->pending_content_count = 1;
+        return NEKO_CONTROLLER_OK;
+    }
+    controller->pending_content_count++;
+    if (controller->pending_content_count < 2
+        || (controller->last_content_change_ms != 0
+            && !time_reached(now_ms, controller->last_content_change_ms + 6000U))
+        || strcmp(controller->content_expression, message->content_expression) == 0) {
+        return NEKO_CONTROLLER_OK;
+    }
+    snprintf(controller->content_expression, sizeof(controller->content_expression), "%s",
+             message->content_expression);
+    snprintf(controller->content_text, sizeof(controller->content_text), "%s",
+             strcmp(message->content_expression, "happy") == 0 ? "Pontos mencionados"
+             : strcmp(message->content_expression, "content") == 0 ? "Explicacao parcial"
+             : strcmp(message->content_expression, "concerned") == 0 ? "Ainda sem cobertura"
+             : strcmp(message->content_expression, "sad") == 0 ? "Possivel divergencia"
+             : "Ouvindo o conteudo");
+    controller->last_content_change_ms = now_ms;
+    render(controller, controller->content_text);
+    return NEKO_CONTROLLER_OK;
+}
+
 neko_controller_status_t neko_controller_receive(neko_controller_t *controller,
                                                  const char *line,
                                                  uint32_t now_ms)
@@ -742,6 +799,12 @@ neko_controller_status_t neko_controller_receive(neko_controller_t *controller,
     }
     parsed = neko_protocol_parse_mac_line(line, &message);
     if (parsed != NEKO_PROTOCOL_OK) {
+        /* Provisional content traffic may be dropped without changing the
+         * capture state; malformed control/result traffic still fails closed. */
+        if (strstr(line, "\"type\":\"content\"") != NULL
+            || strstr(line, "\"type\": \"content\"") != NULL) {
+            return NEKO_CONTROLLER_INVALID_MESSAGE;
+        }
         snprintf(controller->last_error, sizeof(controller->last_error),
                  "mensagem invalida: %s", neko_protocol_status_name(parsed));
         set_state(controller, NEKO_CONTROLLER_ERROR, "mensagem invalida");
@@ -755,6 +818,10 @@ neko_controller_status_t neko_controller_receive(neko_controller_t *controller,
         return apply_result_message(controller, &message, now_ms);
     case NEKO_MAC_ERROR:
         return apply_error_message(controller, &message);
+    case NEKO_MAC_CONTENT:
+        return apply_content_message(controller, &message, now_ms);
+    case NEKO_MAC_UNKNOWN:
+        return NEKO_CONTROLLER_STALE;
     default:
         return NEKO_CONTROLLER_INVALID_MESSAGE;
     }

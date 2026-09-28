@@ -215,6 +215,7 @@ export function sanitizePublicSnapshot(raw = {}, options = {}) {
     asr_provider: stringOrNull(raw.result.asr_provider),
     topic_provider: stringOrNull(raw.result.topic_provider),
     evidence: sanitizeEvidence(raw.result.evidence),
+    content_report: sanitizeContentReport(raw.result.content_report),
   } : null;
 
   return {
@@ -228,6 +229,7 @@ export function sanitizePublicSnapshot(raw = {}, options = {}) {
     diagnostics: sanitizeDiagnostics(raw.diagnostics),
     journey: sanitizeJourney(raw.journey),
     voice: sanitizeVoice(raw.voice),
+    content: sanitizeLiveContent(raw.content),
     result,
     error: sanitizeError(raw.error),
     recovery: Boolean(raw.recovery),
@@ -244,6 +246,33 @@ export function sanitizePrivateSnapshot(raw = {}, options = {}) {
     available_actions: Array.isArray(raw.available_actions) ? raw.available_actions.map(stringOrEmpty).filter(Boolean) : [],
     recoverable_sessions: sanitizeRecoverable(raw.recoverable_sessions),
     history: Array.isArray(raw.history) ? raw.history : [],
+    selected_content_id: Number.isInteger(raw.selected_content_id) ? raw.selected_content_id : null,
+  };
+}
+
+function sanitizeContentReport(raw) {
+  if (!raw || typeof raw !== "object" || !Array.isArray(raw.points)) return null;
+  return {
+    coverage_percent: numberOrNull(raw.coverage_percent),
+    method_version: stringOrEmpty(raw.method_version),
+    origin: raw.origin === "demo" ? "demo" : "real",
+    disclaimer: stringOrEmpty(raw.disclaimer),
+    points: raw.points.slice(0, 30).map((p) => ({
+      point: stringOrEmpty(p.point).slice(0, 500),
+      status: ["covered", "partial", "not_mentioned", "possible_divergence"].includes(p.status) ? p.status : "not_mentioned",
+      evidence: stringOrEmpty(p.evidence).slice(0, 240),
+      origin: p.origin === "demo" ? "demo" : "real",
+    })),
+  };
+}
+
+function sanitizeLiveContent(raw) {
+  if (!raw || typeof raw !== "object" || !Number.isInteger(raw.seq) || raw.seq < 1) return null;
+  return {
+    status: ["covered", "partial", "not_mentioned", "possible_divergence", "unavailable"].includes(raw.status) ? raw.status : "unavailable",
+    coverage_percent: Number.isInteger(raw.coverage_percent) ? Math.max(0, Math.min(100, raw.coverage_percent)) : 0,
+    origin: raw.origin === "demo" ? "demo" : "real",
+    expression: ["happy", "content", "thinking", "concerned", "sad"].includes(raw.expression) ? raw.expression : "thinking",
   };
 }
 

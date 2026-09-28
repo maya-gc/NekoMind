@@ -139,7 +139,7 @@ static void controller_render_view(neko_controller_state_t state,
 
 esp_err_t session_controller_init(void)
 {
-    char boot_nonce[36];
+    char boot_nonce[40];
     neko_controller_callbacks_t callbacks = {
         .send_line = controller_send_line,
         .render_view = controller_render_view,
@@ -170,7 +170,7 @@ esp_err_t session_controller_init(void)
         }
     }
     load_theme();
-    snprintf(boot_nonce, sizeof(boot_nonce), "esp%08lx%08lx%08lx%08lx",
+    snprintf(boot_nonce, sizeof(boot_nonce), "c2-esp%08lx%08lx%08lx%08lx",
              (unsigned long)esp_random(),
              (unsigned long)esp_random(),
              (unsigned long)esp_random(),

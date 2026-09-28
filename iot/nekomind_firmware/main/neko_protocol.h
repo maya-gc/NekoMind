@@ -34,7 +34,9 @@ typedef enum {
 typedef enum {
     NEKO_MAC_STATE = 1,
     NEKO_MAC_RESULT,
-    NEKO_MAC_ERROR
+    NEKO_MAC_ERROR,
+    NEKO_MAC_CONTENT,
+    NEKO_MAC_UNKNOWN
 } neko_mac_message_kind_t;
 
 typedef enum {
@@ -82,6 +84,11 @@ typedef struct {
     char journey_status[NEKO_JOURNEY_TEXT_MAX + 1];
     char diagnostic_component[NEKO_DIAGNOSTIC_TEXT_MAX + 1];
     char diagnostic_status[NEKO_DIAGNOSTIC_TEXT_MAX + 1];
+    int content_seq;
+    int coverage_percent;
+    char content_expression[20];
+    char content_status[24];
+    char content_origin[8];
 } neko_mac_message_t;
 
 bool neko_protocol_request_id_is_valid(const char *request_id);

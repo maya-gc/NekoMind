@@ -590,10 +590,16 @@ neko_protocol_status_t neko_protocol_parse_mac_line(const char *line,
         {"trend_text", false},
         {"trend", false},
         {"diagnostic", false},
+        {"seq", false},
+        {"coverage_percent", false},
+        {"expression", false},
+        {"status", false},
+        {"origin", false},
     };
     const char *p = line;
     char type[16] = {0};
     int version = 0;
+    bool unknown_field = false;
     size_t i;
 
     if (line == NULL || out == NULL) {
@@ -621,13 +627,14 @@ neko_protocol_status_t neko_protocol_parse_mac_line(const char *line,
             return NEKO_PROTOCOL_ERR_JSON;
         }
         idx = key_index(key, keys, sizeof(keys) / sizeof(keys[0]));
-        if (idx < 0) {
-            return NEKO_PROTOCOL_ERR_INVALID_FIELD;
-        }
-        if (keys[idx].seen) {
+        if (idx >= 0 && keys[idx].seen) {
             return NEKO_PROTOCOL_ERR_DUPLICATE_KEY;
         }
-        keys[idx].seen = true;
+        if (idx >= 0) {
+            keys[idx].seen = true;
+        } else {
+            unknown_field = true;
+        }
 
         skip_ws(&p);
         if (*p != ':') {
@@ -650,8 +657,10 @@ neko_protocol_status_t neko_protocol_parse_mac_line(const char *line,
                 out->kind = NEKO_MAC_RESULT;
             } else if (strcmp(type, "error") == 0) {
                 out->kind = NEKO_MAC_ERROR;
+            } else if (strcmp(type, "content") == 0) {
+                out->kind = NEKO_MAC_CONTENT;
             } else {
-                return NEKO_PROTOCOL_ERR_INVALID_FIELD;
+                out->kind = NEKO_MAC_UNKNOWN;
             }
         } else if (strcmp(key, "request_id") == 0) {
             if (!parse_json_string(&p, out->request_id, sizeof(out->request_id),
@@ -745,6 +754,37 @@ neko_protocol_status_t neko_protocol_parse_mac_line(const char *line,
             if (!parse_diagnostic(&p, out)) {
                 return NEKO_PROTOCOL_ERR_INVALID_FIELD;
             }
+        } else if (strcmp(key, "seq") == 0) {
+            if (!parse_int_value(&p, &out->content_seq)) {
+                return NEKO_PROTOCOL_ERR_INVALID_FIELD;
+            }
+        } else if (strcmp(key, "coverage_percent") == 0) {
+            if (!parse_nonnegative_int_value(&p, &out->coverage_percent)
+                || out->coverage_percent > 100) {
+                return NEKO_PROTOCOL_ERR_INVALID_FIELD;
+            }
+        } else if (strcmp(key, "expression") == 0) {
+            if (!parse_json_string(&p, out->content_expression,
+                                   sizeof(out->content_expression), &truncated)
+                || truncated) {
+                return NEKO_PROTOCOL_ERR_INVALID_FIELD;
+            }
+        } else if (strcmp(key, "status") == 0) {
+            if (!parse_json_string(&p, out->content_status,
+                                   sizeof(out->content_status), &truncated)
+                || truncated) {
+                return NEKO_PROTOCOL_ERR_INVALID_FIELD;
+            }
+        } else if (strcmp(key, "origin") == 0) {
+            if (!parse_json_string(&p, out->content_origin,
+                                   sizeof(out->content_origin), &truncated)
+                || truncated) {
+                return NEKO_PROTOCOL_ERR_INVALID_FIELD;
+            }
+        } else if (idx < 0) {
+            if (!skip_json_value(&p)) {
+                return NEKO_PROTOCOL_ERR_INVALID_FIELD;
+            }
         }
 
         skip_ws(&p);
@@ -770,6 +810,34 @@ neko_protocol_status_t neko_protocol_parse_mac_line(const char *line,
         int idx = key_index(required_keys[i], keys, sizeof(keys) / sizeof(keys[0]));
         if (idx < 0 || !keys[idx].seen) {
             return NEKO_PROTOCOL_ERR_MISSING_FIELD;
+        }
+    }
+    if (out->kind == NEKO_MAC_UNKNOWN) {
+        return NEKO_PROTOCOL_OK;
+    }
+    if (unknown_field) {
+        return NEKO_PROTOCOL_ERR_INVALID_FIELD;
+    }
+    if (out->kind == NEKO_MAC_CONTENT) {
+        if (out->state != NEKO_MAC_STATE_RECORDING || !out->has_session_id
+            || !keys[key_index("seq", keys, sizeof(keys) / sizeof(keys[0]))].seen
+            || !keys[key_index("is_demo", keys, sizeof(keys) / sizeof(keys[0]))].seen
+            || !keys[key_index("coverage_percent", keys, sizeof(keys) / sizeof(keys[0]))].seen
+            || !keys[key_index("expression", keys, sizeof(keys) / sizeof(keys[0]))].seen
+            || !keys[key_index("status", keys, sizeof(keys) / sizeof(keys[0]))].seen
+            || !keys[key_index("origin", keys, sizeof(keys) / sizeof(keys[0]))].seen
+            || strcmp(out->content_origin, out->is_demo ? "demo" : "real") != 0
+            || (strcmp(out->content_status, "covered") != 0
+                && strcmp(out->content_status, "partial") != 0
+                && strcmp(out->content_status, "not_mentioned") != 0
+                && strcmp(out->content_status, "possible_divergence") != 0
+                && strcmp(out->content_status, "unavailable") != 0)
+            || (strcmp(out->content_expression, "happy") != 0
+                && strcmp(out->content_expression, "content") != 0
+                && strcmp(out->content_expression, "thinking") != 0
+                && strcmp(out->content_expression, "concerned") != 0
+                && strcmp(out->content_expression, "sad") != 0)) {
+            return NEKO_PROTOCOL_ERR_INVALID_FIELD;
         }
     }
     if (out->kind == NEKO_MAC_RESULT) {

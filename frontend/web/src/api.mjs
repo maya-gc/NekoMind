@@ -62,5 +62,16 @@ export function createExperienceClient({ fetchImpl = globalThis.fetch, tokenProv
     getSubjectHistory(subject) {
       return request(`/api/v1/history/subjects/${encodeURIComponent(subject)}`, { private: true });
     },
+    listContents() { return request("/api/v1/contents", { private: true }); },
+    getContent(id) { return request(`/api/v1/contents/${encodeURIComponent(id)}`, { private: true }); },
+    saveContent(id, body) {
+      return request(id ? `/api/v1/contents/${encodeURIComponent(id)}` : "/api/v1/contents", {
+        method: id ? "PUT" : "POST", private: true, body,
+      });
+    },
+    deleteContent(id) { return request(`/api/v1/contents/${encodeURIComponent(id)}`, { method: "DELETE", private: true }); },
+    selectContent(contentId) { return request("/api/v1/experience/selection", {
+      method: "PUT", private: true, body: { content_id: contentId },
+    }); },
   };
 }

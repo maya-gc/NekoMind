@@ -34,11 +34,20 @@ const state = {
   commandError: "",
   tokenPromptOpen: false,
   confirmation: null,
+  contents: [],
+  editingContentId: null,
+  skipCaptureOnce: false,
   drafts: {
     tokenInput: "",
     subject: "",
     mode: "fair",
     history: null,
+    contentTitle: "",
+    contentText: "",
+    contentPoints: "",
+    contentFair: false,
+    contentSource: "typed",
+    contentSelection: null,
   },
 };
 const client = createExperienceClient({ tokenProvider: () => state.token });
@@ -64,6 +73,9 @@ async function refresh() {
     state.snapshot = route.view === "presenter"
       ? sanitizePrivateSnapshot(payload)
       : sanitizePublicSnapshot(payload);
+    if (route.view === "presenter" && state.token) {
+      try { state.contents = await client.listContents(); } catch { state.contents = []; }
+    }
     render();
   } catch (error) {
     state.snapshot = sanitizePublicSnapshot({
@@ -78,7 +90,8 @@ async function refresh() {
 }
 
 function render() {
-  captureDrafts();
+  if (state.skipCaptureOnce) state.skipCaptureOnce = false;
+  else captureDrafts();
   const snapshot = state.snapshot || fixtureSnapshot("attraction");
   if (state.draftSessionId !== snapshot.session_id) {
     state.drafts.subject = "";
@@ -98,7 +111,7 @@ function render() {
     state.cardIndex = model.activeCard?.cardIndex || 0;
     state.currentGeneration = snapshot.generation;
   } else if (route.view === "presenter") {
-    app.innerHTML = renderPresenter(snapshot, { hasToken: Boolean(state.token) });
+    app.innerHTML = renderPresenter(snapshot, { hasToken: Boolean(state.token), contents: state.contents });
   } else {
     app.innerHTML = renderPublic(snapshot);
   }
@@ -166,6 +179,12 @@ app.addEventListener("click", async (event) => {
     return;
   }
 
+  const contentAction = event.target.closest("[data-content-select],[data-content-new],[data-content-edit],[data-content-save],[data-content-delete]");
+  if (contentAction && route.view === "presenter") {
+    await handleContentAction(contentAction);
+    return;
+  }
+
   const historyButton = event.target.closest("[data-subject-history]");
   if (historyButton) {
     await loadSubjectHistory();
@@ -222,6 +241,66 @@ app.addEventListener("click", async (event) => {
     render();
   }
 });
+
+app.addEventListener("change", async (event) => {
+  const file = event.target.matches("[data-content-file]") ? event.target.files?.[0] : null;
+  if (!file) return;
+  if (!/\.(txt|md)$/i.test(file.name) || file.size > 50000) {
+    state.commandError = "Use um arquivo .txt ou .md com até 50 KB.";
+    render();
+    return;
+  }
+  state.drafts.contentText = await file.text();
+  state.drafts.contentSource = file.name.toLowerCase().endsWith(".md") ? "md" : "txt";
+  if (!state.drafts.contentTitle) state.drafts.contentTitle = file.name.replace(/\.(txt|md)$/i, "");
+  state.skipCaptureOnce = true;
+  render();
+});
+
+async function handleContentAction(button) {
+  if (!state.token) return renderTokenPrompt();
+  captureDrafts();
+  const selected = Number(app.querySelector("[data-content-selection]")?.value) || null;
+  try {
+    if (button.hasAttribute("data-content-new")) {
+      state.editingContentId = null;
+      Object.assign(state.drafts, { contentTitle: "", contentText: "", contentPoints: "", contentFair: false, contentSource: "typed" });
+    } else if (button.hasAttribute("data-content-select")) {
+      await client.selectContent(selected);
+      state.drafts.contentSelection = null;
+      state.skipCaptureOnce = true;
+      await refresh();
+      return;
+    } else if (button.hasAttribute("data-content-edit")) {
+      if (!selected) throw new Error("Escolha um conteúdo para editar.");
+      const item = await client.getContent(selected);
+      state.editingContentId = selected;
+      Object.assign(state.drafts, { contentTitle: item.title, contentText: item.text,
+        contentPoints: item.points.join("\n"), contentFair: item.fair_available, contentSource: item.source });
+    } else if (button.hasAttribute("data-content-save")) {
+      const d = state.drafts;
+      await client.saveContent(state.editingContentId, { title: d.contentTitle.trim(), text: d.contentText.trim(),
+        source: d.contentSource, fair_available: d.contentFair,
+        points: d.contentPoints.trim() ? d.contentPoints.split("\n").map((s) => s.trim()).filter(Boolean) : null });
+      state.editingContentId = null;
+      await refresh();
+      return;
+    } else if (button.hasAttribute("data-content-delete")) {
+      if (!selected || !await confirmAction("Excluir o conteúdo selecionado? Sessões antigas mantêm uma cópia local da versão usada.")) return;
+      await client.deleteContent(selected);
+      if (state.snapshot?.selected_content_id === selected) await client.selectContent(null);
+      state.drafts.contentSelection = null;
+      state.skipCaptureOnce = true;
+      await refresh();
+      return;
+    }
+    state.commandError = "";
+  } catch (error) {
+    state.commandError = error.message || "Falha ao atualizar conteúdo.";
+  }
+  state.skipCaptureOnce = true;
+  render();
+}
 
 function confirmAction(label) {
   return new Promise((resolve) => {
@@ -331,6 +410,14 @@ function captureDrafts() {
   if (tokenInput) state.drafts.tokenInput = tokenInput.value;
   if (subjectInput) state.drafts.subject = subjectInput.value;
   if (modeSelect) state.drafts.mode = modeSelect.value;
+  for (const [key, selector] of [["contentTitle", "[data-content-title]"], ["contentText", "[data-content-text]"], ["contentPoints", "[data-content-points]"]]) {
+    const input = app.querySelector(selector);
+    if (input) state.drafts[key] = input.value;
+  }
+  const fair = app.querySelector("[data-content-fair]");
+  if (fair) state.drafts.contentFair = fair.checked;
+  const selection = app.querySelector("[data-content-selection]");
+  if (selection) state.drafts.contentSelection = selection.value;
 }
 
 function restoreDrafts() {
@@ -342,6 +429,14 @@ function restoreDrafts() {
   if (subjectInput && state.drafts.subject) subjectInput.value = state.drafts.subject;
   if (modeSelect) modeSelect.value = state.drafts.mode;
   if (historyPanel && state.drafts.history) historyPanel.innerHTML = renderHistory(state.drafts.history);
+  for (const [key, selector] of [["contentTitle", "[data-content-title]"], ["contentText", "[data-content-text]"], ["contentPoints", "[data-content-points]"]]) {
+    const input = app.querySelector(selector);
+    if (input) input.value = state.drafts[key];
+  }
+  const fair = app.querySelector("[data-content-fair]");
+  if (fair) fair.checked = state.drafts.contentFair;
+  const selection = app.querySelector("[data-content-selection]");
+  if (selection && state.drafts.contentSelection !== null) selection.value = state.drafts.contentSelection;
 }
 
 function newRequestId() {

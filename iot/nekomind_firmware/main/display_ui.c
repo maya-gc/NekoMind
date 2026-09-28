@@ -236,7 +236,9 @@ static void draw_face(const neko_layout_rect_t *r, const char *expression)
     int ey = fy(r, 56);
     bool closed = strstr(expression, "paused") != NULL;
     bool worried = strstr(expression, "error") != NULL
-                   || strstr(expression, "clipping") != NULL;
+                   || strstr(expression, "clipping") != NULL
+                   || strstr(expression, "concerned") != NULL
+                   || strstr(expression, "sad") != NULL;
     if (closed) {
         stroke(fx(r, 31), ey + 3, fx(r, 39), ey + 3, FACE_INK);
         stroke(fx(r, 64), ey + 3, fx(r, 72), ey + 3, FACE_INK);
@@ -253,6 +255,21 @@ static void draw_face(const neko_layout_rect_t *r, const char *expression)
          FACE_INK);
     oval(fx(r, 47), fy(r, 70), r->width * 7 / 100, r->height * 7 / 100,
          NOSE_YELLOW);
+
+    /* Small expressions alter only face features; the original bow/silhouette stay. */
+    if (strstr(expression, "content-happy") != NULL) {
+        stroke(fx(r, 45), fy(r, 82), fx(r, 53), fy(r, 86), FACE_INK);
+        stroke(fx(r, 53), fy(r, 86), fx(r, 61), fy(r, 82), FACE_INK);
+    } else if (strstr(expression, "content-content") != NULL) {
+        stroke(fx(r, 47), fy(r, 84), fx(r, 58), fy(r, 84), FACE_INK);
+    } else if (strstr(expression, "content-sad") != NULL) {
+        stroke(fx(r, 45), fy(r, 87), fx(r, 53), fy(r, 82), FACE_INK);
+        stroke(fx(r, 53), fy(r, 82), fx(r, 61), fy(r, 87), FACE_INK);
+    } else if (strstr(expression, "content-concerned") != NULL) {
+        stroke(fx(r, 45), fy(r, 84), fx(r, 60), fy(r, 84), FACE_INK);
+        stroke(fx(r, 27), fy(r, 50), fx(r, 39), fy(r, 47), FACE_INK);
+        stroke(fx(r, 64), fy(r, 47), fx(r, 76), fy(r, 50), FACE_INK);
+    }
 
     for (int i = 0; i < 3; i++) {
         int shift = i == 0 ? -10 : i == 2 ? 10 : 0;

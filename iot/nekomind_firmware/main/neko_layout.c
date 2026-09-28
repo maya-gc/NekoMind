@@ -314,6 +314,14 @@ static const char *face_expression(neko_controller_state_t state,
                                    const neko_controller_view_t *view,
                                    bool reduced_motion)
 {
+    if (state == NEKO_CONTROLLER_RECORDING && view != NULL
+        && has_text(view->content_expression)) {
+        if (strcmp(view->content_expression, "happy") == 0) return "face-content-happy";
+        if (strcmp(view->content_expression, "content") == 0) return "face-content-content";
+        if (strcmp(view->content_expression, "concerned") == 0) return "face-content-concerned";
+        if (strcmp(view->content_expression, "sad") == 0) return "face-content-sad";
+        return "face-content-thinking";
+    }
     if (reduced_motion) {
         return "face-static";
     }
@@ -484,6 +492,10 @@ bool neko_scene_build(neko_controller_state_t state,
     main_text = view != NULL && has_text(view->message)
         ? view->message
         : state_label(state);
+    if (state == NEKO_CONTROLLER_RECORDING && view != NULL
+        && has_text(view->content_text)) {
+        main_text = view->content_text;
+    }
     add_scene_op(out, NEKO_SCENE_OP_TEXT, text_rect, main_text, true);
     if (state == NEKO_CONTROLLER_SUCCESS) {
         card_text(view, layout, card, sizeof(card));

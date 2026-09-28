@@ -94,6 +94,8 @@ typedef struct {
     const char *journey_status;
     const char *diagnostic_component;
     const char *diagnostic_status;
+    const char *content_expression;
+    const char *content_text;
 } neko_controller_view_t;
 
 typedef void (*neko_controller_render_fn)(neko_controller_state_t state,
@@ -148,6 +150,12 @@ typedef struct {
     char journey_status[NEKO_JOURNEY_TEXT_MAX + 1];
     char diagnostic_component[NEKO_DIAGNOSTIC_TEXT_MAX + 1];
     char diagnostic_status[NEKO_DIAGNOSTIC_TEXT_MAX + 1];
+    char content_expression[20];
+    char content_text[32];
+    char pending_content_expression[20];
+    unsigned int pending_content_count;
+    uint32_t last_content_change_ms;
+    int last_content_seq;
     neko_command_t confirmation_command;
     neko_touch_event_t confirmation_event;
 } neko_controller_t;

@@ -602,3 +602,35 @@ test("experience client binds subject, history and delete APIs with bearer auth"
   assert.equal(calls[4].url, "/api/v1/experience/presenter");
   assert.equal(calls[4].init.headers.Authorization, "Bearer candidate-token");
 });
+
+test("guided report escapes evidence and live pulse stays provisional", () => {
+  const snapshot = sanitizePublicSnapshot({ state: "completed", mode: "real", is_demo: false,
+    result: { topics: [], content_report: { coverage_percent: 50, method_version: "lexical-pt-v1",
+      disclaimer: "Não prova domínio", origin: "real", points: [
+        { point: "Luz e água", status: "covered", evidence: "<script>" },
+        { point: "Clorofila", status: "not_mentioned", evidence: null },
+      ] } } });
+  const html = renderPublic(snapshot);
+  assert.match(html, /50% dos pontos mencionados/);
+  assert.match(html, /&lt;script&gt;/);
+  assert.doesNotMatch(html, /<script>/);
+  const live = sanitizePublicSnapshot({ state: "recording", mode: "real", is_demo: false,
+    content: { seq: 3, status: "partial", coverage_percent: 25, origin: "real", expression: "content" } });
+  assert.equal(live.result, null);
+  assert.match(renderPublic(live), /provisório/);
+});
+
+test("operator content library uses local authenticated APIs", async () => {
+  const calls = [];
+  const client = createExperienceClient({ tokenProvider: () => "operator-token",
+    fetchImpl: async (url, init = {}) => { calls.push({ url, init });
+      return { ok: true, status: 200, json: async () => ({}) }; } });
+  await client.listContents();
+  await client.saveContent(null, { title: "Água", text: "Ciclo da água" });
+  await client.selectContent(3);
+  await client.deleteContent(3);
+  assert.deepEqual(calls.map((call) => call.url), ["/api/v1/contents", "/api/v1/contents", "/api/v1/experience/selection", "/api/v1/contents/3"]);
+  assert(calls.every((call) => call.init.headers.Authorization === "Bearer operator-token"));
+  assert.match(renderPresenter(sanitizePrivateSnapshot({ state: "idle", selected_content_id: 3 }),
+    { hasToken: true, contents: [{ id: 3, title: "Água", version: 1 }] }), /data-content-selection/);
+});
