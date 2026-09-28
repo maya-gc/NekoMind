@@ -76,7 +76,9 @@ int main(void) {
             check=True,
         )
         assert result.stdout.decode().splitlines() == [
-            "0 68 capture", "0 68 capture", "0 68 capture"
+            "0 68 capture",
+            "0 68 capture",
+            "0 68 capture",
         ]
         json.loads(encode_line(telemetry))
     finally:

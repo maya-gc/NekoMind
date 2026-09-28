@@ -52,8 +52,11 @@ def run_serial(port, bridge, stop, *, heartbeat_timeout=8.0):
                 # comeca depois da resposta, nao antes do trabalho bloqueante.
                 last_seen = monotonic()
                 if trace:
-                    logger.info("Serial respondeu %s em %.2fs", message.get("command"),
-                                last_seen - handle_started)
+                    logger.info(
+                        "Serial respondeu %s em %.2fs",
+                        message.get("command"),
+                        last_seen - handle_started,
+                    )
             bridge.check_capture()
             tick = getattr(bridge, "tick", None)
             if tick is not None:

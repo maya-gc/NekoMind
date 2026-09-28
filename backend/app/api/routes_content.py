@@ -1,0 +1,121 @@
+"""Operator-only local reference content library."""
+
+from __future__ import annotations
+
+import json
+from datetime import UTC, datetime
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from app.database.connection import get_db
+from app.database.models import ReferenceContent
+from app.database.operations import Experience
+from app.services.content_matching import derive_points, validate_points
+
+router = APIRouter(prefix="/api/v1/contents", tags=["contents"])
+
+
+class ContentInput(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    text: str = Field(min_length=1, max_length=50000)
+    language: Literal["pt"] = "pt"
+    source: Literal["typed", "txt", "md"] = "typed"
+    points: list[str] | None = None
+    fair_available: bool = False
+
+
+def _view(row):
+    return {
+        "id": row.id,
+        "title": row.title,
+        "text": row.text,
+        "language": row.language,
+        "source": row.source,
+        "version": row.version,
+        "points": json.loads(row.points_json),
+        "fair_available": row.fair_available,
+        "created_at": row.created_at,
+        "updated_at": row.updated_at,
+    }
+
+
+def _apply(row, payload):
+    if not payload.title.strip() or not payload.text.strip():
+        raise HTTPException(422, "Titulo e texto obrigatorios")
+    points = payload.points if payload.points is not None else derive_points(payload.text)
+    try:
+        points = validate_points(payload.text, points)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    row.title, row.text, row.language, row.source = (
+        payload.title.strip(),
+        payload.text.strip(),
+        payload.language,
+        payload.source,
+    )
+    row.points_json = json.dumps(points, ensure_ascii=False)
+    row.fair_available = payload.fair_available
+
+
+@router.post("", status_code=201)
+def create_content(payload: ContentInput, db: Session = Depends(get_db)):
+    row = ReferenceContent()
+    _apply(row, payload)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return _view(row)
+
+
+@router.get("")
+def list_contents(db: Session = Depends(get_db)):
+    return [
+        {
+            "id": row.id,
+            "title": row.title,
+            "version": row.version,
+            "fair_available": row.fair_available,
+        }
+        for row in db.query(ReferenceContent).order_by(ReferenceContent.id).all()
+    ]
+
+
+@router.get("/{content_id}")
+def get_content(content_id: int, db: Session = Depends(get_db)):
+    row = db.get(ReferenceContent, content_id)
+    if row is None:
+        raise HTTPException(404, "Conteudo nao encontrado")
+    return _view(row)
+
+
+@router.put("/{content_id}")
+def update_content(content_id: int, payload: ContentInput, db: Session = Depends(get_db)):
+    row = db.get(ReferenceContent, content_id)
+    if row is None:
+        raise HTTPException(404, "Conteudo nao encontrado")
+    _apply(row, payload)
+    row.version += 1
+    row.updated_at = datetime.now(UTC)
+    db.commit()
+    return _view(row)
+
+
+@router.delete("/{content_id}")
+def delete_content(content_id: int, db: Session = Depends(get_db)):
+    db.execute(text("BEGIN IMMEDIATE"))
+    row = db.get(ReferenceContent, content_id)
+    if row is None:
+        raise HTTPException(404, "Conteudo nao encontrado")
+    db.delete(row)
+    experience = db.get(Experience, 1)
+    if experience is not None:
+        state = json.loads(experience.payload or "{}")
+        if state.get("selected_content_id") == content_id:
+            state["selected_content_id"] = None
+            experience.payload = json.dumps(state, ensure_ascii=False)
+    db.commit()
+    return {"deleted": True}

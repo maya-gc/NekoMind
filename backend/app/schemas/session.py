@@ -16,6 +16,7 @@ class SessionCreate(BaseModel):
     request_id: str | None = Field(default=None, max_length=100)
     capture_source: str | None = Field(default=None, max_length=80)
     device_session_id: str | None = Field(default=None, max_length=100)
+    reference_content_id: int | None = Field(default=None, gt=0)
 
 
 class SessionFinish(BaseModel):
@@ -78,6 +79,18 @@ class SessionOut(BaseModel):
     metric_method_version: str = "heuristic-v1"
     journey: dict = Field(default_factory=dict)
     deletion_pending: bool = False
+    reference_content_id: int | None = None
+    reference_version: int | None = None
+    content_report: dict | None = None
+
+    @field_validator("content_report", mode="before")
+    @classmethod
+    def _coerce_report(cls, value: object) -> dict | None:
+        if isinstance(value, str):
+            import json
+
+            return json.loads(value)
+        return value
 
     @field_validator("status", mode="before")
     @classmethod

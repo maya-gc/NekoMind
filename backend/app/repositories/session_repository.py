@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -25,6 +27,7 @@ class SessionRepository:
         request_id: str | None = None,
         capture_source: str | None = None,
         device_session_id: str | None = None,
+        reference_snapshot: dict | None = None,
     ) -> StudySession:
         if self.db.get_bind().dialect.name == "sqlite":
             # Reserve the writer before selecting a new identity. Separate
@@ -49,6 +52,11 @@ class SessionRepository:
             topic_provider_config=settings.llm_provider,
             mode=mode,
             is_demo=mode != "real",
+            reference_content_id=reference_snapshot["id"] if reference_snapshot else None,
+            reference_version=reference_snapshot["version"] if reference_snapshot else None,
+            reference_snapshot_json=(
+                json.dumps(reference_snapshot, ensure_ascii=False) if reference_snapshot else None
+            ),
         )
         self.db.add(session)
         try:

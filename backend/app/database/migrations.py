@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-SESSION_MIGRATION_VERSION = "20260911_nm019_backend_lifecycle"
+SESSION_MIGRATION_VERSION = "20260928_nm020_guided_content"
 SESSION_TOMBSTONE_MIGRATION_VERSION = "20260911_session_delete_tombstones"
 
 STUDY_SESSION_ADDITIVE_COLUMNS = {
@@ -26,6 +26,10 @@ STUDY_SESSION_ADDITIVE_COLUMNS = {
     "metric_method_version": "VARCHAR(40) DEFAULT 'heuristic-v1' NOT NULL",
     "journey_json": "TEXT DEFAULT '{}' NOT NULL",
     "deletion_pending": "BOOLEAN DEFAULT 0 NOT NULL",
+    "reference_content_id": "INTEGER",
+    "reference_version": "INTEGER",
+    "reference_snapshot_json": "TEXT",
+    "content_report_json": "TEXT",
 }
 
 DELETED_SESSION_TOMBSTONE_TABLE_SQL = """

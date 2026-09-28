@@ -10,7 +10,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database.connection import get_db
-from app.database.models import SessionStatus, StudySession
+from app.database.models import ReferenceContent, SessionStatus, StudySession
 from app.repositories.session_repository import SessionRepository, TombstonedSessionRequestError
 from app.repositories.topic_repository import TopicRepository
 from app.schemas.metrics import DashboardSummary
@@ -43,12 +43,31 @@ def create_session(payload: SessionCreate, db: Session = Depends(get_db)):
             )
         if existing is not None:
             return existing
+    reference = None
+    if payload.reference_content_id is not None:
+        reference = db.get(ReferenceContent, payload.reference_content_id)
+        if reference is None:
+            raise HTTPException(404, "Conteudo de referencia nao encontrado")
+    reference_snapshot = None
+    if reference is not None:
+        import json
+
+        reference_snapshot = {
+            "id": reference.id,
+            "title": reference.title,
+            "text": reference.text,
+            "language": reference.language,
+            "version": reference.version,
+            "points": json.loads(reference.points_json),
+            "source": reference.source,
+        }
     try:
         session = repo.create(
             title=payload.title,
             request_id=payload.request_id,
             capture_source=payload.capture_source,
             device_session_id=payload.device_session_id,
+            reference_snapshot=reference_snapshot,
         )
     except TombstonedSessionRequestError as exc:
         raise HTTPException(410, "Sessao excluida; use uma nova tentativa.") from exc
@@ -63,6 +82,7 @@ def _start_conflicts(session: StudySession, payload: SessionCreate) -> bool:
             session.title != payload.title,
             session.capture_source != payload.capture_source,
             session.device_session_id != payload.device_session_id,
+            session.reference_content_id != payload.reference_content_id,
         )
     )
 
@@ -78,6 +98,18 @@ def get_session(session_id: int, db: Session = Depends(get_db)):
     if session is None:
         raise HTTPException(status_code=404, detail="Sessao nao encontrada")
     return session
+
+
+@router.get("/sessions/{session_id}/reference")
+def get_session_reference(session_id: int, db: Session = Depends(get_db)):
+    import json
+
+    session = db.get(StudySession, session_id)
+    if session is None:
+        raise HTTPException(404, "Sessao nao encontrada")
+    if not session.reference_snapshot_json:
+        return {"reference": None}
+    return {"reference": json.loads(session.reference_snapshot_json)}
 
 
 @router.post("/sessions/{session_id}/capture-state", response_model=SessionOut)

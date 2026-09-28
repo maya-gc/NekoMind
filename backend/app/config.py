@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     mac_data_dir: Path | None = None
     fair_idle_seconds: int = Field(default=90, ge=15, le=3600)
     bridge_timeout_seconds: int = Field(default=8, ge=3, le=60)
+    guided_live_enabled: bool = True
+    guided_partial_interval_seconds: float = Field(default=6.0, ge=3.0, le=30.0)
+    guided_window_seconds: float = Field(default=12.0, ge=6.0, le=30.0)
+    guided_serial_max_hz: float = Field(default=0.5, ge=0.1, le=2.0)
 
     @property
     def mac_directory(self) -> Path:

@@ -39,16 +39,25 @@ class LocalBackend:
         data.setdefault("topic_provider", data.get("topic_provider_used"))
         return data
 
-    def create(self, rid, *, is_demo=False):
+    def create(self, rid, *, is_demo=False, reference_content_id=None):
         capture_source = "synthetic" if is_demo else "mac_microphone"
+        payload = {"request_id": rid, "title": "Sessao touch", "capture_source": capture_source}
+        if reference_content_id is not None:
+            payload["reference_content_id"] = reference_content_id
         return self._request(
             "POST",
             "/api/v1/sessions",
-            json={"request_id": rid, "title": "Sessao touch", "capture_source": capture_source},
+            json=payload,
         )
 
     def get(self, sid):
         return self._with_trend(self._request("GET", f"/api/v1/sessions/{sid}"))
+
+    def reference(self, sid):
+        return self._request("GET", f"/api/v1/sessions/{sid}/reference").get("reference")
+
+    def selected_content(self):
+        return self._request("GET", "/api/v1/experience/selection").get("selected_content_id")
 
     def _with_trend(self, row):
         if (

@@ -72,6 +72,17 @@ class FasterWhisperAdapter(ASRAdapter):
             segments, _info = model.transcribe(str(audio_path), language="pt", vad_filter=True)
             return " ".join(seg.text.strip() for seg in segments).strip()
 
+    def transcribe_pcm(self, pcm: bytes) -> str:
+        """Provisional ASR from a bounded 16 kHz mono PCM window, without a file."""
+        if not pcm or len(pcm) % 2:
+            raise ValueError("Janela PCM invalida")
+        import numpy as np
+
+        samples = np.frombuffer(pcm, dtype="<i2").astype("float32") / 32768.0
+        with _model_lock:
+            segments, _info = self._load().transcribe(samples, language="pt", vad_filter=True)
+            return " ".join(seg.text.strip() for seg in segments).strip()
+
     def _load(self):
         key = (self.model_size, self.device, self.compute_type)
         with _model_lock:

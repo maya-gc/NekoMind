@@ -107,8 +107,9 @@ def test_serial_partial_frames_and_disconnect_watchdog():
 
 
 def test_slow_capture_ack_does_not_trigger_immediate_disconnect():
-    from app.mac.serial_loop import run_serial
     import serial
+
+    from app.mac.serial_loop import run_serial
 
     master, slave = pty.openpty()
     stop = threading.Event()
@@ -141,14 +142,23 @@ def test_slow_capture_ack_does_not_trigger_immediate_disconnect():
     try:
         with serial.Serial(os.ttyname(slave), 115200, timeout=0.02) as port:
             thread = threading.Thread(
-                target=run_serial, args=(port, bridge, stop),
+                target=run_serial,
+                args=(port, bridge, stop),
                 kwargs={"heartbeat_timeout": 0.06},
             )
             thread.start()
-            os.write(master, encode_line({
-                "v": 1, "type": "command", "request_id": "slow-1",
-                "command": "start", "session_id": None,
-            }))
+            os.write(
+                master,
+                encode_line(
+                    {
+                        "v": 1,
+                        "type": "command",
+                        "request_id": "slow-1",
+                        "command": "start",
+                        "session_id": None,
+                    }
+                ),
+            )
             thread.join(2)
             assert not thread.is_alive()
             assert bridge.disconnections == 1  # somente o teardown, nao o watchdog

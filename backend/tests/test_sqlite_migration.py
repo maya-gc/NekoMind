@@ -57,7 +57,12 @@ def test_migrate_sqlite_schema_adds_mvp_columns_to_existing_database(tmp_path) -
         "metric_method_version",
         "journey_json",
         "deletion_pending",
+        "reference_content_id",
+        "reference_version",
+        "reference_snapshot_json",
+        "content_report_json",
     } <= columns
+    assert "reference_contents" in inspect(engine).get_table_names()
 
     with engine.connect() as conn:
         preserved = conn.execute(text("SELECT title, status FROM study_sessions")).first()

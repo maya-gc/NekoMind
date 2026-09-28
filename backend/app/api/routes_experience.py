@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database.connection import get_db
-from app.database.models import StudySession
+from app.database.models import ReferenceContent, StudySession
 from app.database.operations import Experience, OperatorCommand
 from app.security import require_operator
 
@@ -46,12 +46,21 @@ class Voice(StrictModel):
     quality: Literal["ok", "low", "clipping", "unknown", "noise"] = "unknown"
 
 
+class ContentPulse(StrictModel):
+    status: Literal["covered", "partial", "not_mentioned", "possible_divergence", "unavailable"]
+    expression: Literal["happy", "content", "thinking", "concerned", "sad"]
+    coverage_percent: StrictInt = Field(ge=0, le=100)
+    origin: Literal["real", "demo"]
+    seq: StrictInt = Field(ge=1)
+
+
 class BridgeUpdate(StrictModel):
     session_id: StrictInt | None = Field(default=None, gt=0)
     state: State
     is_demo: StrictBool
     diagnostics: list[Component] = Field(default_factory=list, max_length=12)
     voice: Voice | None = None
+    content: ContentPulse | None = None
     calibration: dict | None = None
     error_code: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{0,63}$")
 
@@ -103,6 +112,8 @@ def _load(db: Session, *, create=True) -> tuple[Experience, dict]:
         "calibration": None,
         "closed": [],
         "error_code": None,
+        "selected_content_id": None,
+        "content": None,
     }
     return row, {**defaults, **state}
 
@@ -197,8 +208,24 @@ def publish_bridge(payload: BridgeUpdate, db: Session = Depends(get_db)):
         session is None or _status(session) != payload.state
     ):
         raise HTTPException(409, "Captura nao reconciliada com a sessao.")
+    if payload.content and (
+        session is None
+        or session.reference_content_id is None
+        or payload.is_demo != session.is_demo
+        or payload.content.origin != ("demo" if session.is_demo else "real")
+        or payload.state != "recording"
+    ):
+        raise HTTPException(422, "Batimento nao pertence a esta sessao guiada.")
     if payload.state != state["state"] or sid != state["session_id"]:
         state["activity"] = time.time()
+    previous_content = state.get("content") if sid == state["session_id"] else None
+    content = (
+        payload.content.model_dump()
+        if payload.content and payload.state == "recording" and sid
+        else None
+    )
+    if content and previous_content and content["seq"] <= previous_content.get("seq", 0):
+        content = previous_content
     state.update(
         session_id=sid,
         state=payload.state,
@@ -209,10 +236,15 @@ def publish_bridge(payload: BridgeUpdate, db: Session = Depends(get_db)):
         voice=payload.voice.model_dump()
         if payload.voice and payload.state == "recording"
         else None,
+        content=content,
     )
     _schedule_fair_reset(db, state)
     _save(db, record, state)
-    return {"accepted": True, "generation": state["generation"]}
+    return {
+        "accepted": True,
+        "generation": state["generation"],
+        "selected_content_id": state.get("selected_content_id"),
+    }
 
 
 def _schedule_fair_reset(db, state):
@@ -274,6 +306,7 @@ def _snapshot(db, *, private=False):
                     "trend": None,
                     "asr_provider": session.asr_provider_used,
                     "topic_provider": session.topic_provider_used,
+                    "content_report": session.content_report,
                 }
                 if getattr(session, "subject_confirmed", False) and result["subject"]:
                     from app.services.session_lifecycle import subject_history
@@ -328,6 +361,7 @@ def _snapshot(db, *, private=False):
         else _public_diagnostics(state["diagnostics"]),
         "journey": _public_journey(journey),
         "voice": state["voice"] if effective == "recording" else None,
+        "content": state.get("content") if effective == "recording" else None,
         "result": result,
         "error": error,
         "recovery": effective == "recovery",
@@ -337,6 +371,7 @@ def _snapshot(db, *, private=False):
         "bridge_connected": connected,
     }
     if private:
+        out["selected_content_id"] = state.get("selected_content_id")
         out["available_actions"] = [
             "diagnose",
             "calibrate",
@@ -352,6 +387,41 @@ def _snapshot(db, *, private=False):
             )
         ]
     return out
+
+
+class ContentSelection(StrictModel):
+    content_id: StrictInt | None = Field(default=None, gt=0)
+
+
+@router.get("/selection", dependencies=[Depends(require_operator)])
+def current_selection(db: Session = Depends(get_db)):
+    _, state = _load(db, create=False)
+    return {"selected_content_id": state.get("selected_content_id")}
+
+
+@router.put("/selection", dependencies=[Depends(require_operator)])
+def select_content(payload: ContentSelection, db: Session = Depends(get_db)):
+    _transaction(db)
+    record, state = _load(db)
+    if state.get("selected_content_id") == payload.content_id:
+        db.rollback()
+        return {"selected_content_id": payload.content_id}
+    if (
+        state["state"] in {"recording", "paused", "processing"}
+        or db.query(StudySession.id)
+        .filter(
+            StudySession.status.in_(["recording", "paused", "processing"]),
+            StudySession.deletion_pending.is_(False),
+        )
+        .first()
+        is not None
+    ):
+        raise HTTPException(409, "Selecione o conteudo antes da sessao")
+    if payload.content_id is not None and db.get(ReferenceContent, payload.content_id) is None:
+        raise HTTPException(404, "Conteudo nao encontrado")
+    state["selected_content_id"] = payload.content_id
+    _save(db, record, state)
+    return {"selected_content_id": payload.content_id}
 
 
 def _result_evidence(session, journey):

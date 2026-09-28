@@ -55,7 +55,7 @@ def migrate_sqlite_schema(target_engine: Engine = engine) -> None:
     columns = {column["name"] for column in inspector.get_columns("study_sessions")}
     additions = STUDY_SESSION_ADDITIVE_COLUMNS
     missing = [name for name in additions if name not in columns]
-    if missing:
+    if missing or "reference_contents" not in inspector.get_table_names():
         _backup_sqlite_file(target_engine)
     with target_engine.begin() as conn:
         conn.execute(

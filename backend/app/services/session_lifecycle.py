@@ -409,6 +409,14 @@ def _history_point(db: Session, session: StudySession) -> dict:
         "clarity_score": session.clarity_score,
         "topic_count": metrics.get("topic_count", float(len(topics))),
         "topics": topics,
+        "content_report": {
+            "content_id": session.content_report["content_id"],
+            "content_version": session.content_report["content_version"],
+            "coverage_percent": session.content_report["coverage_percent"],
+            "method_version": session.content_report["method_version"],
+        }
+        if session.content_report
+        else None,
     }
 
 

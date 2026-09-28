@@ -92,3 +92,12 @@ def validate_result(row: dict, session_id: int) -> None:
             or not topic["name"].strip()
         ):
             raise ValueError("invalid_topic")
+    report = row.get("content_report")
+    if report is not None and (
+        not isinstance(report, dict)
+        or report.get("content_id") != row.get("reference_content_id")
+        or report.get("content_version") != row.get("reference_version")
+        or report.get("origin") != ("demo" if row["is_demo"] else "real")
+        or not isinstance(report.get("points"), list)
+    ):
+        raise ValueError("invalid_content_report")

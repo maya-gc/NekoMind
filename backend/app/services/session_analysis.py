@@ -203,6 +203,41 @@ def _analyze_session_claimed(
         session.metric_method_version = "heuristic-v1"
         session.is_demo = session.mode == "demo" or transcript_is_demo or topic_result.is_demo
         session.analysis_origin = "demo" if session.is_demo else "real"
+        if session.reference_snapshot_json:
+            from app.services.content_matching import report
+
+            snapshot = json.loads(session.reference_snapshot_json)
+            session.content_report_json = json.dumps(
+                report(
+                    snapshot,
+                    transcript_text,
+                    duration=duration,
+                    is_demo=session.is_demo,
+                    stages={
+                        "capture": {
+                            "provider": session.capture_source,
+                            "origin": "demo"
+                            if session.capture_source == "synthetic" or session.mode == "demo"
+                            else "real"
+                            if session.capture_source == "mac_microphone"
+                            else "unknown",
+                        },
+                        "transcription": {
+                            "provider": transcript_provider,
+                            "origin": "demo" if transcript_is_demo else "real",
+                        },
+                        "topics": {
+                            "provider": topic_result.provider,
+                            "origin": "demo" if topic_result.is_demo else "real",
+                        },
+                        "matching": {
+                            "provider": "lexical-pt-v1",
+                            "origin": "demo" if session.is_demo else "real",
+                        },
+                    },
+                ),
+                ensure_ascii=False,
+            )
         journey.save_step(
             session,
             "result",

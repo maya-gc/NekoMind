@@ -81,6 +81,10 @@ class StudySession(Base):
     metric_method_version: Mapped[str] = mapped_column(String(40), default="heuristic-v1")
     journey_json: Mapped[str] = mapped_column(Text, default="{}")
     deletion_pending: Mapped[bool] = mapped_column(default=False)
+    reference_content_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reference_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reference_snapshot_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content_report_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     topics: Mapped[list[Topic]] = relationship(
         back_populates="session", cascade="all, delete-orphan"
@@ -99,6 +103,16 @@ class StudySession(Base):
         except json.JSONDecodeError:
             return {}
         return value if isinstance(value, dict) else {}
+
+    @property
+    def content_report(self) -> dict | None:
+        if not self.content_report_json:
+            return None
+        try:
+            value = json.loads(self.content_report_json)
+        except (TypeError, ValueError):
+            return None
+        return value if isinstance(value, dict) else None
 
 
 class Topic(Base):
@@ -150,6 +164,21 @@ class DeletedSessionTombstone(Base):
     deleted_at: Mapped[datetime] = mapped_column(
         DateTime, default=utcnow, server_default=text("CURRENT_TIMESTAMP")
     )
+
+
+class ReferenceContent(Base):
+    __tablename__ = "reference_contents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(200))
+    text: Mapped[str] = mapped_column(Text)
+    language: Mapped[str] = mapped_column(String(16), default="pt")
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    source: Mapped[str] = mapped_column(String(16), default="typed")
+    points_json: Mapped[str] = mapped_column(Text, default="[]")
+    fair_available: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 event.listen(

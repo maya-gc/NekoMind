@@ -11,7 +11,14 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.adapters.asr_adapter import clear_asr_cache
-from app.api import routes_audio, routes_experience, routes_health, routes_sessions, websocket
+from app.api import (
+    routes_audio,
+    routes_content,
+    routes_experience,
+    routes_health,
+    routes_sessions,
+    websocket,
+)
 from app.config import get_settings
 from app.database.connection import init_db
 from app.security import operator_token, require_operator
@@ -51,6 +58,7 @@ app.add_middleware(
 
 app.include_router(routes_health.router)
 app.include_router(routes_sessions.router, dependencies=[Depends(require_operator)])
+app.include_router(routes_content.router, dependencies=[Depends(require_operator)])
 app.include_router(routes_audio.router, dependencies=[Depends(require_operator)])
 app.include_router(routes_experience.router)
 app.include_router(websocket.router)

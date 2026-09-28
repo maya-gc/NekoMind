@@ -9,7 +9,10 @@ from queue import Empty, SimpleQueue
 from threading import RLock
 from time import monotonic
 
+from app.config import get_settings
+from app.mac.partials import PartialTranscriber
 from app.mac.protocol import Command, validate_result
+from app.services.content_matching import match_point, reference_synonyms
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +67,14 @@ class MacBridge:
         self.last_voice_event = 0.0
         self.ops_future = None
         self.serial_connected = False
+        self.selected_content_id = None
+        self.guided_snapshot = None
+        self.partial = None
+        self.live_matches = []
+        self.live_sequence = 0
+        self.last_live_frame = 0.0
+        self.live_summary = None
+        self.guided_started_at = 0.0
         if self.state in {"recording", "paused"}:
             self.state, self.code = "recovery", "interrupted"
             self._save_active()
@@ -127,6 +138,9 @@ class MacBridge:
             "voice": voice if self.state == "recording" else None,
             "calibration": dict(self.calibration) if self.calibration is not None else None,
             "error_code": self.code,
+            "content": dict(self.live_summary)
+            if self.state == "recording" and self.live_summary
+            else None,
         }
         return snapshot
 
@@ -199,6 +213,14 @@ class MacBridge:
             if self.demo
             else "Funcionou! Voz captada e processada.",
         }
+        report = row.get("content_report")
+        if isinstance(report, dict) and report.get("content_id") == row.get("reference_content_id"):
+            response["summary"] = shorten(
+                f"{'Demo guiada' if self.demo else 'Conteudo guiado'}: "
+                f"{report.get('coverage_percent', 0)}% dos pontos mencionados; "
+                "nao comprova acerto.",
+                220,
+            )
         if row.get("duration_seconds") is not None:
             response["duration_seconds"] = round(float(row["duration_seconds"]))
         if row.get("subject"):
@@ -282,6 +304,7 @@ class MacBridge:
             return self._remember(rid, self._error(rid, "invalid_state"))
         try:
             if cmd.command == "pause" and self.state == "recording":
+                self._stop_partials()
                 self.recorder.pause()
                 self._confirm_capture("paused")
                 self.state = "paused"
@@ -289,7 +312,12 @@ class MacBridge:
                 self.recorder.resume()
                 self._confirm_capture("recording")
                 self.state = "recording"
+                self._start_partials()
             elif cmd.command == "finish" and self.state in {"recording", "paused"}:
+                self._stop_partials()
+                self.live_matches = []
+                self.live_summary = None
+                self.guided_snapshot = None
                 path = self.recorder.finish()
                 self.state = "processing"
                 self._save_active()
@@ -366,11 +394,23 @@ class MacBridge:
             except Exception:  # noqa: BLE001 - do not start two active sessions
                 return self._remember(rid, self._error(rid, "backend_unavailable"))
         try:
+            selection_getter = getattr(self.backend, "selected_content", None)
+            if selection_getter is not None:
+                self.selected_content_id = selection_getter()
             try:
-                row = self.backend.create(
-                    rid, is_demo=bool(getattr(self.recorder, "is_demo", False))
-                )
+                if self.selected_content_id is None:
+                    row = self.backend.create(
+                        rid, is_demo=bool(getattr(self.recorder, "is_demo", False))
+                    )
+                else:
+                    row = self.backend.create(
+                        rid,
+                        is_demo=bool(getattr(self.recorder, "is_demo", False)),
+                        reference_content_id=self.selected_content_id,
+                    )
             except TypeError:
+                if self.selected_content_id is not None:
+                    raise
                 row = self.backend.create(rid)
         except Exception:  # noqa: BLE001
             return self._remember(rid, self._error(rid, "backend_unavailable"))
@@ -391,6 +431,19 @@ class MacBridge:
             self.recorder.start(self.sid)
             self._confirm_capture("recording")
             self.state = "recording"
+            self.guided_snapshot = None
+            self.live_matches = []
+            self.live_summary = None
+            self.guided_started_at = monotonic()
+            if row.get("reference_content_id") and not self.demo:
+                try:
+                    self.guided_snapshot = self.backend.reference(self.sid)
+                except Exception:  # noqa: BLE001 - optional feedback must not block capture
+                    self.guided_snapshot = None
+                if self.guided_snapshot is None:
+                    self._set_content_unavailable()
+                else:
+                    self._start_partials()
             self._save_active()
         except Exception:  # noqa: BLE001
             self.recorder.abort()
@@ -400,6 +453,10 @@ class MacBridge:
 
     def _cancel_or_reset(self, command):
         self.epoch += 1
+        self._stop_partials()
+        self.guided_snapshot = None
+        self.live_matches = []
+        self.live_summary = None
         self.recorder.abort()
         if self.sid is not None and (
             command in {"discard", "cancel"} or self.state not in {"completed", "idle", "ready"}
@@ -660,11 +717,13 @@ class MacBridge:
                 try:
                     self.recorder.check()
                 except Exception:  # noqa: BLE001
+                    self._stop_partials()
                     self.recorder.abort()
                     self._fail("capture_failed")
 
     def disconnect(self):
         with self.lock:
+            self._stop_partials()
             if self.state in {"recording", "paused"}:
                 self.recorder.abort()
                 self.state, self.code = "recovery", "disconnected"
@@ -722,7 +781,11 @@ class MacBridge:
                 snapshot = self._ops_snapshot()
             if state == "recording" and sid is not None:
                 self._upload_available(sid)
-            self.backend.publish(snapshot)
+            published = self.backend.publish(snapshot)
+            if isinstance(published, dict):
+                selected = published.get("selected_content_id")
+                if selected is None or type(selected) is int and selected > 0:
+                    self.selected_content_id = selected
             if sid and state == "processing":
                 row = self.backend.get(sid)
                 saved = row.get("journey") or {}
@@ -747,7 +810,120 @@ class MacBridge:
             logger.warning("Operacoes do bridge indisponiveis; mantendo captura local.")
 
     def close(self):
+        self._stop_partials()
         self.disconnect()
         self.pool.shutdown(wait=True)
         self.ops_pool.shutdown(wait=True)
         self.db.close()
+
+    def _stop_partials(self):
+        self.recorder.partial_sink = None
+        partial, self.partial = self.partial, None
+        if partial is not None:
+            partial.stop()
+
+    def _start_partials(self):
+        if not self.guided_snapshot or not get_settings().guided_live_enabled or self.demo:
+            return
+        try:
+            from app.adapters.asr_adapter import get_asr_adapter
+
+            settings = get_settings()
+            if settings.asr_provider != "faster_whisper":
+                return
+            adapter = get_asr_adapter(
+                settings.asr_provider,
+                settings.asr_model_size,
+                settings.asr_device,
+                settings.asr_compute_type,
+            )
+            epoch, sid = self.epoch, self.sid
+            worker = PartialTranscriber(
+                adapter,
+                lambda text, latency: self._on_partial(epoch, sid, text, latency),
+                interval_seconds=settings.guided_partial_interval_seconds,
+                window_seconds=settings.guided_window_seconds,
+            )
+            self.partial = worker
+            self.recorder.partial_sink = worker
+            worker.start()
+        except Exception:  # noqa: BLE001 - optional feedback must not stop recording
+            self._stop_partials()
+            self._set_content_unavailable()
+
+    def _set_content_unavailable(self):
+        self.live_sequence += 1
+        self.live_summary = {
+            "status": "unavailable",
+            "expression": "thinking",
+            "coverage_percent": 0,
+            "origin": "real",
+            "seq": self.live_sequence,
+        }
+        if self.event_rid and self.event_rid.startswith("c2-"):
+            self.events.put({**self._base(self.event_rid, "content"), **self.live_summary})
+
+    def _on_partial(self, epoch, sid, text, latency):
+        with self.lock:
+            if epoch != self.epoch or sid != self.sid or self.state != "recording":
+                return
+            if text is None:
+                self._set_content_unavailable()
+                return
+            if (
+                not text.strip()
+                or self._voice()
+                and self._voice().get("quality") in {"low", "clipping"}
+            ):
+                return
+            try:
+                points = self.guided_snapshot.get("points", [])
+                synonyms = reference_synonyms(self.guided_snapshot.get("text", ""))
+                fresh = [match_point(point, text, synonyms=synonyms) for point in points]
+            except Exception:  # noqa: BLE001 - optional matcher must degrade safely
+                self._set_content_unavailable()
+                return
+            if not self.live_matches:
+                self.live_matches = fresh
+            else:
+                rank = {"not_mentioned": 0, "partial": 1, "covered": 2, "possible_divergence": 3}
+                self.live_matches = [
+                    new if rank[new.status] > rank[old.status] else old
+                    for old, new in zip(self.live_matches, fresh)
+                ]
+            covered = sum(m.status == "covered" for m in self.live_matches)
+            partial = sum(m.status == "partial" for m in self.live_matches)
+            divergent = any(m.status == "possible_divergence" for m in self.live_matches)
+            expression = (
+                "sad"
+                if divergent
+                else "happy"
+                if covered
+                else "content"
+                if partial
+                else "concerned"
+                if monotonic() - self.guided_started_at >= 30
+                else "thinking"
+            )
+            self.live_sequence += 1
+            self.live_summary = {
+                "status": "possible_divergence"
+                if divergent
+                else "covered"
+                if covered
+                else "partial"
+                if partial
+                else "not_mentioned",
+                "expression": expression,
+                "coverage_percent": round(100 * covered / len(points)) if points else 0,
+                "origin": "real",
+                "seq": self.live_sequence,
+            }
+            now = monotonic()
+            if (
+                self.event_rid
+                and self.event_rid.startswith("c2-")
+                and now - self.last_live_frame >= 1.0 / get_settings().guided_serial_max_hz
+            ):
+                self.last_live_frame = now
+                self.events.put({**self._base(self.event_rid, "content"), **self.live_summary})

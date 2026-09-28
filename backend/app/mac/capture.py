@@ -31,6 +31,7 @@ class MacRecorder:
         self._voice = {"level": 0, "clipping": False, "quality": "unknown"}
         self._voice_window = deque(maxlen=8)
         self.paused = False
+        self.partial_sink = None
         self.calibration = self._load_calibration()
 
     def _callback(self, data, frames, time_info, status):
@@ -75,6 +76,9 @@ class MacRecorder:
             self.queue.put_nowait(bytes(data))
         except Full:
             self.error = "capture_storage_slow"
+        sink = self.partial_sink
+        if sink is not None:
+            sink.offer(bytes(data))
 
     def voice(self):
         if self.writer is None or self.stream is None or self.paused:
