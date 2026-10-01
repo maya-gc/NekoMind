@@ -116,3 +116,14 @@ aviso; não atribuir erro ao visitante. Se o modelo ASR não estiver pronto,
 voltar ao modo livre/demo identificado, sem simular resultado real. Para testar
 fala espontânea sem texto, selecionar **Modo livre** antes da próxima sessão.
 Não mudar a seleção durante uma sessão em andamento.
+
+Para um briefing novo, o painel do Mac agora mostra só **1. Adicione o contexto**
+e **2. Confira e use**. Cole texto e toque **Analisar briefing com IA local**,
+ou escolha PDF/TXT/MD ou cole uma URL pública para iniciar a análise local após
+o carregamento. Revise título, texto e pontos. Toque **Salvar e usar na próxima
+sessão**; confira o nome no cartão **Próxima sessão** antes de chamar a pessoa ao
+display. Histórico, modo feira/normal, diagnóstico e comandos de manutenção
+ficam em **Ferramentas do operador**. PDF escaneado, URL que exige login ou
+modelo Ollama indisponível podem exigir correção no Mac; não apresente uma
+prévia sem pontos como análise concluída. A análise do briefing escolhe trechos
+do material; o batimento com a fala continua lexical e não avalia domínio.

@@ -11,11 +11,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.database.connection import get_db
 from app.database.models import ReferenceContent
 from app.database.operations import Experience
-from app.services.content_matching import derive_points, validate_points
+from app.services.briefing_ai import BriefingAIError, analyze_briefing
+from app.services.content_matching import derive_points, suggest_review_points, validate_points
 from app.services.pdf_import import MAX_PDF_BYTES, PdfImportError, extract_pdf
+from app.services.site_import import SiteImportError, import_site
 
 router = APIRouter(prefix="/api/v1/contents", tags=["contents"])
 
@@ -24,9 +27,17 @@ class ContentInput(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     text: str = Field(min_length=1, max_length=50000)
     language: Literal["pt"] = "pt"
-    source: Literal["typed", "txt", "md", "pdf"] = "typed"
+    source: Literal["typed", "txt", "md", "pdf", "url"] = "typed"
     points: list[str] | None = None
     fair_available: bool = False
+
+
+class UrlInput(BaseModel):
+    url: str = Field(min_length=8, max_length=2048)
+
+
+class TextPreviewInput(BaseModel):
+    text: str = Field(min_length=1, max_length=50000)
 
 
 def _view(row):
@@ -77,6 +88,31 @@ async def import_pdf(file: UploadFile = File(...)):
             raise HTTPException(422, str(exc)) from exc
     finally:
         await file.close()
+
+
+@router.post("/import-url")
+def import_url(payload: UrlInput):
+    """Fetch public page text, returning an editable preview only."""
+    try:
+        return import_site(payload.url)
+    except SiteImportError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@router.post("/prepare-text")
+def prepare_text(payload: TextPreviewInput):
+    """Suggest verbatim points for pasted prose; no model or remote call."""
+    if not payload.text.strip():
+        raise HTTPException(422, "Cole um texto antes de preparar o briefing.")
+    return {"text": payload.text.strip(), "points": suggest_review_points(payload.text)}
+
+
+@router.post("/analyze-briefing")
+def analyze_reference_briefing(payload: TextPreviewInput):
+    try:
+        return analyze_briefing(payload.text, get_settings().briefing_model)
+    except BriefingAIError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 @router.post("", status_code=201)

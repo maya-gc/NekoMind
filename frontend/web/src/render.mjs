@@ -75,90 +75,70 @@ export function renderPublic(snapshot) {
 }
 
 export function renderPresenter(snapshot, options = {}) {
-  const tokenState = options.hasToken ? "token em memória" : "informe token local";
+  const selected = (options.contents || []).find((item) => item.id === snapshot.selected_content_id);
+  if (!options.hasToken) return `
+    <section class="presenter-console presenter-simple" data-view="presenter">
+      <header class="presenter-header"><div><span class="presenter-eyebrow">NEKOMIND</span><h1>Prepare a apresentação</h1></div></header>
+      <section class="presenter-auth-card">
+        <h2>Entre no painel do Mac</h2>
+        <p>Use o token local para preparar o contexto da próxima sessão. Informe o token para consultar recuperações.</p>
+        <div class="token-panel" data-token-state="missing">
+          <label for="presenter-token">Token local</label>
+          <input id="presenter-token" name="presenter-token" type="password" autocomplete="off" placeholder="Cole o token aqui" />
+          <button type="button" data-token-submit>Entrar</button>
+        </div>
+      </section>
+      <p class="presenter-public-link"><a href="/public">Ver a tela que o público acompanha →</a></p>
+    </section>`;
   return `
-    <section class="presenter-console state-${escapeAttr(snapshot.state)}" data-view="presenter">
+    <section class="presenter-console presenter-simple state-${escapeAttr(snapshot.state)}" data-view="presenter">
       <header class="presenter-header">
         <div>
-          <h1>NekoMind operador</h1>
-          <p>${escapeHtml(tokenState)} · sessão ${escapeHtml(snapshot.session_id ?? "nenhuma")}</p>
+          <span class="presenter-eyebrow">NEKOMIND · PAINEL DO MAC</span>
+          <h1>Prepare a apresentação</h1>
+          <p>Adicione o assunto, confira o briefing e comece pelo display.</p>
         </div>
-        ${snapshot.fixture_label ? `<span class="fixture-pill">${escapeHtml(snapshot.fixture_label)}</span>` : ""}
+        <div class="presenter-header-side"><span class="presenter-connection">${escapeHtml(snapshot.bridge_connected ? "● Mac conectado" : "○ Mac desconectado")}</span><a href="/public">Tela do público ↗</a></div>
       </header>
-      <section class="token-panel" data-token-state="${options.hasToken ? "ready" : "missing"}">
-        <label for="presenter-token">Token local</label>
-        <input id="presenter-token" name="presenter-token" type="password" autocomplete="off" placeholder="colar token do operador" />
-        <button type="button" data-token-submit>Usar token</button>
+      <section class="presenter-next" aria-label="Próxima sessão">
+        <span>PRÓXIMA SESSÃO</span>
+        <strong>${escapeHtml(selected ? selected.title : "Modo livre")}</strong>
+        <small>${escapeHtml(selected ? "Contexto pronto para usar no display" : "Você pode começar sem contexto ou preparar um abaixo")}</small>
       </section>
-      <div class="presenter-grid">
-        <section class="ops-panel">
-          <h2>Prontidão</h2>
-          ${renderDiagnostics(snapshot.diagnostics)}
-        </section>
-        <section class="ops-panel">
-          <h2>Sessão atual</h2>
-          <label class="field-row">Modo
-            <select name="experience-mode" data-experience-mode>
-              <option value="fair" ${snapshot.experience_mode === "fair" ? "selected" : ""}>Feira</option>
-              <option value="normal" ${snapshot.experience_mode === "normal" ? "selected" : ""}>Normal</option>
-            </select>
-          </label>
-          ${renderJourney(snapshot.journey)}
-          ${snapshot.content ? `<p class="live-content">${snapshot.content.status === "unavailable" ? "Batimento indisponível; captura continua." : `Batimento provisório: ${escapeHtml(snapshot.content.coverage_percent)}% · ${escapeHtml(snapshot.content.origin)}`}</p>` : ""}
-          ${snapshot.error ? `<p class="safe-error">${escapeHtml(snapshot.error.code)}: ${escapeHtml(snapshot.error.message)}</p>` : ""}
-          ${options.hasToken ? renderRecoverable(snapshot.recoverable_sessions) : '<p class="empty-result">Informe o token para consultar recuperações.</p>'}
-        </section>
-        <section class="ops-panel">
-          <h2>Assunto e histórico</h2>
-          <label class="field-row">Assunto confirmado
-            <input name="subject" data-subject-input value="${escapeAttr(snapshot.result?.subject || "")}" placeholder="ex.: biologia" />
-          </label>
-          <div class="button-stack">
-            <button type="button" data-subject-submit>Confirmar assunto</button>
-            <button type="button" data-subject-submit data-correct="true">Corrigir assunto</button>
-            <button type="button" data-subject-history>Histórico</button>
-            <button type="button" data-session-delete data-confirmed="true">Excluir sessão</button>
-          </div>
-          <div class="history-panel" data-history-panel></div>
-        </section>
-        <section class="ops-panel guided-content-panel">
-          <h2>Conteúdo guiado (opcional)</h2>
-          <p>Sem seleção, o modo livre continua igual. Cobertura de termos não comprova acerto.</p>
-          <label class="field-row">Conteúdo da próxima sessão
-            <select data-content-selection>
-              <option value="">Modo livre</option>
-              ${(options.contents || []).map((item) => `<option value="${item.id}" ${snapshot.selected_content_id === item.id ? "selected" : ""}>${escapeHtml(item.title)} · v${item.version}</option>`).join("")}
-            </select>
-          </label>
-          <button type="button" data-content-select>Aplicar seleção</button>
-          ${options.contentNotice ? `<p class="content-notice" role="status">${escapeHtml(options.contentNotice)}</p>` : ""}
-          <label class="field-row">Título<input data-content-title maxlength="200" placeholder="Ex.: ciclo da água"></label>
-          <label class="field-row">Texto de referência<textarea data-content-text rows="5" maxlength="50000" placeholder="Cole parágrafos ou uma lista de pontos..."></textarea></label>
-          <label class="field-row">Arquivo PDF, .txt ou .md<input type="file" data-content-file accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"></label>
-          <p>O PDF é lido localmente. Revise o texto e os pontos sugeridos antes de salvar; PDFs digitalizados sem texto selecionável precisam de OCR.</p>
-          <label class="field-row">Pontos-chave (um por linha; revise as sugestões do PDF)<textarea data-content-points rows="3"></textarea></label>
-          <label class="field-row"><input type="checkbox" data-content-fair> Disponível para feira</label>
-          <div class="button-stack">
-            <button type="button" data-content-new>Novo</button>
-            <button type="button" data-content-edit>Carregar para editar</button>
-            <button type="button" data-content-save>Salvar conteúdo</button>
-            <button type="button" data-content-delete>Excluir conteúdo</button>
+      ${options.contentNotice ? `<p class="content-notice" role="status">${escapeHtml(options.contentNotice)}</p>` : ""}
+      <div class="presenter-steps">
+        <section class="presenter-step">
+          <div class="step-heading"><span>1</span><div><h2>Adicione o contexto</h2><p>Escolha uma forma. Nada é usado até você confirmar.</p></div></div>
+          <label class="field-row">Cole um texto<textarea data-content-text rows="6" maxlength="50000" placeholder="Cole aqui o que a pessoa vai explicar..."></textarea></label>
+          <button type="button" class="button-soft" data-content-analyze>Analisar briefing com IA local</button>
+          <div class="source-alternatives">
+            <label class="field-row upload-field">Ou envie um arquivo PDF, TXT ou MD<input type="file" data-content-file accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"><span class="upload-choice"><strong>Escolher arquivo</strong><small>PDF, TXT ou MD</small></span></label>
+            <div class="field-row"><label for="content-url">Ou cole o link de uma página</label><div class="url-row"><input id="content-url" data-content-url type="url" inputmode="url" placeholder="https://exemplo.com/artigo"><button type="button" class="button-soft" data-content-import-url>Carregar site</button></div></div>
           </div>
         </section>
-        <section class="ops-panel danger-zone">
-          <h2>Ações seguras</h2>
-          <p>Você confirma antes de cancelar, descartar ou reiniciar.</p>
-          <div class="button-stack">
-            ${renderPresenterButton("diagnose", "Diagnóstico", false)}
-            ${renderPresenterButton("calibrate", "Calibrar", false)}
-            ${renderPresenterButton("result", "Ver resultado", false)}
-            ${renderPresenterButton("cancel", "Cancelar sessão", true)}
-            ${renderPresenterButton("recover", "Recuperar sessão", true)}
-            ${renderPresenterButton("discard", "Descartar recuperação", true)}
-            ${renderPresenterButton("reset", "Reset feira", true)}
-          </div>
+        <section class="presenter-step">
+          <div class="step-heading"><span>2</span><div><h2>Confira e use</h2><p>Revise o briefing antes de enviá-lo à próxima sessão.</p></div></div>
+          <label class="field-row">Nome do assunto<input data-content-title maxlength="200" placeholder="Ex.: ciclo da água"></label>
+          <label class="field-row">Pontos que você quer acompanhar<textarea data-content-points rows="7" placeholder="Um ponto por linha. Você pode corrigir as sugestões."></textarea></label>
+          <p class="briefing-note">Use “Analisar briefing com IA local” para receber sugestões ou escreva seus pontos. Revise tudo antes de salvar. O acompanhamento mede menções, não domínio do assunto.</p>
+          <button type="button" class="presenter-primary" data-content-save-and-select>Salvar e usar na próxima sessão</button>
+          <small>O texto fica no Mac. Para iniciar a fala, use o botão no display.</small>
         </section>
       </div>
+      <details class="presenter-library" data-presenter-library>
+        <summary>Usar um conteúdo já salvo ou voltar ao modo livre</summary>
+        <div class="library-row"><label class="field-row">Conteúdo salvo<select data-content-selection><option value="">Modo livre</option>${(options.contents || []).map((item) => `<option value="${item.id}" ${snapshot.selected_content_id === item.id ? "selected" : ""}>${escapeHtml(item.title)} · v${item.version}</option>`).join("")}</select></label><button type="button" data-content-select>Usar selecionado</button></div>
+        <div class="library-actions"><button type="button" data-content-new>Novo briefing</button><button type="button" data-content-edit>Editar selecionado</button><button type="button" data-content-delete>Excluir selecionado</button></div>
+      </details>
+      <details class="presenter-advanced" data-presenter-advanced>
+        <summary>Ferramentas do operador</summary>
+        <div class="presenter-grid">
+          <section class="ops-panel"><h2>Estado do Mac</h2>${renderDiagnostics(snapshot.diagnostics)}${snapshot.error ? `<p class="safe-error">${escapeHtml(snapshot.error.message)}</p>` : ""}${renderRecoverable(snapshot.recoverable_sessions)}</section>
+          <section class="ops-panel"><h2>Sessão atual</h2><label class="field-row">Modo<select name="experience-mode" data-experience-mode><option value="fair" ${snapshot.experience_mode === "fair" ? "selected" : ""}>Feira</option><option value="normal" ${snapshot.experience_mode === "normal" ? "selected" : ""}>Normal</option></select></label>${renderJourney(snapshot.journey)}${snapshot.content ? `<p class="live-content">Batimento provisório: ${escapeHtml(snapshot.content.coverage_percent)}%</p>` : ""}</section>
+          <section class="ops-panel"><h2>Histórico e assunto</h2><label class="field-row">Assunto confirmado<input name="subject" data-subject-input value="${escapeAttr(snapshot.result?.subject || "")}" placeholder="ex.: biologia" /></label><div class="button-stack"><button type="button" data-subject-submit>Confirmar assunto</button><button type="button" data-subject-submit data-correct="true">Corrigir assunto</button><button type="button" data-subject-history>Histórico</button><button type="button" data-session-delete data-confirmed="true">Excluir sessão</button></div><div class="history-panel" data-history-panel></div></section>
+          <section class="ops-panel danger-zone"><h2>Comandos de manutenção</h2><div class="button-stack">${renderPresenterButton("diagnose", "Diagnóstico", false)}${renderPresenterButton("calibrate", "Calibrar", false)}${renderPresenterButton("result", "Ver resultado", false)}${renderPresenterButton("cancel", "Cancelar sessão", true)}${renderPresenterButton("recover", "Recuperar sessão", true)}${renderPresenterButton("discard", "Descartar recuperação", true)}${renderPresenterButton("reset", "Reset feira", true)}</div></section>
+        </div>
+      </details>
     </section>`;
 }
 

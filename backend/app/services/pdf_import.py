@@ -8,7 +8,7 @@ import re
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
 
-from app.services.content_matching import terms
+from app.services.content_matching import suggest_review_points
 
 MAX_PDF_BYTES = 5 * 1024 * 1024
 MAX_PDF_PAGES = 20
@@ -41,15 +41,4 @@ def extract_pdf(data: bytes) -> dict:
     if len(text) > MAX_REFERENCE_CHARS:
         raise PdfImportError("Texto extraido excede 50 mil caracteres. Use um trecho menor.")
 
-    candidates = []
-    for sentence in re.split(r"(?<=[.!?])\s+|\n+", text):
-        sentence = sentence.strip()
-        if 1 <= len(sentence) <= 500 and terms(sentence) and sentence not in candidates:
-            candidates.append(sentence)
-    # Spread a small review set across the document; never invent new claims.
-    points = (
-        [candidates[round(i * (len(candidates) - 1) / 7)] for i in range(8)]
-        if len(candidates) > 8
-        else candidates
-    )
-    return {"text": text, "points": points, "page_count": len(reader.pages)}
+    return {"text": text, "points": suggest_review_points(text), "page_count": len(reader.pages)}

@@ -75,6 +75,21 @@ export function createExperienceClient({ fetchImpl = globalThis.fetch, tokenProv
       if (!response.ok) throw new Error(payload?.detail || `HTTP ${response.status}`);
       return payload;
     },
+    importUrl(url) {
+      return request("/api/v1/contents/import-url", {
+        method: "POST", private: true, body: { url },
+      });
+    },
+    prepareText(text) {
+      return request("/api/v1/contents/prepare-text", {
+        method: "POST", private: true, body: { text },
+      });
+    },
+    analyzeBriefing(text) {
+      return request("/api/v1/contents/analyze-briefing", {
+        method: "POST", private: true, body: { text },
+      });
+    },
     getContent(id) { return request(`/api/v1/contents/${encodeURIComponent(id)}`, { private: true }); },
     saveContent(id, body) {
       return request(id ? `/api/v1/contents/${encodeURIComponent(id)}` : "/api/v1/contents", {

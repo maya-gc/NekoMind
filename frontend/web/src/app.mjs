@@ -1,4 +1,4 @@
-import { createExperienceClient } from "./api.mjs";
+import { createExperienceClient } from "./api.mjs?v=briefing-3";
 import {
   automaticDiagnosticForSnapshot,
   createCommandQueue,
@@ -16,7 +16,7 @@ import {
   renderPublic,
   renderTokenPrompt as renderTokenPromptMarkup,
   renderTouch,
-} from "./render.mjs?v=pdf-1";
+} from "./render.mjs?v=briefing-4";
 
 const app = document.querySelector("#app");
 const route = routeFromPath(window.location.pathname);
@@ -31,6 +31,7 @@ const state = {
   statusIndex: 0,
   lastLocalActionAt: 0,
   pendingCommand: false,
+  pendingBriefing: false,
   commandError: "",
   tokenPromptOpen: false,
   confirmation: null,
@@ -48,7 +49,10 @@ const state = {
     contentPoints: "",
     contentFair: false,
     contentSource: "typed",
+    contentUrl: "",
     contentSelection: null,
+    libraryOpen: false,
+    advancedOpen: false,
   },
 };
 const client = createExperienceClient({ tokenProvider: () => state.token });
@@ -76,6 +80,12 @@ async function refresh() {
       : sanitizePublicSnapshot(payload);
     if (route.view === "presenter" && state.token) {
       try { state.contents = await client.listContents(); } catch { state.contents = []; }
+    }
+    if (route.view === "presenter" && !app.querySelector(".presenter-auth-card")
+      && app.contains(document.activeElement)
+      && document.activeElement?.matches("input, textarea, select")) {
+      captureDrafts();
+      return;
     }
     render();
   } catch (error) {
@@ -131,7 +141,7 @@ app.addEventListener("click", async (event) => {
     resolveConfirmation(answer.dataset.confirmAnswer === "yes");
     return;
   }
-  if (state.confirmation || state.pendingCommand) return;
+  if (state.confirmation || state.pendingCommand || state.pendingBriefing) return;
   const tokenButton = event.target.closest("[data-token-submit]");
   if (tokenButton) {
     const input = app.querySelector("#presenter-token");
@@ -180,7 +190,7 @@ app.addEventListener("click", async (event) => {
     return;
   }
 
-  const contentAction = event.target.closest("[data-content-select],[data-content-new],[data-content-edit],[data-content-save],[data-content-delete]");
+  const contentAction = event.target.closest("[data-content-select],[data-content-new],[data-content-edit],[data-content-save],[data-content-save-and-select],[data-content-delete],[data-content-import-url],[data-content-analyze]");
   if (contentAction && route.view === "presenter") {
     await handleContentAction(contentAction);
     return;
@@ -252,6 +262,7 @@ app.addEventListener("change", async (event) => {
       render();
       return;
     }
+    let loaded = false;
     try {
       state.contentNotice = "Lendo PDF localmente...";
       render();
@@ -261,13 +272,16 @@ app.addEventListener("change", async (event) => {
       state.drafts.contentText = preview.text;
       state.drafts.contentPoints = preview.points.join("\n");
       state.drafts.contentSource = "pdf";
+      loaded = true;
       state.commandError = "";
-      state.contentNotice = `PDF lido: ${preview.page_count} página(s). Revise os pontos, salve e aplique a seleção.`;
+      await runLocalAnalysis(preview.text);
+      state.contentNotice = `PDF lido (${preview.page_count} página(s)) e analisado pela IA local. Revise os pontos antes de usar.`;
       state.skipCaptureOnce = true;
       render();
     } catch (error) {
-      state.contentNotice = "";
+      state.contentNotice = loaded ? "PDF carregado. A IA local não concluiu a análise; revise o texto e tente novamente." : "";
       state.commandError = error.message || "Falha ao ler PDF.";
+      state.skipCaptureOnce = true;
       render();
     }
     return;
@@ -277,22 +291,62 @@ app.addEventListener("change", async (event) => {
     render();
     return;
   }
-  state.drafts.contentText = await file.text();
-  state.drafts.contentSource = file.name.toLowerCase().endsWith(".md") ? "md" : "txt";
-  if (!state.drafts.contentTitle) state.drafts.contentTitle = file.name.replace(/\.(txt|md)$/i, "");
+  try {
+    state.drafts.contentText = await file.text();
+    state.drafts.contentSource = file.name.toLowerCase().endsWith(".md") ? "md" : "txt";
+    state.editingContentId = null;
+    state.drafts.contentTitle = file.name.replace(/\.(txt|md)$/i, "").slice(0, 200);
+    await runLocalAnalysis(state.drafts.contentText);
+  } catch (error) {
+    state.commandError = error.message || "Falha ao analisar arquivo.";
+    state.contentNotice = "Arquivo carregado. Confira o texto e tente analisar novamente.";
+  }
   state.skipCaptureOnce = true;
   render();
 });
+
+async function runLocalAnalysis(text) {
+  state.pendingBriefing = true;
+  state.drafts.contentPoints = "";
+  state.contentNotice = "A IA local está escolhendo trechos do material...";
+  state.skipCaptureOnce = true;
+  render();
+  try {
+    const preview = await client.analyzeBriefing(text);
+    state.drafts.contentPoints = preview.points.join("\n");
+    state.contentNotice = `Análise local concluída (${preview.model}). Confira os pontos antes de usar.`;
+    state.commandError = "";
+  } finally {
+    state.pendingBriefing = false;
+  }
+}
 
 async function handleContentAction(button) {
   if (!state.token) return renderTokenPrompt();
   captureDrafts();
   const selected = Number(app.querySelector("[data-content-selection]")?.value) || null;
+  let savedDuringAction = false;
+  let importedDuringAction = false;
   try {
-    if (button.hasAttribute("data-content-new")) {
+    if (button.hasAttribute("data-content-import-url")) {
+      const input = state.drafts.contentUrl.trim();
+      const url = /^https?:\/\//i.test(input) ? input : `https://${input}`;
+      if (!input) throw new Error("Cole o link de uma página antes de carregar.");
+      const preview = await client.importUrl(url);
+      state.editingContentId = null;
+      Object.assign(state.drafts, { contentTitle: preview.title, contentText: preview.text,
+        contentPoints: preview.points.join("\n"), contentSource: "url" });
+      importedDuringAction = true;
+      await runLocalAnalysis(preview.text);
+      state.contentNotice = "Página carregada e analisada pela IA local. Confira os pontos antes de usar.";
+    } else if (button.hasAttribute("data-content-analyze")) {
+      const text = state.drafts.contentText.trim();
+      if (!text) throw new Error("Cole um texto ou carregue um PDF/site antes de analisar.");
+      await runLocalAnalysis(text);
+    } else if (button.hasAttribute("data-content-new")) {
       state.editingContentId = null;
       state.contentNotice = "";
-      Object.assign(state.drafts, { contentTitle: "", contentText: "", contentPoints: "", contentFair: false, contentSource: "typed" });
+      Object.assign(state.drafts, { contentTitle: "", contentText: "", contentPoints: "", contentUrl: "", contentFair: false, contentSource: "typed" });
     } else if (button.hasAttribute("data-content-select")) {
       await client.selectContent(selected);
       state.drafts.contentSelection = null;
@@ -307,14 +361,23 @@ async function handleContentAction(button) {
       state.contentNotice = "Editando conteúdo selecionado.";
       Object.assign(state.drafts, { contentTitle: item.title, contentText: item.text,
         contentPoints: item.points.join("\n"), contentFair: item.fair_available, contentSource: item.source });
-    } else if (button.hasAttribute("data-content-save")) {
+    } else if (button.hasAttribute("data-content-save") || button.hasAttribute("data-content-save-and-select")) {
       const d = state.drafts;
+      if (!d.contentPoints.trim()) throw new Error("Prepare e confira ao menos um ponto antes de usar.");
       const saved = await client.saveContent(state.editingContentId, { title: d.contentTitle.trim(), text: d.contentText.trim(),
         source: d.contentSource, fair_available: d.contentFair,
         points: d.contentPoints.trim() ? d.contentPoints.split("\n").map((s) => s.trim()).filter(Boolean) : null });
+      savedDuringAction = true;
+      state.editingContentId = saved.id;
+      if (button.hasAttribute("data-content-save-and-select")) {
+        state.contentNotice = "Conteúdo salvo. Aplicando à próxima sessão...";
+        await client.selectContent(saved.id);
+      }
       state.editingContentId = null;
       Object.assign(state.drafts, { contentTitle: "", contentText: "", contentPoints: "", contentFair: false, contentSource: "typed", contentSelection: String(saved.id) });
-      state.contentNotice = `Conteúdo salvo · v${saved.version}. Clique em Aplicar seleção para usá-lo na próxima sessão.`;
+      state.contentNotice = button.hasAttribute("data-content-save-and-select")
+        ? `Pronto! ${saved.title} será usado na próxima sessão. Comece pelo display.`
+        : `Conteúdo salvo · v${saved.version}. Escolha-o na biblioteca para usar.`;
       state.skipCaptureOnce = true;
       await refresh();
       return;
@@ -331,7 +394,15 @@ async function handleContentAction(button) {
     state.commandError = "";
   } catch (error) {
     state.commandError = error.message || "Falha ao atualizar conteúdo.";
+    if (button.hasAttribute("data-content-analyze")) state.contentNotice = "";
+    if (button.hasAttribute("data-content-import-url") && importedDuringAction) {
+      state.contentNotice = "Página carregada. A IA local não concluiu a análise; revise o texto e tente novamente.";
+    }
+    if (button.hasAttribute("data-content-save-and-select") && savedDuringAction) {
+      state.contentNotice = "O briefing foi salvo, mas não aplicado. Tente novamente ao fim da sessão.";
+    }
   }
+  state.pendingBriefing = false;
   state.skipCaptureOnce = true;
   render();
 }
@@ -444,7 +515,7 @@ function captureDrafts() {
   if (tokenInput) state.drafts.tokenInput = tokenInput.value;
   if (subjectInput) state.drafts.subject = subjectInput.value;
   if (modeSelect) state.drafts.mode = modeSelect.value;
-  for (const [key, selector] of [["contentTitle", "[data-content-title]"], ["contentText", "[data-content-text]"], ["contentPoints", "[data-content-points]"]]) {
+  for (const [key, selector] of [["contentTitle", "[data-content-title]"], ["contentText", "[data-content-text]"], ["contentPoints", "[data-content-points]"], ["contentUrl", "[data-content-url]"]]) {
     const input = app.querySelector(selector);
     if (input) state.drafts[key] = input.value;
   }
@@ -452,6 +523,8 @@ function captureDrafts() {
   if (fair) state.drafts.contentFair = fair.checked;
   const selection = app.querySelector("[data-content-selection]");
   if (selection) state.drafts.contentSelection = selection.value;
+  state.drafts.libraryOpen = Boolean(app.querySelector("[data-presenter-library]")?.open);
+  state.drafts.advancedOpen = Boolean(app.querySelector("[data-presenter-advanced]")?.open);
 }
 
 function restoreDrafts() {
@@ -463,7 +536,7 @@ function restoreDrafts() {
   if (subjectInput && state.drafts.subject) subjectInput.value = state.drafts.subject;
   if (modeSelect) modeSelect.value = state.drafts.mode;
   if (historyPanel && state.drafts.history) historyPanel.innerHTML = renderHistory(state.drafts.history);
-  for (const [key, selector] of [["contentTitle", "[data-content-title]"], ["contentText", "[data-content-text]"], ["contentPoints", "[data-content-points]"]]) {
+  for (const [key, selector] of [["contentTitle", "[data-content-title]"], ["contentText", "[data-content-text]"], ["contentPoints", "[data-content-points]"], ["contentUrl", "[data-content-url]"]]) {
     const input = app.querySelector(selector);
     if (input) input.value = state.drafts[key];
   }
@@ -471,6 +544,10 @@ function restoreDrafts() {
   if (fair) fair.checked = state.drafts.contentFair;
   const selection = app.querySelector("[data-content-selection]");
   if (selection && state.drafts.contentSelection !== null) selection.value = state.drafts.contentSelection;
+  const library = app.querySelector("[data-presenter-library]");
+  if (library) library.open = state.drafts.libraryOpen;
+  const advanced = app.querySelector("[data-presenter-advanced]");
+  if (advanced) advanced.open = state.drafts.advancedOpen;
 }
 
 function newRequestId() {

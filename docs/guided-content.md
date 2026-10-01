@@ -11,11 +11,36 @@ O painel também importa PDF com camada de texto. Envia até 5 MB ao endpoint lo
 autenticado `POST /api/v1/contents/import-pdf`; o backend lê até 20 páginas com
 `pypdf`, extrai até 50 mil caracteres e devolve texto e até oito frases candidatas
 como prévia editável. A importação **não salva nem seleciona** o conteúdo. O
-operador revisa texto/pontos, toca **Salvar conteúdo** e **Aplicar seleção** antes
+operador revisa texto/pontos, toca **Salvar e usar na próxima sessão** antes
 da próxima sessão. O PDF bruto não é persistido. Arquivo inválido, protegido por
 senha, longo demais ou digitalização sem texto selecionável gera erro claro;
 OCR local ainda não foi implementado. Os pontos por frase são uma sugestão
 lexical, não um resumo inteligente ou garantia de qualidade pedagógica.
+
+## Preparo rápido do briefing
+
+O `/presenter` apresenta duas etapas visíveis: trazer texto/PDF/TXT/MD/URL e
+conferir título/pontos antes de salvar e aplicar à próxima sessão. Biblioteca,
+histórico, diagnóstico e comandos de manutenção ficam recolhidos. Durante a
+digitação, a atualização periódica do estado não recria o formulário nem perde
+o foco. A URL pública é buscada pelo backend com limite de 1 MB e tempo de
+conexão de 5 s; só HTML e texto são aceitos. Cada DNS e redirecionamento é
+validado e a conexão é fixada ao IP público validado, com TLS verificado pelo
+nome original. O site recebe uma requisição normal; URL e PDF bruto não são
+persistidos. Não há suporte garantido a sites que exigem login, JavaScript ou
+paywall. O texto retornado é sempre revisável antes de ser usado.
+
+O botão **Analisar briefing com IA local** usa Ollama em `127.0.0.1` e o modelo
+`NEKOMIND_BRIEFING_MODEL` (padrão `qwen2.5:3b`). O modelo seleciona índices de
+frases do próprio material; o backend valida tipo, faixa, unicidade e quantidade
+antes de devolver até oito pontos literais. Não há fallback silencioso para
+heurística quando Ollama está indisponível ou responde mal. Limite inicial:
+12 mil caracteres por análise; documentos maiores devem ser recortados pelo
+operador. Após PDF/TXT/MD/URL, a análise local é iniciada automaticamente;
+para texto colado, há botão explícito. Se a IA falhar, a prévia do texto continua
+editável e os pontos ficam vazios para impedir confusão com resultado de IA.
+Nenhum texto é enviado à nuvem.
+Esses pontos representam o material, não verificação factual nem domínio da fala.
 
 O conteúdo tem título, idioma `pt`, origem (`typed`, `txt`, `md`, `pdf`), versão e até 30
 pontos de até 500 caracteres. Por padrão cada linha não vazia, inclusive item de lista, vira
@@ -43,8 +68,9 @@ termos em comum. `covered` exige ≥70% dos termos e pelo menos dois termos dist
 caso contrário `not_mentioned`. `possible_divergence` exige ≥70% de sobreposição
 e inversão explícita da presença de `não/nao/nunca` na mesma frase. Isso é um
 **sinal conservador**, não uma verificação semântica/factual. O modelo semântico
-local permanece interface futura, desativada; não há Ollama ou serviço remoto
-ativado nesta versão.
+para **comparar fala e conteúdo** permanece futuro; Ollama nesta versão apenas
+escolhe trechos do material para o briefing, sem avaliar a fala. Não há serviço
+de IA remoto ativado.
 
 O limiar de 70% exige a maioria forte dos termos; dois termos evitam que uma
 palavra genérica marque um ponto longo. São parâmetros iniciais conservadores,

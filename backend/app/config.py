@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     guided_partial_interval_seconds: float = Field(default=6.0, ge=3.0, le=30.0)
     guided_window_seconds: float = Field(default=12.0, ge=6.0, le=30.0)
     guided_serial_max_hz: float = Field(default=0.5, ge=0.1, le=2.0)
+    briefing_model: str = Field(default="qwen2.5:3b", min_length=1)
 
     @property
     def mac_directory(self) -> Path:

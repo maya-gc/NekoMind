@@ -96,6 +96,12 @@ anexáveis: `reference_content_id`, `reference_version`,
 livres/antigas. O snapshot guarda o texto e pontos exatos da versão usada;
 por isso uma edição ou exclusão da biblioteca não altera o histórico.
 O relatório tem `method_version` próprio e não entra nas métricas antigas.
+As origens `typed`, `txt`, `md`, `pdf` e `url` cabem na coluna `source` existente;
+esta ampliação não altera o esquema. O PDF bruto e a URL original não são
+persistidos, apenas o texto revisado. A escolha de pontos pelo Ollama local
+aparece na prévia do operador; modelo/provedor do briefing ainda não são
+metadados persistentes da biblioteca e não devem ser apresentados como prova
+auditável de como cada conteúdo antigo foi preparado.
 
 `migrate_sqlite_schema` inspeciona colunas, faz backup SQLite consistente via
 API de backup se faltar alguma coluna **ou** a nova tabela, aplica somente

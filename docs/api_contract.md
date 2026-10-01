@@ -143,6 +143,17 @@ nem mudar a seleção. PDF inválido, criptografado ou sem texto selecionável r
 422; arquivo acima de 5 MB retorna 413. Salvar continua em `POST /api/v1/contents`
 com `source: "pdf"`; selecionar continua em `PUT /api/v1/experience/selection`.
 
+`POST /api/v1/contents/import-url` exige token local e `{ "url": "https://..." }`.
+Busca apenas HTML/texto de URL pública, com limite de 1 MB, DNS/IP público,
+portas padrão e cada redirecionamento revalidado. Retorna `{title,text,points,
+source:"url"}` como prévia; não cria nem seleciona conteúdo. `POST
+/api/v1/contents/analyze-briefing` exige token local e `{ "text": "..." }`,
+até 12 mil caracteres para Ollama local; retorna `{text,points,provider,
+model}` com frases literais selecionadas. Falha do modelo ou resposta inválida
+retorna 422, sem tópicos simulados. `POST /api/v1/contents/prepare-text` oferece
+apenas sugestões lexicais, sem IA. As três rotas são de prévia: o conteúdo só é
+salvo/aplicado nas rotas existentes.
+
 Todas as rotas abaixo são locais e exigem token do operador, exceto o snapshot
 público já existente. `POST /api/v1/contents` recebe `title`, `text`,
 `language: "pt"`, `source: "typed"|"txt"|"md"`, `points?: string[]` e

@@ -43,11 +43,38 @@ test("PDF import sends authenticated multipart and leaves saving separate", asyn
   assert.equal(calls[0].init.headers["Content-Type"], undefined);
 });
 
-test("presenter offers PDF preview with a clear scanned-file limit", () => {
+test("presenter has a short briefing flow with text, PDF, URL and advanced tools", () => {
   const html = renderPresenter(sanitizePrivateSnapshot({ state: "idle" }), { hasToken: true });
   assert.match(html, /data-content-file/);
   assert.match(html, /\.pdf/);
-  assert.match(html, /PDFs digitalizados sem texto selecionável precisam de OCR/);
+  assert.match(html, /data-content-url/);
+  assert.match(html, /data-content-analyze/);
+  assert.match(html, /data-content-save-and-select/);
+  assert.match(html, /<details class="presenter-advanced"/);
+  assert.match(html, /Analisar briefing com IA local/);
+});
+
+test("selected website title is escaped in the next-session card", () => {
+  const html = renderPresenter(sanitizePrivateSnapshot({ state: "idle", selected_content_id: 7 }), {
+    hasToken: true,
+    contents: [{ id: 7, title: '<img src=x onerror=alert(1)>', version: 1 }],
+  });
+  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
+  assert.doesNotMatch(html, /<img src=x/);
+});
+
+test("site and pasted text preview use authenticated local APIs", async () => {
+  const calls = [];
+  const client = createExperienceClient({ tokenProvider: () => "operator-token",
+    fetchImpl: async (url, init = {}) => { calls.push({ url, init });
+      return { ok: true, json: async () => ({ points: [] }) }; },
+  });
+  await client.importUrl("https://example.org/artigo");
+  await client.prepareText("A chuva forma rios.");
+  await client.analyzeBriefing("A chuva forma rios.");
+  assert.deepEqual(calls.map((call) => call.url), ["/api/v1/contents/import-url", "/api/v1/contents/prepare-text", "/api/v1/contents/analyze-briefing"]);
+  assert(calls.every((call) => call.init.headers.Authorization === "Bearer operator-token"));
+  assert.deepEqual(JSON.parse(calls[0].init.body), { url: "https://example.org/artigo" });
 });
 
 test("valid real-mode authentication starts one diagnostic only from idle", () => {

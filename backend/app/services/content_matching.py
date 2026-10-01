@@ -94,6 +94,18 @@ def derive_points(text: str) -> list[str]:
     return [p for p in raw if p and terms(p)][:30]
 
 
+def suggest_review_points(text: str, limit: int = 8) -> list[str]:
+    """Sample verbatim sentences across prose for human review, not AI analysis."""
+    candidates: list[str] = []
+    for sentence in re.split(r"(?<=[.!?])\s+|\n+", text):
+        sentence = sentence.strip()
+        if 1 <= len(sentence) <= 500 and terms(sentence) and sentence not in candidates:
+            candidates.append(sentence)
+    if len(candidates) <= limit:
+        return candidates
+    return [candidates[round(i * (len(candidates) - 1) / (limit - 1))] for i in range(limit)]
+
+
 def validate_points(text: str, points: list[str]) -> list[str]:
     if (
         len(points) > 30

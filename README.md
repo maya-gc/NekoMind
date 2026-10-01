@@ -184,20 +184,38 @@ outro modelo ou API é uma decisão futura; nenhuma API de nuvem foi acionada.
 
 No painel local `/presenter`, o operador pode colar texto ou abrir `.txt`, `.md`
 ou **PDF com texto selecionável**. A importação do PDF é local e mostra texto e
-pontos sugeridos para revisão; só **Salvar conteúdo** e depois **Aplicar seleção**
-ativam esse contexto para a próxima sessão. PDF escaneado sem texto selecionável
-é recusado com orientação para OCR, ainda não integrado. O limite é 5 MB,
-20 páginas e 50 mil caracteres extraídos. O arquivo PDF em si não é salvo;
-o texto aprovado entra na biblioteca local e na cópia da sessão. O operador pode
-revisar os pontos-chave e selecionar um conteúdo para a **próxima** sessão. O
-modo livre continua padrão; basta deixar “Modo livre” selecionado. No modo real
+pontos sugeridos para revisão. PDF escaneado sem texto selecionável é recusado
+com orientação para OCR, ainda não integrado. O limite é 5 MB, 20 páginas e
+50 mil caracteres extraídos. O arquivo PDF em si não é salvo; o texto aprovado
+entra na biblioteca local e na cópia da sessão.
+
+O painel do Mac agora concentra esse preparo em duas etapas: **adicionar contexto**
+(texto, PDF/TXT/MD ou URL pública) e **conferir e usar**. A URL é buscada pelo
+backend local; endereços internos, portas não padrão e redirecionamentos para
+redes privadas são bloqueados. O site visitado recebe a requisição HTTP normal;
+áudio e transcrições não são enviados a ele. A IA do briefing usa o Ollama local
+com `NEKOMIND_BRIEFING_MODEL` (padrão `qwen2.5:3b`) para escolher trechos já
+presentes no material; o operador revisa os pontos e toca **Salvar e usar na
+próxima sessão**. Nenhuma API de nuvem é chamada. Se o modelo falhar, aparece
+erro explícito e o texto permanece editável. A IA não verifica fatos nem atribui
+nota. Para executar a análise, o Ollama e esse modelo precisam estar instalados
+no Mac; o restante do modo livre não depende deles. Os controles de diagnóstico,
+histórico e manutenção ficam em **Ferramentas do operador**.
+
+O texto e a seleção são separados: importar ou analisar só prepara a prévia;
+salvar e usar confirma o contexto para a sessão seguinte. O display continua com
+o rosto, controles e sinais resumidos; o painel público do Mac acompanha a
+jornada e o resultado.
+
+O modo livre continua padrão; basta deixar “Modo livre” selecionado. No modo real
 guiado, o Mac produz parciais provisórios de fala, calcula cobertura lexical
 local e envia apenas um sinal compacto de expressão para a gatinha. O relatório
 final compara os pontos com a transcrição final validada; o painel público mostra
 detalhes e o LCD, um resumo curto. Demo continua marcado como simulado.
 
 Cobertura e expressão não são nota, prova de correção factual ou de domínio.
-O texto e a fala permanecem locais; nenhuma API externa ou Ollama é necessária.
+O texto e a fala permanecem locais. Ollama é opcional para preparar o briefing;
+captura e batimento continuam funcionando sem ele.
 Veja [método, limites e medições](docs/guided-content.md). A aparência e a
 latência do novo fluxo no LCD/microfone reais ainda exigem o roteiro físico.
 
