@@ -9,6 +9,7 @@ import httpx
 from app.services.content_matching import suggest_review_points
 
 MAX_AI_CHARS = 12_000
+MAX_CANDIDATES = 24
 OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
 
 
@@ -20,11 +21,16 @@ def analyze_briefing(text: str, model: str) -> dict:
     source = text.strip()
     if not source:
         raise BriefingAIError("Cole ou importe um texto antes de analisar.")
-    if len(source) > MAX_AI_CHARS:
-        raise BriefingAIError(
-            "Para a análise com IA, use até 12 mil caracteres ou selecione um trecho menor."
-        )
-    candidates = suggest_review_points(source, limit=80)
+    # Keep the complete source for review and persistence. Only bounded,
+    # verbatim sentences sampled across it are sent to the local model.
+    sampled = suggest_review_points(source, limit=MAX_CANDIDATES)
+    candidates = []
+    candidate_chars = 0
+    for sentence in sampled:
+        if candidate_chars + len(sentence) > MAX_AI_CHARS:
+            break
+        candidates.append(sentence)
+        candidate_chars += len(sentence)
     if not candidates:
         raise BriefingAIError("O texto precisa conter ao menos uma frase legível.")
     numbered = "\n".join(f"{index}: {point}" for index, point in enumerate(candidates))
@@ -68,4 +74,5 @@ def analyze_briefing(text: str, model: str) -> dict:
         "points": [candidates[index] for index in selected],
         "provider": "ollama_local",
         "model": model,
+        "sampled": len(source) > candidate_chars,
     }

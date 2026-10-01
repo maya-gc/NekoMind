@@ -314,7 +314,9 @@ async function runLocalAnalysis(text) {
   try {
     const preview = await client.analyzeBriefing(text);
     state.drafts.contentPoints = preview.points.join("\n");
-    state.contentNotice = `Análise local concluída (${preview.model}). Confira os pontos antes de usar.`;
+    state.contentNotice = preview.sampled
+      ? `Análise local concluída (${preview.model}) com trechos distribuídos pelo texto. Confira os pontos antes de usar.`
+      : `Análise local concluída (${preview.model}). Confira os pontos antes de usar.`;
     state.commandError = "";
   } finally {
     state.pendingBriefing = false;
@@ -396,7 +398,8 @@ async function handleContentAction(button) {
     state.commandError = error.message || "Falha ao atualizar conteúdo.";
     if (button.hasAttribute("data-content-analyze")) state.contentNotice = "";
     if (button.hasAttribute("data-content-import-url") && importedDuringAction) {
-      state.contentNotice = "Página carregada. A IA local não concluiu a análise; revise o texto e tente novamente.";
+      state.contentNotice = `Página carregada, mas a análise local falhou: ${state.commandError}`;
+      state.commandError = "";
     }
     if (button.hasAttribute("data-content-save-and-select") && savedDuringAction) {
       state.contentNotice = "O briefing foi salvo, mas não aplicado. Tente novamente ao fim da sessão.";

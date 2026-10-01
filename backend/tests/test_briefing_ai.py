@@ -46,14 +46,29 @@ def test_local_ai_returns_only_selected_source_sentences(client, monkeypatch):
     assert client.get("/api/v1/contents").json() == []
 
 
-def test_ai_rejects_overlong_or_unusable_text_before_model_call(client, monkeypatch):
+def test_ai_rejects_unusable_text_before_model_call(client, monkeypatch):
     def unexpected_client(**kwargs):
         raise AssertionError("model must not be called")
 
     monkeypatch.setattr(briefing_ai.httpx, "Client", unexpected_client)
     url = "/api/v1/contents/analyze-briefing"
-    assert client.post(url, json={"text": "A" * 12001}).status_code == 422
     assert client.post(url, json={"text": "..."}).status_code == 422
+
+
+def test_long_article_is_sampled_but_full_source_is_retained(client, monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        briefing_ai.httpx, "Client", lambda **kw: FakeClient('{"indices":[0]}', calls)
+    )
+    text = "\n".join(f"A seção {i} explica o efeito estufa na Terra." for i in range(700))
+    assert len(text) > 12000
+    response = client.post("/api/v1/contents/analyze-briefing", json={"text": text})
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["text"] == text
+    assert result["sampled"] is True
+    assert all(point in text for point in result["points"])
+    assert len(calls[0][1]["prompt"]) < 13000
 
 
 def test_ai_failure_and_invalid_output_do_not_fall_back(client, monkeypatch):

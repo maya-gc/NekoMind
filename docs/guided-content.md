@@ -34,9 +34,11 @@ O botão **Analisar briefing com IA local** usa Ollama em `127.0.0.1` e o modelo
 `NEKOMIND_BRIEFING_MODEL` (padrão `qwen2.5:3b`). O modelo seleciona índices de
 frases do próprio material; o backend valida tipo, faixa, unicidade e quantidade
 antes de devolver até oito pontos literais. Não há fallback silencioso para
-heurística quando Ollama está indisponível ou responde mal. Limite inicial:
-12 mil caracteres por análise; documentos maiores devem ser recortados pelo
-operador. Após PDF/TXT/MD/URL, a análise local é iniciada automaticamente;
+heurística quando Ollama está indisponível ou responde mal. Para textos longos,
+o texto completo continua na prévia, mas a IA recebe até 24 frases literais
+distribuídas pelo documento, limitadas a 12 mil caracteres. A interface avisa
+quando houve amostragem; revise os pontos, pois partes não amostradas não são
+analisadas pela IA. Após PDF/TXT/MD/URL, a análise local é iniciada automaticamente;
 para texto colado, há botão explícito. Se a IA falhar, a prévia do texto continua
 editável e os pontos ficam vazios para impedir confusão com resultado de IA.
 Nenhum texto é enviado à nuvem.
