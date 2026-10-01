@@ -90,6 +90,16 @@ mostra o painel público em `http://127.0.0.1:8000/public`.
 O ensaio real de 21/09 comprovou uma sessão completa, sem avaliar estatisticamente
 a qualidade do ASR ou do extrator. Antes de uma apresentação pública, repetir o
 teste com a pessoa que vai falar, na posição real da mesa e no ruído do local.
+
+Em 01/10, um novo teste na unidade conectada encontrou timeout ao tocar
+**Começar** depois de **Pronto**. O histórico local mostrou que o reset automático
+do modo feira havia voltado o Mac a `idle` antes do toque; o início foi recusado
+sem criar sessão. Corrigimos o reset para atuar somente após conclusão, erro ou
+recuperação. O firmware também passou a mostrar a resposta de erro correlacionada
+à nova tentativa, em vez de descartá-la e terminar em timeout. Depois do build,
+flash verificado e reinício do backend/bridge, a pessoa na bancada informou que
+o fluxo funcionou. Isso confirma o teste manual relatado nessa unidade; não mede
+precisão de transcrição nem cobre outros microfones ou ambientes.
 # Roteiro alternativo: conteúdo guiado
 
 Antes de abrir a bancada ao público, o operador escolhe no `/presenter` um

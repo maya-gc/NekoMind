@@ -21,6 +21,15 @@ vozes, distâncias, ruídos e pausas ainda precisa de ensaios adicionais.
 O extrator `local_keywords` agora é uma opção explícita aceita para execução local
 offline; ele não é LLM, não é mock, não chama nuvem e não prova domínio do assunto.
 
+Em 01/10/2026, após corrigir o timeout ao tocar **Começar**, a pessoa na bancada
+confirmou que o fluxo voltou a funcionar no LCD físico. Antes, o reset automático
+do modo feira podia tirar o Mac de **Pronto** enquanto a pessoa preparava a fala;
+o início era recusado e o firmware podia descartar o erro da nova tentativa,
+mostrando apenas timeout. Agora **Pronto** aguarda o toque, e erros de início ou
+nova tentativa sem sessão são exibidos. A correção passou em 203 testes do backend,
+testes portáteis do firmware, build ESP-IDF e gravação verificada no ESP32-S3.
+Essa confirmação de bancada não substitui ensaios com diferentes vozes e ruídos.
+
 ## Fluxo
 
 Touch → USB/serial JSON Lines → bridge Mac → microfone Mac → API loopback →
