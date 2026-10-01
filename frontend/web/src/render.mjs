@@ -84,7 +84,8 @@ export function renderPresenter(snapshot, options = {}) {
         <p>Use o token local para preparar o contexto da próxima sessão. Informe o token para consultar recuperações.</p>
         <div class="token-panel" data-token-state="missing">
           <label for="presenter-token">Token local</label>
-          <input id="presenter-token" name="presenter-token" type="password" autocomplete="off" placeholder="Cole o token aqui" />
+          <input id="presenter-token" name="presenter-token" type="password" autocomplete="off" placeholder="Cole o token aqui" ${options.authError ? 'aria-invalid="true" aria-describedby="presenter-token-error"' : ""} />
+          ${options.authError ? `<p id="presenter-token-error" class="safe-error" role="alert">${escapeHtml(options.authError)}</p>` : ""}
           <button type="button" data-token-submit>Entrar</button>
         </div>
       </section>

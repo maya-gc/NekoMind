@@ -18,6 +18,7 @@ import {
   renderTouch,
 } from "./render.mjs?v=briefing-4";
 import { captureTextareaScroll, restoreTextareaScroll } from "./scroll_state.mjs";
+import { shouldDeferPresenterRefresh } from "./presenter_refresh.mjs";
 
 const app = document.querySelector("#app");
 const route = routeFromPath(window.location.pathname);
@@ -82,9 +83,7 @@ async function refresh() {
     if (route.view === "presenter" && state.token) {
       try { state.contents = await client.listContents(); } catch { state.contents = []; }
     }
-    if (route.view === "presenter" && !app.querySelector(".presenter-auth-card")
-      && app.contains(document.activeElement)
-      && document.activeElement?.matches("input, textarea, select")) {
+    if (route.view === "presenter" && shouldDeferPresenterRefresh(app, document.activeElement)) {
       captureDrafts();
       return;
     }
@@ -97,6 +96,10 @@ async function refresh() {
       bridge_connected: false,
       error: { code: "frontend_fetch_failed", message: error.message },
     });
+    if (route.view === "presenter" && shouldDeferPresenterRefresh(app, document.activeElement)) {
+      captureDrafts();
+      return;
+    }
     render();
   }
 }
@@ -124,11 +127,11 @@ function render() {
     state.cardIndex = model.activeCard?.cardIndex || 0;
     state.currentGeneration = snapshot.generation;
   } else if (route.view === "presenter") {
-    app.innerHTML = renderPresenter(snapshot, { hasToken: Boolean(state.token), contents: state.contents, contentNotice: state.contentNotice });
+    app.innerHTML = renderPresenter(snapshot, { hasToken: Boolean(state.token), contents: state.contents, contentNotice: state.contentNotice, authError: !state.token ? state.commandError : "" });
   } else {
     app.innerHTML = renderPublic(snapshot);
   }
-  if (!state.tokenPromptOpen) app.insertAdjacentHTML("beforeend", renderCommandState(state));
+  if (!state.tokenPromptOpen && !(route.view === "presenter" && !state.token)) app.insertAdjacentHTML("beforeend", renderCommandState(state));
   if (state.tokenPromptOpen) appendTokenPrompt();
   restoreDrafts();
   if (route.view === "presenter") restoreTextareaScroll(app, textareaScroll);
@@ -151,8 +154,8 @@ app.addEventListener("click", async (event) => {
     const candidate = input?.value?.trim() || "";
     if (!candidate) {
       state.commandError = "Cole o token local antes de continuar.";
-      state.tokenPromptOpen = true;
       render();
+      app.querySelector("#presenter-token")?.focus();
       return;
     }
     try {
@@ -160,8 +163,8 @@ app.addEventListener("click", async (event) => {
     } catch (_error) {
       state.token = "";
       state.commandError = "Token local inválido. Copie o token atual e tente novamente.";
-      state.tokenPromptOpen = true;
       render();
+      app.querySelector("#presenter-token")?.focus();
       return;
     }
     state.token = candidate;
