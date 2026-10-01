@@ -52,6 +52,26 @@ def test_unicode_and_preescaped_urls_use_the_same_ascii_request_target(monkeypat
     assert site_import._target("https://example.org/busca?q=ação")[-1] == "/busca?q=a%C3%A7%C3%A3o"
 
 
+def test_wikipedia_article_excludes_site_chrome_and_reference_sections(client, monkeypatch):
+    _public_dns(monkeypatch)
+    html = (
+        '<title>Mecânica hamiltoniana</title><div>Busca Procurar</div>'
+        '<div class="mw-parser-output">'
+        '<table class="navbox"><tr><td>Física espacial</td></tr></table>'
+        '<p>A mecânica hamiltoniana reformula a mecânica clássica.</p>'
+        '<math>\\displaystyle x</math><p>Hamilton usou energia e momento.</p>'
+        '<section aria-labelledby="Referências"><h2 id="Referências">Referências</h2>'
+        '<p>Fonte externa</p></section></div>'
+    ).encode()
+    monkeypatch.setattr(site_import, "_load", lambda target: (200, {"content-type": "text/html"}, html))
+    response = client.post("/api/v1/contents/import-url", json={"url": "https://pt.wikipedia.org/wiki/Mecânica_hamiltoniana"})
+    assert response.status_code == 200, response.text
+    text = response.json()["text"]
+    assert text.startswith("A mecânica hamiltoniana reformula")
+    assert "Busca" not in text and "Física espacial" not in text
+    assert "displaystyle" not in text and "Fonte externa" not in text
+
+
 def test_site_preview_rejects_internal_targets_and_redirects(client, monkeypatch):
     url = "/api/v1/contents/import-url"
     assert (

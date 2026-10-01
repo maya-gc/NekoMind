@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 import httpx
 
@@ -23,7 +24,22 @@ def analyze_briefing(text: str, model: str) -> dict:
         raise BriefingAIError("Cole ou importe um texto antes de analisar.")
     # Keep the complete source for review and persistence. Only bounded,
     # verbatim sentences sampled across it are sent to the local model.
-    sampled = suggest_review_points(source, limit=MAX_CANDIDATES)
+    available = suggest_review_points(source, limit=10_000)
+    prose = [
+        sentence for sentence in available
+        if re.match(r"^[A-ZÀ-Þ]", sentence)
+        and sentence.endswith((".", "!", "?"))
+        and not sentence.endswith("..")
+        and len(re.findall(r"[A-Za-zÀ-ÿ]{2,}", sentence)) >= 3
+        and sum(char.isalpha() for char in sentence) / len(sentence) >= 0.65
+        and "\\displaystyle" not in sentence
+    ]
+    if prose:
+        available = prose
+    sampled = (
+        [available[round(i * (len(available) - 1) / (MAX_CANDIDATES - 1))] for i in range(MAX_CANDIDATES)]
+        if len(available) > MAX_CANDIDATES else available
+    )
     candidates = []
     candidate_chars = 0
     for sentence in sampled:
@@ -35,8 +51,10 @@ def analyze_briefing(text: str, model: str) -> dict:
         raise BriefingAIError("O texto precisa conter ao menos uma frase legível.")
     numbered = "\n".join(f"{index}: {point}" for index, point in enumerate(candidates))
     prompt = (
-        "Você prepara um briefing em português. Escolha de 1 a 8 índices das frases "
-        "mais úteis para acompanhar uma explicação oral. Use somente índices da lista. "
+        "Você prepara um briefing em português. Escolha de 3 a 5 índices quando houver "
+        "frases claras suficientes; caso contrário, escolha apenas as válidas (1 ou 2). "
+        "Prefira frases completas, independentes e de partes diferentes do assunto. "
+        "Evite nomes soltos, títulos, fórmulas e trechos sem contexto. Use somente índices da lista. "
         "Não acrescente fatos, não reescreva frases, não avalie domínio ou correção. "
         'Responda SOMENTE JSON no formato {"indices":[0,1]}.\n\n'
         f"Frases do material:\n{numbered}"

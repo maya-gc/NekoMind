@@ -99,37 +99,68 @@ def _load(target: tuple[str, str, int, str, str]) -> tuple[int, dict[str, str], 
 
 
 class _VisibleText(HTMLParser):
-    HIDDEN = frozenset({"script", "style", "noscript", "svg", "nav", "footer"})
+    HIDDEN = frozenset({"script", "style", "noscript", "svg", "nav", "footer", "aside", "table", "figure", "sup", "form", "button", "math"})
     BLOCK = frozenset({"p", "li", "h1", "h2", "h3", "h4", "article", "section", "br", "div"})
+    VOID = frozenset({"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"})
+    NOISE_CLASSES = frozenset({"navbox", "infobox", "metadata", "mw-editsection", "hatnote", "toc", "reflist", "reference", "thumb", "sidebar", "portal", "noprint", "mw-cite-backlink"})
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
-        self.hidden_depth = 0
+        self.stack: list[tuple[str, bool]] = []
         self.parts: list[str] = []
+        self.article_parts: list[str] = []
+        self.article_depth: int | None = None
+        self.article_found = False
+        self.article_stopped = False
         self.in_title = False
         self.title_parts: list[str] = []
 
     def handle_starttag(self, tag, attrs):
-        if tag in self.HIDDEN:
-            self.hidden_depth += 1
+        attributes = dict(attrs)
+        classes = set((attributes.get("class") or "").split())
+        hidden = (
+            tag in self.HIDDEN
+            or any(name in self.NOISE_CLASSES or name.startswith("navbox-") for name in classes)
+            or (self.stack[-1][1] if self.stack else False)
+        )
+        if tag not in self.VOID:
+            self.stack.append((tag, hidden))
+        if "mw-parser-output" in classes and self.article_depth is None:
+            self.article_depth = len(self.stack)
+            self.article_found = True
+        if self.article_depth is not None and tag in {"section", "h2"}:
+            section_id = (attributes.get("aria-labelledby") or attributes.get("id") or "").lower()
+            if section_id in {"referências", "referencias", "notas", "ligações_externas", "ligacoes_externas"}:
+                self.article_stopped = True
         if tag == "title":
             self.in_title = True
-        if tag in self.BLOCK:
+        if tag in self.BLOCK and not hidden:
             self.parts.append("\n")
+            if self.article_depth is not None and not self.article_stopped:
+                self.article_parts.append("\n")
 
     def handle_endtag(self, tag):
-        if tag in self.HIDDEN and self.hidden_depth:
-            self.hidden_depth -= 1
+        hidden = self.stack[-1][1] if self.stack else False
         if tag == "title":
             self.in_title = False
-        if tag in self.BLOCK:
+        if tag in self.BLOCK and not hidden:
             self.parts.append("\n")
+            if self.article_depth is not None and not self.article_stopped:
+                self.article_parts.append("\n")
+        for index in range(len(self.stack) - 1, -1, -1):
+            if self.stack[index][0] == tag:
+                del self.stack[index:]
+                break
+        if self.article_depth is not None and len(self.stack) < self.article_depth:
+            self.article_depth = None
 
     def handle_data(self, data):
         if self.in_title:
             self.title_parts.append(data)
-        elif not self.hidden_depth:
+        elif not (self.stack[-1][1] if self.stack else False):
             self.parts.append(data)
+            if self.article_depth is not None and not self.article_stopped:
+                self.article_parts.append(data)
 
 
 def import_site(url: str) -> dict:
@@ -163,7 +194,7 @@ def import_site(url: str) -> dict:
         if kind == "text/html":
             parser = _VisibleText()
             parser.feed(decoded)
-            raw = "".join(parser.parts)
+            raw = "".join(parser.article_parts if parser.article_found else parser.parts)
             title = " ".join(parser.title_parts).strip() or target[1]
         else:
             raw, title = decoded, target[1]

@@ -29,6 +29,9 @@ validado e a conexão é fixada ao IP público validado, com TLS verificado pelo
 nome original. O site recebe uma requisição normal; URL e PDF bruto não são
 persistidos. Não há suporte garantido a sites que exigem login, JavaScript ou
 paywall. O texto retornado é sempre revisável antes de ser usado.
+Em páginas da Wikipédia, o importador usa o corpo do artigo e ignora menus,
+caixas de navegação, fórmulas renderizadas e referências finais. Em sites sem
+estrutura de artigo reconhecível, a prévia pode conter ruído; revise antes de salvar.
 
 O botão **Analisar briefing com IA local** usa Ollama em `127.0.0.1` e o modelo
 `NEKOMIND_BRIEFING_MODEL` (padrão `qwen2.5:3b`). O modelo seleciona índices de
