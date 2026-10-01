@@ -1,5 +1,6 @@
 // Keep the DOM node being edited (including the login field) until focus leaves it.
-export function shouldDeferPresenterRefresh(root, activeElement) {
+export function shouldDeferPresenterRefresh(root, activeElement, filePickerOpen = false) {
+  if (filePickerOpen) return true;
   return Boolean(
     activeElement
     && root.contains(activeElement)

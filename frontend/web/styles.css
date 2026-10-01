@@ -698,7 +698,7 @@ button:disabled {
 .presenter-simple .presenter-primary { width: 100%; margin: 10px 0 12px; min-height: 52px; font-size: 17px; }
 .presenter-simple .source-alternatives { display: grid; gap: 15px; margin-top: 25px; padding-top: 22px; border-top: 1px solid var(--presenter-line); }
 .presenter-simple .upload-field { position: relative; cursor: pointer; }
-.presenter-simple .upload-field input[type="file"] { position: absolute; width: 1px; height: 1px; min-height: 0; padding: 0; opacity: 0; }
+.presenter-simple .upload-field input[type="file"] { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; min-height: 0; padding: 0; opacity: 0; cursor: pointer; }
 .presenter-simple .upload-choice { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 7px 12px; border: 1px dashed #bb8ea0; border-radius: 12px; background: #fff8fa; color: #873955; }
 .presenter-simple .upload-choice small { color: var(--presenter-muted); font-size: 13px; font-weight: 500; }
 .presenter-simple .upload-field:focus-within .upload-choice { outline: 3px solid #f4c5d7; }

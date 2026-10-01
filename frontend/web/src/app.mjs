@@ -34,6 +34,7 @@ const state = {
   lastLocalActionAt: 0,
   pendingCommand: false,
   pendingBriefing: false,
+  filePickerOpen: false,
   commandError: "",
   tokenPromptOpen: false,
   confirmation: null,
@@ -83,7 +84,7 @@ async function refresh() {
     if (route.view === "presenter" && state.token) {
       try { state.contents = await client.listContents(); } catch { state.contents = []; }
     }
-    if (route.view === "presenter" && shouldDeferPresenterRefresh(app, document.activeElement)) {
+    if (route.view === "presenter" && shouldDeferPresenterRefresh(app, document.activeElement, state.filePickerOpen)) {
       captureDrafts();
       return;
     }
@@ -96,7 +97,7 @@ async function refresh() {
       bridge_connected: false,
       error: { code: "frontend_fetch_failed", message: error.message },
     });
-    if (route.view === "presenter" && shouldDeferPresenterRefresh(app, document.activeElement)) {
+    if (route.view === "presenter" && shouldDeferPresenterRefresh(app, document.activeElement, state.filePickerOpen)) {
       captureDrafts();
       return;
     }
@@ -142,6 +143,9 @@ function render() {
 }
 
 app.addEventListener("click", async (event) => {
+  // The native file dialog may outlive several polling intervals. Keep its
+  // input mounted so Safari can deliver the selected file's change event.
+  if (event.target.closest(".upload-field")) state.filePickerOpen = true;
   const answer = event.target.closest("[data-confirm-answer]");
   if (answer) {
     resolveConfirmation(answer.dataset.confirmAnswer === "yes");
@@ -260,11 +264,14 @@ app.addEventListener("click", async (event) => {
 });
 
 app.addEventListener("change", async (event) => {
-  const file = event.target.matches("[data-content-file]") ? event.target.files?.[0] : null;
+  const isFileInput = event.target.matches("[data-content-file]");
+  if (isFileInput) state.filePickerOpen = false;
+  const file = isFileInput ? event.target.files?.[0] : null;
   if (!file) return;
   if (/\.pdf$/i.test(file.name)) {
     if (file.size > 5 * 1024 * 1024) {
-      state.commandError = "Use um PDF com até 5 MB.";
+      state.contentNotice = "Use um PDF com até 5 MB.";
+      state.commandError = "";
       render();
       return;
     }
@@ -285,15 +292,18 @@ app.addEventListener("change", async (event) => {
       state.skipCaptureOnce = true;
       render();
     } catch (error) {
-      state.contentNotice = loaded ? "PDF carregado. A IA local não concluiu a análise; revise o texto e tente novamente." : "";
-      state.commandError = error.message || "Falha ao ler PDF.";
+      state.contentNotice = loaded
+        ? `PDF carregado, mas a análise local falhou: ${error.message || "tente novamente"}`
+        : `Não foi possível ler o PDF: ${error.message || "tente outro arquivo"}`;
+      state.commandError = "";
       state.skipCaptureOnce = true;
       render();
     }
     return;
   }
   if (!/\.(txt|md)$/i.test(file.name) || file.size > 50000) {
-    state.commandError = "Use PDF, .txt ou .md dentro dos limites indicados.";
+    state.contentNotice = "Use PDF, .txt ou .md dentro dos limites indicados.";
+    state.commandError = "";
     render();
     return;
   }
@@ -309,6 +319,14 @@ app.addEventListener("change", async (event) => {
   }
   state.skipCaptureOnce = true;
   render();
+});
+
+app.addEventListener("cancel", (event) => {
+  if (event.target.matches("[data-content-file]")) state.filePickerOpen = false;
+}, true);
+
+window.addEventListener("focus", () => {
+  if (state.filePickerOpen) window.setTimeout(() => { state.filePickerOpen = false; }, 700);
 });
 
 async function runLocalAnalysis(text) {

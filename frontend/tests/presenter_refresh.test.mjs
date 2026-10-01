@@ -11,6 +11,7 @@ test("status refresh leaves focused login and editing fields in place", () => {
   }
   assert.equal(shouldDeferPresenterRefresh(root, { inside: false, matches: () => true }), false);
   assert.equal(shouldDeferPresenterRefresh(root, { inside: true, matches: () => false }), false);
+  assert.equal(shouldDeferPresenterRefresh(root, null, true), true);
 });
 
 test("login error stays beside the token field and escapes markup", () => {
