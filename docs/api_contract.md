@@ -136,6 +136,13 @@ o extrator de tópicos executa uma frase curta e informa `local_keywords`, `mock
 `skipped` ou erro.
 # Extensão opcional de conteúdo guiado (NM-020/024/025)
 
+`POST /api/v1/contents/import-pdf` exige token local e `multipart/form-data`
+com campo `file`. Aceita PDF de até 5 MB, 20 páginas e 50 mil caracteres de texto
+extraído; retorna `{text, points, page_count}` para revisão, sem criar conteúdo
+nem mudar a seleção. PDF inválido, criptografado ou sem texto selecionável retorna
+422; arquivo acima de 5 MB retorna 413. Salvar continua em `POST /api/v1/contents`
+com `source: "pdf"`; selecionar continua em `PUT /api/v1/experience/selection`.
+
 Todas as rotas abaixo são locais e exigem token do operador, exceto o snapshot
 público já existente. `POST /api/v1/contents` recebe `title`, `text`,
 `language: "pt"`, `source: "typed"|"txt"|"md"`, `points?: string[]` e

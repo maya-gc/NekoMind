@@ -182,7 +182,13 @@ outro modelo ou API é uma decisão futura; nenhuma API de nuvem foi acionada.
 
 ## Conteúdo guiado opcional
 
-No painel local `/presenter`, o operador pode cadastrar texto ou abrir `.txt`/`.md`,
+No painel local `/presenter`, o operador pode colar texto ou abrir `.txt`, `.md`
+ou **PDF com texto selecionável**. A importação do PDF é local e mostra texto e
+pontos sugeridos para revisão; só **Salvar conteúdo** e depois **Aplicar seleção**
+ativam esse contexto para a próxima sessão. PDF escaneado sem texto selecionável
+é recusado com orientação para OCR, ainda não integrado. O limite é 5 MB,
+20 páginas e 50 mil caracteres extraídos. O arquivo PDF em si não é salvo;
+o texto aprovado entra na biblioteca local e na cópia da sessão. O operador pode
 revisar os pontos-chave e selecionar um conteúdo para a **próxima** sessão. O
 modo livre continua padrão; basta deixar “Modo livre” selecionado. No modo real
 guiado, o Mac produz parciais provisórios de fala, calcula cobertura lexical

@@ -16,7 +16,7 @@ import {
   renderPublic,
   renderTokenPrompt as renderTokenPromptMarkup,
   renderTouch,
-} from "./render.mjs?v=guided-2";
+} from "./render.mjs?v=pdf-1";
 
 const app = document.querySelector("#app");
 const route = routeFromPath(window.location.pathname);
@@ -246,8 +246,34 @@ app.addEventListener("click", async (event) => {
 app.addEventListener("change", async (event) => {
   const file = event.target.matches("[data-content-file]") ? event.target.files?.[0] : null;
   if (!file) return;
+  if (/\.pdf$/i.test(file.name)) {
+    if (file.size > 5 * 1024 * 1024) {
+      state.commandError = "Use um PDF com até 5 MB.";
+      render();
+      return;
+    }
+    try {
+      state.contentNotice = "Lendo PDF localmente...";
+      render();
+      const preview = await client.importPdf(file);
+      state.editingContentId = null;
+      state.drafts.contentTitle = file.name.replace(/\.pdf$/i, "").slice(0, 200);
+      state.drafts.contentText = preview.text;
+      state.drafts.contentPoints = preview.points.join("\n");
+      state.drafts.contentSource = "pdf";
+      state.commandError = "";
+      state.contentNotice = `PDF lido: ${preview.page_count} página(s). Revise os pontos, salve e aplique a seleção.`;
+      state.skipCaptureOnce = true;
+      render();
+    } catch (error) {
+      state.contentNotice = "";
+      state.commandError = error.message || "Falha ao ler PDF.";
+      render();
+    }
+    return;
+  }
   if (!/\.(txt|md)$/i.test(file.name) || file.size > 50000) {
-    state.commandError = "Use um arquivo .txt ou .md com até 50 KB.";
+    state.commandError = "Use PDF, .txt ou .md dentro dos limites indicados.";
     render();
     return;
   }

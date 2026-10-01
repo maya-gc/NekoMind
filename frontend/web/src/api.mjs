@@ -63,6 +63,18 @@ export function createExperienceClient({ fetchImpl = globalThis.fetch, tokenProv
       return request(`/api/v1/history/subjects/${encodeURIComponent(subject)}`, { private: true });
     },
     listContents() { return request("/api/v1/contents", { private: true }); },
+    async importPdf(file) {
+      const form = new FormData();
+      form.append("file", file);
+      const response = await fetchImpl("/api/v1/contents/import-pdf", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${tokenProvider()}` },
+        body: form,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.detail || `HTTP ${response.status}`);
+      return payload;
+    },
     getContent(id) { return request(`/api/v1/contents/${encodeURIComponent(id)}`, { private: true }); },
     saveContent(id, body) {
       return request(id ? `/api/v1/contents/${encodeURIComponent(id)}` : "/api/v1/contents", {

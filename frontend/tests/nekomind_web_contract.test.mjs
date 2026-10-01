@@ -25,6 +25,31 @@ import {
 } from "../web/src/render.mjs";
 import { createExperienceClient } from "../web/src/api.mjs";
 
+test("PDF import sends authenticated multipart and leaves saving separate", async () => {
+  const calls = [];
+  const client = createExperienceClient({ tokenProvider: () => "local-test-token",
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      return { ok: true, json: async () => ({ text: "A chuva forma rios.", points: ["A chuva forma rios."], page_count: 1 }) };
+    },
+  });
+  const file = new Blob(["%PDF-test"], { type: "application/pdf" });
+  const preview = await client.importPdf(file);
+  assert.equal(preview.page_count, 1);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "/api/v1/contents/import-pdf");
+  assert.equal(calls[0].init.headers.Authorization, "Bearer local-test-token");
+  assert.equal(await calls[0].init.body.get("file").text(), "%PDF-test");
+  assert.equal(calls[0].init.headers["Content-Type"], undefined);
+});
+
+test("presenter offers PDF preview with a clear scanned-file limit", () => {
+  const html = renderPresenter(sanitizePrivateSnapshot({ state: "idle" }), { hasToken: true });
+  assert.match(html, /data-content-file/);
+  assert.match(html, /\.pdf/);
+  assert.match(html, /PDFs digitalizados sem texto selecionável precisam de OCR/);
+});
+
 test("valid real-mode authentication starts one diagnostic only from idle", () => {
   assert.equal(typeof stateModule.automaticDiagnosticForSnapshot, "function");
   assert.deepEqual(stateModule.automaticDiagnosticForSnapshot({

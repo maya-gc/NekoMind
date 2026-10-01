@@ -5,6 +5,7 @@ pydantic>=2.6
 pydantic-settings>=2.2
 SQLAlchemy>=2.0
 python-multipart>=0.0.9   # upload de chunks (multipart/form-data)
+pypdf>=6,<7               # extracao local de texto de PDFs no painel operador
 websockets>=12
 
 # Testes

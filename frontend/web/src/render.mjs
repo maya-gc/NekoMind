@@ -134,8 +134,9 @@ export function renderPresenter(snapshot, options = {}) {
           ${options.contentNotice ? `<p class="content-notice" role="status">${escapeHtml(options.contentNotice)}</p>` : ""}
           <label class="field-row">Título<input data-content-title maxlength="200" placeholder="Ex.: ciclo da água"></label>
           <label class="field-row">Texto de referência<textarea data-content-text rows="5" maxlength="50000" placeholder="Cole parágrafos ou uma lista de pontos..."></textarea></label>
-          <label class="field-row">Arquivo .txt/.md<input type="file" data-content-file accept=".txt,.md,text/plain,text/markdown"></label>
-          <label class="field-row">Pontos-chave (um por linha; deixe vazio para derivar do texto)<textarea data-content-points rows="3"></textarea></label>
+          <label class="field-row">Arquivo PDF, .txt ou .md<input type="file" data-content-file accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"></label>
+          <p>O PDF é lido localmente. Revise o texto e os pontos sugeridos antes de salvar; PDFs digitalizados sem texto selecionável precisam de OCR.</p>
+          <label class="field-row">Pontos-chave (um por linha; revise as sugestões do PDF)<textarea data-content-points rows="3"></textarea></label>
           <label class="field-row"><input type="checkbox" data-content-fair> Disponível para feira</label>
           <div class="button-stack">
             <button type="button" data-content-new>Novo</button>

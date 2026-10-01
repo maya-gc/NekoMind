@@ -7,7 +7,17 @@ são lidos pelo navegador **apenas no painel do operador** e enviados ao backend
 local autenticado; o navegador não grava áudio. Ao selecionar **Modo livre**,
 nenhum serviço de transcrição parcial ou batimento é iniciado.
 
-O conteúdo tem título, idioma `pt`, origem (`typed`, `txt`, `md`), versão e até 30
+O painel também importa PDF com camada de texto. Envia até 5 MB ao endpoint local
+autenticado `POST /api/v1/contents/import-pdf`; o backend lê até 20 páginas com
+`pypdf`, extrai até 50 mil caracteres e devolve texto e até oito frases candidatas
+como prévia editável. A importação **não salva nem seleciona** o conteúdo. O
+operador revisa texto/pontos, toca **Salvar conteúdo** e **Aplicar seleção** antes
+da próxima sessão. O PDF bruto não é persistido. Arquivo inválido, protegido por
+senha, longo demais ou digitalização sem texto selecionável gera erro claro;
+OCR local ainda não foi implementado. Os pontos por frase são uma sugestão
+lexical, não um resumo inteligente ou garantia de qualidade pedagógica.
+
+O conteúdo tem título, idioma `pt`, origem (`typed`, `txt`, `md`, `pdf`), versão e até 30
 pontos de até 500 caracteres. Por padrão cada linha não vazia, inclusive item de lista, vira
 um ponto. A edição manual pode combinar termos presentes no texto, mas não
 introduzir termos alheios. A sessão conserva uma cópia exata do texto, pontos e

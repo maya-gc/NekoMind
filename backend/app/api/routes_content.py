@@ -6,7 +6,7 @@ import json
 from datetime import UTC, datetime
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -15,6 +15,7 @@ from app.database.connection import get_db
 from app.database.models import ReferenceContent
 from app.database.operations import Experience
 from app.services.content_matching import derive_points, validate_points
+from app.services.pdf_import import MAX_PDF_BYTES, PdfImportError, extract_pdf
 
 router = APIRouter(prefix="/api/v1/contents", tags=["contents"])
 
@@ -23,7 +24,7 @@ class ContentInput(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     text: str = Field(min_length=1, max_length=50000)
     language: Literal["pt"] = "pt"
-    source: Literal["typed", "txt", "md"] = "typed"
+    source: Literal["typed", "txt", "md", "pdf"] = "typed"
     points: list[str] | None = None
     fair_available: bool = False
 
@@ -59,6 +60,23 @@ def _apply(row, payload):
     )
     row.points_json = json.dumps(points, ensure_ascii=False)
     row.fair_available = payload.fair_available
+
+
+@router.post("/import-pdf")
+async def import_pdf(file: UploadFile = File(...)):
+    """Return an editable preview; saving/selecting remains a separate action."""
+    if not (file.filename or "").lower().endswith(".pdf"):
+        raise HTTPException(422, "Selecione um arquivo .pdf.")
+    try:
+        data = await file.read(MAX_PDF_BYTES + 1)
+        if len(data) > MAX_PDF_BYTES:
+            raise HTTPException(413, "PDF excede 5 MB.")
+        try:
+            return extract_pdf(data)
+        except PdfImportError as exc:
+            raise HTTPException(422, str(exc)) from exc
+    finally:
+        await file.close()
 
 
 @router.post("", status_code=201)
