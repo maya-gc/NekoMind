@@ -8,7 +8,7 @@ import re
 import socket
 import ssl
 from html.parser import HTMLParser
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import quote, urljoin, urlsplit
 
 from app.services.content_matching import suggest_review_points
 from app.services.pdf_import import MAX_REFERENCE_CHARS
@@ -60,9 +60,11 @@ def _target(url: str) -> tuple[str, str, int, str, str]:
         ips = {ipaddress.ip_address(info[4][0]) for info in addresses}
         if not ips or any(not ip.is_global for ip in ips):
             raise SiteImportError("O link deve apontar para um site público.")
-        path = parsed.path or "/"
+        # HTTP request targets must be ASCII. Preserve existing percent escapes
+        # while encoding Unicode paths such as /wiki/Mecânica_hamiltoniana.
+        path = quote(parsed.path or "/", safe="/%:@!$&'()*+,;=-._~")
         if parsed.query:
-            path += f"?{parsed.query}"
+            path += "?" + quote(parsed.query, safe="/%:@!$&'()*+,;=?-._~")
         return parsed.scheme, host, port, str(min(ips, key=lambda ip: (ip.version, str(ip)))), path
     except (ValueError, UnicodeError) as exc:
         if isinstance(exc, SiteImportError):

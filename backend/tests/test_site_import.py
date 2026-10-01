@@ -44,6 +44,14 @@ def test_site_preview_suggests_source_grounded_points_without_saving(client, mon
     assert client.get("/api/v1/contents").json() == []
 
 
+def test_unicode_and_preescaped_urls_use_the_same_ascii_request_target(monkeypatch):
+    _public_dns(monkeypatch)
+    plain = site_import._target("https://pt.wikipedia.org/wiki/Mecânica_hamiltoniana")
+    escaped = site_import._target("https://pt.wikipedia.org/wiki/Mec%C3%A2nica_hamiltoniana")
+    assert plain[-1] == escaped[-1] == "/wiki/Mec%C3%A2nica_hamiltoniana"
+    assert site_import._target("https://example.org/busca?q=ação")[-1] == "/busca?q=a%C3%A7%C3%A3o"
+
+
 def test_site_preview_rejects_internal_targets_and_redirects(client, monkeypatch):
     url = "/api/v1/contents/import-url"
     assert (
