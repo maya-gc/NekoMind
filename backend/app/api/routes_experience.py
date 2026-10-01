@@ -250,7 +250,9 @@ def publish_bridge(payload: BridgeUpdate, db: Session = Depends(get_db)):
 def _schedule_fair_reset(db, state):
     if (
         state["experience_mode"] == "fair"
-        and state["state"] in {"ready", "completed", "error", "recovery"}
+        # An operator may spend longer than the fair idle window preparing the
+        # explanation after diagnosis. Keep ready until a deliberate action.
+        and state["state"] in {"completed", "error", "recovery"}
         and time.time() - state["activity"] > get_settings().fair_idle_seconds
     ):
         rid = f"idle-reset-{state['generation']}"

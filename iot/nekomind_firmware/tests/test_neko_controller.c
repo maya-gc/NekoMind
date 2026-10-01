@@ -355,6 +355,30 @@ static void test_null_session_idle_and_start_error_are_not_parser_failures(void)
         &message) == NEKO_PROTOCOL_ERR_INVALID_FIELD);
 }
 
+static void test_retry_without_session_reports_mac_error(void)
+{
+    neko_controller_t controller;
+    fake_io_t io;
+    init_controller(&controller, &io);
+
+    assert(neko_controller_touch(&controller, NEKO_TOUCH_START, 0) == NEKO_CONTROLLER_OK);
+    assert(neko_controller_receive(&controller,
+        "{\"v\":1,\"type\":\"error\",\"request_id\":\"boot-1\",\"session_id\":null,"
+        "\"state\":\"error\",\"code\":\"invalid_state\",\"message\":\"Mac nao pronto\"}",
+        10) == NEKO_CONTROLLER_OK);
+    assert(neko_controller_touch(&controller, NEKO_TOUCH_RETRY, 20) == NEKO_CONTROLLER_OK);
+    assert(neko_controller_receive(&controller,
+        "{\"v\":1,\"type\":\"error\",\"request_id\":\"boot-1\",\"session_id\":null,"
+        "\"state\":\"error\",\"code\":\"invalid_state\",\"message\":\"atrasada\"}",
+        25) == NEKO_CONTROLLER_STALE);
+    assert(neko_controller_receive(&controller,
+        "{\"v\":1,\"type\":\"error\",\"request_id\":\"boot-2\",\"session_id\":null,"
+        "\"state\":\"error\",\"code\":\"invalid_state\",\"message\":\"Mac nao pronto\"}",
+        30) == NEKO_CONTROLLER_OK);
+    assert(neko_controller_state(&controller) == NEKO_CONTROLLER_ERROR);
+    assert(strcmp(controller.last_error, "Mac nao pronto") == 0);
+}
+
 static void test_pending_command_rejects_unexpected_state_ack(void)
 {
     neko_controller_t controller;
@@ -1086,6 +1110,7 @@ int main(void)
     test_heartbeat_does_not_replace_finish_result_request();
     test_voice_events_do_not_starve_status_heartbeat();
     test_retry_accepts_new_session_and_direct_result();
+    test_retry_without_session_reports_mac_error();
     test_null_session_idle_and_start_error_are_not_parser_failures();
     test_pending_command_rejects_unexpected_state_ack();
     test_heartbeat_result_can_recover_processing_session();

@@ -125,7 +125,9 @@ O backend carimba a `generation` atual ao enfileirar o comando. `GET
 ao frontend consultar recibo do comando. `POST /commands/{rid}/ack` confirma resposta
 serial com geração e sessão reconciliadas para ações destrutivas.
 `POST /api/v1/experience/bridge` publica estado confirmado do Mac e agenda reset por
-inatividade no heartbeat autenticado. O backend rejeita `completed` sem `StudySession`
+inatividade no heartbeat autenticado apenas após `completed`, `error` ou `recovery`
+no modo feira. `ready` permanece até ação deliberada, mesmo que a pessoa leve mais
+de 90 s para começar. O backend rejeita `completed` sem `StudySession`
 completed válido e rejeita `recording/paused` sem reconciliação de sessão.
 
 `GET /api/v1/experience/providers` executa autoteste local: backend sempre deve

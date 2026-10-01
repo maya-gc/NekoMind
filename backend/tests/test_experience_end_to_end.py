@@ -1,9 +1,12 @@
 """Public/touch queue -> actual bridge -> API/SQLite. Synthetic microphone only."""
 
+import json
 import time
 
 import pytest
 
+from app.database.connection import SessionLocal
+from app.database.operations import Experience
 from app.mac.__main__ import DemoRecorder
 from app.mac.backend import LocalBackend
 from app.mac.bridge import MacBridge
@@ -90,5 +93,66 @@ def test_idle_reset_is_idempotent_without_session(client, tmp_path):
         send(client, "reset", "empty-reset", confirmed=True)
         bridge.tick()
         assert client.get("/api/v1/sessions").json() == []
+    finally:
+        bridge.close()
+
+
+def test_ready_does_not_expire_while_student_prepares(client):
+    assert (
+        client.post(
+            "/api/v1/experience/bridge", json={"state": "ready", "is_demo": True}
+        ).status_code
+        == 200
+    )
+    with SessionLocal() as db:
+        row = db.get(Experience, 1)
+        state = json.loads(row.payload)
+        state.update(
+            experience_mode="fair",
+            state="ready",
+            activity=time.time() - 1000,
+        )
+        row.payload = json.dumps(state)
+        db.commit()
+
+    response = client.post("/api/v1/experience/bridge", json={"state": "ready", "is_demo": True})
+    assert response.status_code == 200, response.text
+    assert client.get("/api/v1/experience/commands").json()["commands"] == []
+    assert client.get("/api/v1/experience/public").json()["state"] == "ready"
+
+    with SessionLocal() as db:
+        row = db.get(Experience, 1)
+        state = json.loads(row.payload)
+        state.update(state="error", activity=time.time() - 1000)
+        row.payload = json.dumps(state)
+        db.commit()
+    assert (
+        client.post(
+            "/api/v1/experience/bridge", json={"state": "error", "is_demo": True}
+        ).status_code
+        == 200
+    )
+    commands = client.get("/api/v1/experience/commands").json()["commands"]
+    assert len(commands) == 1 and commands[0]["command"] == "reset"
+
+
+def test_fair_start_after_long_ready_wait_creates_one_session(client, tmp_path):
+    bridge = MacBridge(
+        LocalBackend(client=client), DemoRecorder(tmp_path / "capture"), tmp_path / "journal.db"
+    )
+    try:
+        send(client, "diagnose", "long-wait-check", mode="fair")
+        wait_state(client, bridge, "ready")
+        with SessionLocal() as db:
+            row = db.get(Experience, 1)
+            state = json.loads(row.payload)
+            state["activity"] = time.time() - 1000
+            row.payload = json.dumps(state)
+            db.commit()
+        bridge.tick()
+        assert client.get("/api/v1/experience/commands").json()["commands"] == []
+        send(client, "start", "long-wait-start")
+        assert wait_state(client, bridge, "recording")["session_id"] is not None
+        assert len(client.get("/api/v1/sessions").json()) == 1
     finally:
         bridge.close()

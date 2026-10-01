@@ -717,7 +717,7 @@ static neko_controller_status_t apply_error_message(neko_controller_t *controlle
     }
     if (!message->has_session_id) {
         if (!message_matches_pending(controller, message)
-            || controller->pending_command != NEKO_COMMAND_START) {
+            || !pending_accepts_new_session(controller)) {
             return NEKO_CONTROLLER_STALE;
         }
     } else if (controller->session_id > 0 && !message_matches_session(controller, message)) {

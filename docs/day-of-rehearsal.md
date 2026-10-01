@@ -58,6 +58,8 @@ mostra o painel público em `http://127.0.0.1:8000/public`.
 
 1. No gatinho, tocar **Diagnóstico**. Esperar **Verificando** e depois **Pronto**.
    Se houver erro, corrigir microfone, modelo, backend ou USB antes de começar.
+   **Pronto** permanece enquanto a pessoa lê as instruções; o reset automático de
+   feira não deve cancelar a preparação antes de **Começar**.
 2. Tocar **Começar**. Apenas após a confirmação do Mac o LCD mostra **Ouvindo**.
    Falar por 20–30 segundos sobre um assunto simples. O microfone é o do Mac; não
    há captura no ESP nem no navegador. Pode-se pausar e retomar pelo LCD. Pausa

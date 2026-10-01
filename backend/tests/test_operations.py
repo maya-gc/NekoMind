@@ -271,6 +271,9 @@ def test_fair_timeout_queues_real_reset_without_claiming_completed(client, monke
             "mode": "fair",
         },
     )
+    # Fair reset applies after an error/result, not while the visitor is ready
+    # and still preparing an explanation.
+    publish(client, state="error")
     now = routes_experience.time.time()
     monkeypatch.setattr(routes_experience.time, "time", lambda: now + 100)
     state = client.get("/api/v1/experience/public").json()
@@ -278,7 +281,7 @@ def test_fair_timeout_queues_real_reset_without_claiming_completed(client, monke
     # A public read must never schedule an administrative action.
     commands = client.get("/api/v1/experience/commands").json()["commands"]
     assert not any(c["command"] == "reset" for c in commands)
-    publish(client)
+    publish(client, state="error")
     commands = client.get("/api/v1/experience/commands").json()["commands"]
     assert sum(c["command"] == "reset" for c in commands) == 1
     client.get("/api/v1/experience/public")
