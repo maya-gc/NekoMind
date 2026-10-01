@@ -17,6 +17,7 @@ import {
   renderTokenPrompt as renderTokenPromptMarkup,
   renderTouch,
 } from "./render.mjs?v=briefing-4";
+import { captureTextareaScroll, restoreTextareaScroll } from "./scroll_state.mjs";
 
 const app = document.querySelector("#app");
 const route = routeFromPath(window.location.pathname);
@@ -101,6 +102,7 @@ async function refresh() {
 }
 
 function render() {
+  const textareaScroll = route.view === "presenter" ? captureTextareaScroll(app) : [];
   if (state.skipCaptureOnce) state.skipCaptureOnce = false;
   else captureDrafts();
   const snapshot = state.snapshot || fixtureSnapshot("attraction");
@@ -129,6 +131,7 @@ function render() {
   if (!state.tokenPromptOpen) app.insertAdjacentHTML("beforeend", renderCommandState(state));
   if (state.tokenPromptOpen) appendTokenPrompt();
   restoreDrafts();
+  if (route.view === "presenter") restoreTextareaScroll(app, textareaScroll);
   if (state.confirmation) {
     app.insertAdjacentHTML("beforeend", renderConfirmation(state.confirmation.label));
     app.querySelector('[data-confirm-answer="no"]')?.focus();
