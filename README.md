@@ -214,8 +214,13 @@ final compara os pontos com a transcrição final validada; o painel público mo
 detalhes e o LCD, um resumo curto. Demo continua marcado como simulado.
 
 Cobertura e expressão não são nota, prova de correção factual ou de domínio.
-O texto e a fala permanecem locais. Ollama é opcional para preparar o briefing;
-captura e batimento continuam funcionando sem ele.
+O texto e a fala permanecem locais. A análise do briefing percorre o material
+em partes e propõe pontos literais distribuídos pela fonte. Após uma sessão
+real guiada, Ollama também cria relações conceituais tentativas entre pontos
+e trechos da transcrição; o Mac mostra as evidências. Proximidade temática,
+possível alinhamento ou oposição não comprovam verdade nem domínio. Se Ollama
+estiver indisponível no fim, o grafo indica indisponibilidade e a cobertura
+lexical permanece. Captura e batimento continuam funcionando sem ele.
 Veja [método, limites e medições](docs/guided-content.md). A aparência e a
 latência do novo fluxo no LCD/microfone reais ainda exigem o roteiro físico.
 

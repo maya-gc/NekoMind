@@ -34,14 +34,14 @@ caixas de navegação, fórmulas renderizadas e referências finais. Em sites se
 estrutura de artigo reconhecível, a prévia pode conter ruído; revise antes de salvar.
 
 O botão **Analisar briefing com IA local** usa Ollama em `127.0.0.1` e o modelo
-`NEKOMIND_BRIEFING_MODEL` (padrão `qwen2.5:3b`). O modelo seleciona índices de
-frases do próprio material; o backend valida tipo, faixa, unicidade e quantidade
-antes de devolver até oito pontos literais. Não há fallback silencioso para
-heurística quando Ollama está indisponível ou responde mal. Para textos longos,
-o texto completo continua na prévia, mas a IA recebe até 24 frases literais
-distribuídas pelo documento, limitadas a 12 mil caracteres. A interface avisa
-quando houve amostragem; revise os pontos, pois partes não amostradas não são
-analisadas pela IA. Após PDF/TXT/MD/URL, a análise local é iniciada automaticamente;
+`NEKOMIND_BRIEFING_MODEL` (padrão `qwen2.5:3b`). O texto é percorrido em partes
+de até 6 mil caracteres da fonte; frases legíveis de cada parte são oferecidas
+ao modelo, que escolhe de um a três índices por parte. O backend valida índices,
+unicidade e quantidade e devolve até 20 pontos literais distribuídos pelo
+material. Fórmulas, títulos e frases ilegíveis podem ficar fora dos candidatos;
+o operador deve revisar o texto e os pontos. Não há fallback silencioso para
+heurística quando Ollama está indisponível ou responde mal. Após PDF/TXT/MD/URL,
+a análise local é iniciada automaticamente;
 para texto colado, há botão explícito. Se a IA falhar, a prévia do texto continua
 editável e os pontos ficam vazios para impedir confusão com resultado de IA.
 Nenhum texto é enviado à nuvem.
@@ -72,10 +72,15 @@ termos em comum. `covered` exige ≥70% dos termos e pelo menos dois termos dist
 (ou o único termo de um ponto de uma palavra); `partial` exige dois termos;
 caso contrário `not_mentioned`. `possible_divergence` exige ≥70% de sobreposição
 e inversão explícita da presença de `não/nao/nunca` na mesma frase. Isso é um
-**sinal conservador**, não uma verificação semântica/factual. O modelo semântico
-para **comparar fala e conteúdo** permanece futuro; Ollama nesta versão apenas
-escolhe trechos do material para o briefing, sem avaliar a fala. Não há serviço
-de IA remoto ativado.
+**sinal conservador**, não uma verificação semântica/factual. Após a transcrição
+final de uma sessão real guiada, o mesmo modelo local pode montar um grafo
+bipartido entre os pontos do briefing e trechos literais da fala. Cada aresta é
+rotulada como tema relacionado, possível alinhamento ou possível oposição. O
+backend só aceita índices existentes, relações permitidas e no máximo 12
+arestas; o painel mostra ambas as evidências. Essas relações são **indícios**,
+não veredito de verdade ou domínio. O modelo não altera o percentual lexical.
+Se Ollama falhar nessa etapa, o grafo fica `unavailable` e o relatório lexical
+continua disponível. Sessões demo não invocam o modelo real. Não há IA remota.
 
 O limiar de 70% exige a maioria forte dos termos; dois termos evitam que uma
 palavra genérica marque um ponto longo. São parâmetros iniciais conservadores,

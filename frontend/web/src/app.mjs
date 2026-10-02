@@ -7,7 +7,7 @@ import {
   sanitizePrivateSnapshot,
   sanitizePublicSnapshot,
   touchModelForSnapshot,
-} from "./state.mjs";
+} from "./state.mjs?v=semantic-1";
 import {
   renderCommandState,
   renderConfirmation,
@@ -16,7 +16,7 @@ import {
   renderPublic,
   renderTokenPrompt as renderTokenPromptMarkup,
   renderTouch,
-} from "./render.mjs?v=briefing-4";
+} from "./render.mjs?v=briefing-5";
 import { captureTextareaScroll, restoreTextareaScroll } from "./scroll_state.mjs";
 import { shouldDeferPresenterRefresh } from "./presenter_refresh.mjs";
 
@@ -288,7 +288,7 @@ app.addEventListener("change", async (event) => {
       loaded = true;
       state.commandError = "";
       await runLocalAnalysis(preview.text);
-      state.contentNotice = `PDF lido (${preview.page_count} página(s)) e analisado pela IA local. Revise os pontos antes de usar.`;
+      state.contentNotice = `PDF lido (${preview.page_count} página(s)). A IA local analisou o texto em partes; confira os pontos antes de usar.`;
       state.skipCaptureOnce = true;
       render();
     } catch (error) {
@@ -338,9 +338,7 @@ async function runLocalAnalysis(text) {
   try {
     const preview = await client.analyzeBriefing(text);
     state.drafts.contentPoints = preview.points.join("\n");
-    state.contentNotice = preview.sampled
-      ? `Análise local concluída (${preview.model}) com trechos distribuídos pelo texto. Confira os pontos antes de usar.`
-      : `Análise local concluída (${preview.model}). Confira os pontos antes de usar.`;
+    state.contentNotice = `Análise local concluída (${preview.model}) em ${preview.sections_analyzed || 1} parte(s), com ${preview.points.length} ponto(s). Confira antes de usar.`;
     state.commandError = "";
   } finally {
     state.pendingBriefing = false;
@@ -364,7 +362,7 @@ async function handleContentAction(button) {
         contentPoints: preview.points.join("\n"), contentSource: "url" });
       importedDuringAction = true;
       await runLocalAnalysis(preview.text);
-      state.contentNotice = "Página carregada e analisada pela IA local. Confira os pontos antes de usar.";
+      state.contentNotice = "Página carregada e analisada em partes pela IA local. Confira os pontos antes de usar.";
     } else if (button.hasAttribute("data-content-analyze")) {
       const text = state.drafts.contentText.trim();
       if (!text) throw new Error("Cole um texto ou carregue um PDF/site antes de analisar.");

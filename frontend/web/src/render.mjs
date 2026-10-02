@@ -1,4 +1,4 @@
-import { statusLabel, stepLabel } from "./state.mjs";
+import { statusLabel, stepLabel } from "./state.mjs?v=semantic-1";
 
 export function renderConfirmation(label) {
   return `<section class="confirmation-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
@@ -126,6 +126,7 @@ export function renderPresenter(snapshot, options = {}) {
           <small>O texto fica no Mac. Para iniciar a fala, use o botão no display.</small>
         </section>
       </div>
+      ${snapshot.result?.content_report ? renderSemanticGraph(snapshot.result.content_report, 12) : ""}
       <details class="presenter-library" data-presenter-library>
         <summary>Usar um conteúdo já salvo ou voltar ao modo livre</summary>
         <div class="library-row"><label class="field-row">Conteúdo salvo<select data-content-selection><option value="">Modo livre</option>${(options.contents || []).map((item) => `<option value="${item.id}" ${snapshot.selected_content_id === item.id ? "selected" : ""}>${escapeHtml(item.title)} · v${item.version}</option>`).join("")}</select></label><button type="button" data-content-select>Usar selecionado</button></div>
@@ -220,6 +221,18 @@ function renderTouchStatus(model) {
   return "";
 }
 
+function renderSemanticGraph(report, limit) {
+  const graph = report?.semantic_graph;
+  if (!graph) return "";
+  if (graph.status !== "completed") return '<section class="semantic-graph"><h3>Relações conceituais</h3><p>Análise conceitual indisponível nesta sessão.</p></section>';
+  const edges = graph.edges.slice(0, limit).map((edge) => {
+    const source = report.points[edge.point_index]?.point || "";
+    const label = edge.relation === "support_hint" ? "possível alinhamento" : edge.relation === "conflict_hint" ? "possível oposição" : "tema relacionado";
+    return `<li><span class="relation-label">${escapeHtml(label)}</span><strong>${escapeHtml(source)}</strong><small>Na fala: ${escapeHtml(edge.speech_excerpt)}</small></li>`;
+  }).join("");
+  return `<section class="semantic-graph"><h3>Relações conceituais</h3><p>${escapeHtml(graph.disclaimer || "Associação não comprova acerto factual.")}</p>${edges ? `<ul>${edges}</ul>` : '<p>Nenhuma relação clara foi identificada.</p>'}</section>`;
+}
+
 function renderPublicResult(snapshot) {
   if (!snapshot.result) {
     return `<p class="empty-result">Sem dados do visitante anterior.</p>`;
@@ -257,6 +270,7 @@ function renderPublicResult(snapshot) {
       <h3>Conteúdo guiado · ${escapeHtml(result.content_report.coverage_percent)}% dos pontos mencionados</h3>
       <p>${escapeHtml(result.content_report.disclaimer)}</p>
       <ul>${result.content_report.points.map((item) => `<li><strong>${escapeHtml(item.point)}</strong> · ${escapeHtml(item.status === "covered" ? "mencionado" : item.status === "partial" ? "parcial" : item.status === "possible_divergence" ? "possível divergência" : "não mencionado")}${item.evidence ? `<small>Trecho: ${escapeHtml(item.evidence)}</small>` : ""} <em>${escapeHtml(item.origin)}</em></li>`).join("")}</ul>
+      ${renderSemanticGraph(result.content_report, 4)}
     </section>` : ""}
   </div>`;
 }

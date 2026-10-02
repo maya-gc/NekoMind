@@ -263,6 +263,15 @@ function sanitizeContentReport(raw) {
       evidence: stringOrEmpty(p.evidence).slice(0, 240),
       origin: p.origin === "demo" ? "demo" : "real",
     })),
+    semantic_graph: raw.semantic_graph && typeof raw.semantic_graph === "object" ? {
+      status: raw.semantic_graph.status === "completed" ? "completed" : "unavailable",
+      disclaimer: stringOrEmpty(raw.semantic_graph.disclaimer),
+      edges: Array.isArray(raw.semantic_graph.edges) ? raw.semantic_graph.edges.slice(0, 12).map((edge) => ({
+        point_index: Number.isInteger(edge.point_index) ? edge.point_index : -1,
+        speech_excerpt: stringOrEmpty(edge.speech_excerpt).slice(0, 350),
+        relation: ["related", "support_hint", "conflict_hint"].includes(edge.relation) ? edge.relation : "related",
+      })).filter((edge) => edge.point_index >= 0 && edge.point_index < Math.min(raw.points.length, 30)) : [],
+    } : null,
   };
 }
 

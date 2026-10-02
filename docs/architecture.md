@@ -29,7 +29,10 @@ limitada, o worker usa o faster-whisper local em janelas com sobreposição e o
 serviço `content_matching.py` transforma parciais em sinais provisórios. Nenhum
 parcial substitui a transcrição final, entra no SQLite ou percorre o serial.
 O relatório final é calculado após a validação de fala e transcrição final,
-e é persistido junto ao resultado da sessão. O painel público mostra somente
+e é persistido junto ao resultado da sessão. Em sessão real guiada, um grafo
+local liga pontos da fonte a trechos da fala com relações tentativas. O grafo
+não altera a cobertura lexical e pode ficar indisponível sem falsificar o
+resultado. O painel público mostra somente
 o sinal compacto ao vivo e os detalhes do relatório depois da conclusão;
 o operador gerencia conteúdos em endpoints autenticados. A gatinha recebe
 somente estado/percentual/expressão com sessão e sequência.

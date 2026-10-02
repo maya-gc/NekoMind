@@ -54,6 +54,27 @@ test("presenter has a short briefing flow with text, PDF, URL and advanced tools
   assert.match(html, /Analisar briefing com IA local/);
 });
 
+test("completed semantic graph shows bounded, escaped evidence with tentative labels", () => {
+  const snapshot = sanitizePublicSnapshot({ state: "completed", mode: "real", result: {
+    content_report: {
+      coverage_percent: 0,
+      disclaimer: "Menções não comprovam domínio.",
+      points: [{ point: "A maçã é uma fruta.", status: "not_mentioned", origin: "real" }],
+      semantic_graph: {
+        status: "completed",
+        disclaimer: "Relação é um indício.",
+        edges: [{ point_index: 0, speech_excerpt: '<img src=x onerror=alert(1)> maçã e abobrinha', relation: "related" }],
+      },
+    },
+  } });
+  const html = renderPublic(snapshot);
+  assert.match(html, /Relações conceituais/);
+  assert.match(html, /tema relacionado/);
+  assert.match(html, /&lt;img src=x/);
+  assert.doesNotMatch(html, /<img src=x/);
+  assert.doesNotMatch(html, /possível alinhamento/);
+});
+
 test("selected website title is escaped in the next-session card", () => {
   const html = renderPresenter(sanitizePrivateSnapshot({ state: "idle", selected_content_id: 7 }), {
     hasToken: true,

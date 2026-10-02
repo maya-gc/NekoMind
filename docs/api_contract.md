@@ -148,11 +148,20 @@ Busca apenas HTML/texto de URL pública, com limite de 1 MB, DNS/IP público,
 portas padrão e cada redirecionamento revalidado. Retorna `{title,text,points,
 source:"url"}` como prévia; não cria nem seleciona conteúdo. `POST
 /api/v1/contents/analyze-briefing` exige token local e `{ "text": "..." }`,
-até 12 mil caracteres para Ollama local; retorna `{text,points,provider,
-model}` com frases literais selecionadas. Falha do modelo ou resposta inválida
+até 50 mil caracteres de fonte; percorre partes de até 6 mil caracteres com
+Ollama local e retorna `{text,points,provider,model,sections_analyzed,sampled}`
+com até 20 frases literais selecionadas. Falha do modelo ou resposta inválida
 retorna 422, sem tópicos simulados. `POST /api/v1/contents/prepare-text` oferece
 apenas sugestões lexicais, sem IA. As três rotas são de prévia: o conteúdo só é
 salvo/aplicado nas rotas existentes.
+
+No resultado de sessão guiada real, `content_report.semantic_graph` contém
+`status` (`completed` ou `unavailable`), `method_version`, `provider`, `model`,
+`edges` e aviso de interpretação. Cada aresta usa `point_index`,
+`speech_excerpt` literal e `relation` (`related`, `support_hint` ou
+`conflict_hint`). No máximo 12 arestas são aceitas. Esse grafo é uma leitura
+local e tentativa; não altera `coverage_percent` nem prova correção factual.
+Em demo, o grafo real não é executado.
 
 Todas as rotas abaixo são locais e exigem token do operador, exceto o snapshot
 público já existente. `POST /api/v1/contents` recebe `title`, `text`,

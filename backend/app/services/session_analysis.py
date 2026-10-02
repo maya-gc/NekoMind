@@ -205,39 +205,54 @@ def _analyze_session_claimed(
         session.analysis_origin = "demo" if session.is_demo else "real"
         if session.reference_snapshot_json:
             from app.services.content_matching import report
+            from app.services.semantic_graph import SemanticGraphError, build_semantic_graph
 
             snapshot = json.loads(session.reference_snapshot_json)
-            session.content_report_json = json.dumps(
-                report(
-                    snapshot,
-                    transcript_text,
-                    duration=duration,
-                    is_demo=session.is_demo,
-                    stages={
-                        "capture": {
-                            "provider": session.capture_source,
-                            "origin": "demo"
-                            if session.capture_source == "synthetic" or session.mode == "demo"
-                            else "real"
-                            if session.capture_source == "mac_microphone"
-                            else "unknown",
-                        },
-                        "transcription": {
-                            "provider": transcript_provider,
-                            "origin": "demo" if transcript_is_demo else "real",
-                        },
-                        "topics": {
-                            "provider": topic_result.provider,
-                            "origin": "demo" if topic_result.is_demo else "real",
-                        },
-                        "matching": {
-                            "provider": "lexical-pt-v1",
-                            "origin": "demo" if session.is_demo else "real",
-                        },
+            content_report = report(
+                snapshot,
+                transcript_text,
+                duration=duration,
+                is_demo=session.is_demo,
+                stages={
+                    "capture": {
+                        "provider": session.capture_source,
+                        "origin": "demo"
+                        if session.capture_source == "synthetic" or session.mode == "demo"
+                        else "real"
+                        if session.capture_source == "mac_microphone"
+                        else "unknown",
                     },
-                ),
-                ensure_ascii=False,
+                    "transcription": {
+                        "provider": transcript_provider,
+                        "origin": "demo" if transcript_is_demo else "real",
+                    },
+                    "topics": {
+                        "provider": topic_result.provider,
+                        "origin": "demo" if topic_result.is_demo else "real",
+                    },
+                    "matching": {
+                        "provider": "lexical-pt-v1",
+                        "origin": "demo" if session.is_demo else "real",
+                    },
+                },
             )
+            if not session.is_demo:
+                try:
+                    content_report["semantic_graph"] = build_semantic_graph(
+                        snapshot["points"], transcript_text, get_settings().briefing_model
+                    )
+                except SemanticGraphError:
+                    content_report["semantic_graph"] = {
+                        "status": "unavailable",
+                        "method_version": "local-relation-graph-v1",
+                        "edges": [],
+                    }
+                content_report["stages"]["semantic"] = {
+                    "provider": "ollama_local",
+                    "origin": "real",
+                    "status": content_report["semantic_graph"]["status"],
+                }
+            session.content_report_json = json.dumps(content_report, ensure_ascii=False)
         journey.save_step(
             session,
             "result",

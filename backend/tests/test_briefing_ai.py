@@ -55,7 +55,7 @@ def test_ai_rejects_unusable_text_before_model_call(client, monkeypatch):
     assert client.post(url, json={"text": "..."}).status_code == 422
 
 
-def test_long_article_is_sampled_but_full_source_is_retained(client, monkeypatch):
+def test_long_article_analyzes_every_part_and_retains_full_source(client, monkeypatch):
     calls = []
     monkeypatch.setattr(
         briefing_ai.httpx, "Client", lambda **kw: FakeClient('{"indices":[0]}', calls)
@@ -67,8 +67,11 @@ def test_long_article_is_sampled_but_full_source_is_retained(client, monkeypatch
     result = response.json()
     assert result["text"] == text
     assert result["sampled"] is True
+    assert result["sections_analyzed"] == len(calls) > 1
     assert all(point in text for point in result["points"])
-    assert len(calls[0][1]["prompt"]) < 13000
+    assert any("A seção 699" in call[1]["prompt"] for call in calls)
+    assert all(len(call[1]["prompt"]) < 8000 for call in calls)
+    assert len(result["points"]) > 1
 
 
 def test_ai_failure_and_invalid_output_do_not_fall_back(client, monkeypatch):
