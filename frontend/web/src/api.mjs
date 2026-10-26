@@ -1,0 +1,105 @@
+export function createExperienceClient({ fetchImpl = globalThis.fetch, tokenProvider = () => "" } = {}) {
+  async function request(path, options = {}) {
+    const headers = { ...(options.headers || {}) };
+    if (options.private) {
+      const token = options.token ?? tokenProvider();
+      if (token) headers.Authorization = `Bearer ${token}`;
+    }
+    if (options.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
+    const response = await fetchImpl(path, {
+      method: options.method || "GET",
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = payload?.error?.message || payload?.detail || `HTTP ${response.status}`;
+      throw new Error(message);
+    }
+    return payload;
+  }
+
+  return {
+    getPublic() {
+      return request("/api/v1/experience/public");
+    },
+    getPresenter() {
+      return request("/api/v1/experience/presenter", { private: true });
+    },
+    validateOperatorToken(token) {
+      return request("/api/v1/experience/presenter", { private: true, token });
+    },
+    enqueueCommand(command) {
+      return request("/api/v1/experience/commands", {
+        method: "POST",
+        private: true,
+        body: {
+          request_id: command.request_id,
+          command: command.command,
+          session_id: command.session_id ?? null,
+          confirmed: Boolean(command.confirmed),
+          ...(Number.isInteger(command.mission_index) ? { mission_index: command.mission_index } : {}),
+          ...(command.mode ? { mode: command.mode } : {}),
+        },
+      });
+    },
+    getCommandStatus(requestId) {
+      return request(`/api/v1/experience/commands/${encodeURIComponent(requestId)}`, { private: true });
+    },
+    updateSubject(sessionId, subject) {
+      return request(`/api/v1/sessions/${encodeURIComponent(sessionId)}/subject`, {
+        method: "PATCH",
+        private: true,
+        body: { subject, confirmed: true },
+      });
+    },
+    deleteSession(sessionId) {
+      return request(`/api/v1/sessions/${encodeURIComponent(sessionId)}`, {
+        method: "DELETE",
+        private: true,
+        body: { confirmed: true },
+      });
+    },
+    getSubjectHistory(subject) {
+      return request(`/api/v1/history/subjects/${encodeURIComponent(subject)}`, { private: true });
+    },
+    listContents() { return request("/api/v1/contents", { private: true }); },
+    async importPdf(file) {
+      const form = new FormData();
+      form.append("file", file);
+      const response = await fetchImpl("/api/v1/contents/import-pdf", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${tokenProvider()}` },
+        body: form,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.detail || `HTTP ${response.status}`);
+      return payload;
+    },
+    importUrl(url) {
+      return request("/api/v1/contents/import-url", {
+        method: "POST", private: true, body: { url },
+      });
+    },
+    prepareText(text) {
+      return request("/api/v1/contents/prepare-text", {
+        method: "POST", private: true, body: { text },
+      });
+    },
+    analyzeBriefing(text) {
+      return request("/api/v1/contents/analyze-briefing", {
+        method: "POST", private: true, body: { text },
+      });
+    },
+    getContent(id) { return request(`/api/v1/contents/${encodeURIComponent(id)}`, { private: true }); },
+    saveContent(id, body) {
+      return request(id ? `/api/v1/contents/${encodeURIComponent(id)}` : "/api/v1/contents", {
+        method: id ? "PUT" : "POST", private: true, body,
+      });
+    },
+    deleteContent(id) { return request(`/api/v1/contents/${encodeURIComponent(id)}`, { method: "DELETE", private: true }); },
+    selectContent(contentId) { return request("/api/v1/experience/selection", {
+      method: "PUT", private: true, body: { content_id: contentId },
+    }); },
+  };
+}

@@ -1,5 +1,5 @@
-# NekoMind Firmware - Projeto ESP-IDF para ESP32-S3
-# Requer ESP-IDF >= 5.1 (testado com v5.3.x)
+# NekoMind Firmware - Projeto ESP-IDF; alvo pendente de escolha de placa
+# Requer ESP-IDF >= 5.1 (validacao deste MVP ainda pendente)
 cmake_minimum_required(VERSION 3.16)
 
 set(COMPONENTS main)

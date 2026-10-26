@@ -32,7 +32,9 @@ const char *avatar_state_name(neko_state_t state)
 {
     switch (state) {
     case NEKO_STATE_IDLE:       return "IDLE";
+    case NEKO_STATE_PENDING:    return "PENDING";
     case NEKO_STATE_RECORDING:  return "RECORDING";
+    case NEKO_STATE_PAUSED:     return "PAUSED";
     case NEKO_STATE_SENDING:    return "SENDING";
     case NEKO_STATE_PROCESSING: return "PROCESSING";
     case NEKO_STATE_SUCCESS:    return "SUCCESS";

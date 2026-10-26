@@ -1,0 +1,48 @@
+{
+  "date": "2026-10-06",
+  "firmware": "NekoMind ESP32-S3 offline lab, ESP-IDF v5.3.1",
+  "environment": "Espressif QEMU 9.2.2 on macOS ARM; no physical ESP32-S3 connected",
+  "configuration": {
+    "simulated_flash_bytes": 2097152,
+    "simulated_octal_psram_bytes": 8388608,
+    "app_binary_bytes": 217888,
+    "models_loaded": false,
+    "audio_peripherals_emulated": false
+  },
+  "qemu_observations": {
+    "boot_completed": true,
+    "psram_reported_bytes": 8388608,
+    "internal_free_at_boot_bytes": 383371,
+    "psram_free_at_boot_bytes": 8385720,
+    "largest_psram_block_at_boot_bytes": 8257536,
+    "persistent_allocations": {
+      "audio_ring_4s_pcm16_bytes": 128000,
+      "text_index_bytes": 262144,
+      "display_strip_rgb565_bytes": 9600,
+      "all_succeeded": true
+    },
+    "psram_after_persistent_allocations_bytes": 7995568,
+    "largest_block_after_persistent_allocations_bytes": 7995392,
+    "separate_allocation_probes": [
+      {"label": "Oido ASR working-memory proxy", "requested_bytes": 2516582, "succeeded": true},
+      {"label": "Ivy ASR arena proxy", "requested_bytes": 5662310, "succeeded": true},
+      {"label": "Ivy LLM arena proxy", "requested_bytes": 6815744, "succeeded": true}
+    ],
+    "simultaneous_ivy_arena_probe": {
+      "asr_allocated": true,
+      "llm_allocated": false,
+      "combined_requested_bytes": 12478054
+    },
+    "control_flow": "Injected text selected one hard-coded passage; no ASR, LLM, TTS, I2S, LCD, touch or SD was exercised"
+  },
+  "host_only_portuguese_tts_probe": {
+    "model": "sanoTTS pt-cadu-0p51m fp16 from the author's Hugging Face repository",
+    "python_package": "sanotts 0.5.0, using explicit voice directory and espeak frontend",
+    "sentences_synthesized": 3,
+    "wav_sample_rate_hz": 22050,
+    "wav_durations_seconds": [3.98, 3.32, 3.36],
+    "quality_evaluation": "Not performed; local faster-whisper weights were incomplete",
+    "esp32_port_evaluation": "Not performed"
+  },
+  "interpretation": "Allocation success is only a resource probe. It does not establish model compatibility, quality, latency, stability, or physical-board operation."
+}

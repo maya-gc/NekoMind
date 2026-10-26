@@ -1,8 +1,8 @@
-"""Página Configurações: URL do backend e modo de demonstração."""
+"""Página Configurações: URL do backend e modo efetivo declarado."""
+
 from __future__ import annotations
 
 import streamlit as st
-
 from services import backend_client
 
 st.markdown("## ⚙️ Configurações")
@@ -17,17 +17,14 @@ if st.button("Salvar URL"):
     st.session_state["backend_url"] = url.strip() or "http://127.0.0.1:8000"
     st.success("URL salva.")
 
-st.markdown("#### Modo de demonstração")
-st.session_state["demo_mode"] = st.toggle(
-    "Usar dados de demonstração",
-    value=backend_client.is_demo_mode(),
-    help="Quando ativo, o dashboard destaca quando os dados vêm dos "
-    "adapters mock [DEMO] do backend.",
-)
-
 st.markdown("#### Conexão atual")
 try:
     health = backend_client.health()
+    status = backend_client.effective_backend_status()
+    st.info(
+        f"Modo efetivo: {status['label']} · ASR: {status.get('asr_provider') or 'desconhecido'} · "
+        f"Tópicos: {status.get('topic_provider') or 'desconhecido'}"
+    )
     st.json(health)
 except Exception as exc:  # noqa: BLE001
     st.error(f"Sem conexão com o backend: {exc}")

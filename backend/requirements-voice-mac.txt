@@ -1,0 +1,5 @@
+# Optional local pt-BR voice for app.mac on Apple Silicon.
+kokoro==0.9.4
+torch==2.14.1
+transformers==4.57.6
+soundfile==0.14.0

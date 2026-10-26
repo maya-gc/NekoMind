@@ -1,10 +1,9 @@
-"""Adaptador da serial USB (JSON Lines) com o dispositivo ESP32-S3.
+"""Esboco legado, fora do caminho MVP touch + Mac.
 
-Stub para uso futuro em integracao continua com o firmware. Le linhas
-JSON do protocolo definido em docs/iot_protocol.md. Nao e usado pelos
-endpoints HTTP no MVP - o envio de audio ao backend ocorre via
-POST /api/v1/sessions/{id}/audio ou pelo WebSocket /ws/device.
+O bridge executavel esta em app.mac; /ws/device legado foi desativado.
+Esta classe nao comprova integracao de hardware nem recebe audio no MVP.
 """
+
 from __future__ import annotations
 
 import json
@@ -29,9 +28,7 @@ class SerialAdapter:
         try:
             import serial  # type: ignore  # pyserial e opcional no MVP
         except ImportError as exc:  # pragma: no cover
-            raise RuntimeError(
-                "pyserial nao instalado; instale para usar a serial"
-            ) from exc
+            raise RuntimeError("pyserial nao instalado; instale para usar a serial") from exc
         return serial.Serial(self.port, self.baudrate, timeout=1)
 
     def iter_messages(self) -> Iterator[dict]:
