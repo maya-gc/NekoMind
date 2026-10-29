@@ -1,5 +1,7 @@
 # Documentação do NekoMind
 
+- [`handoff-colaborador.md`](handoff-colaborador.md) — decisões deste chat, estado
+  publicado, setup, testes e pendências para quem vai continuar o projeto;
 - [`architecture.md`](architecture.md) — arquitetura (Mermaid) e fluxo;
 - [`requirements.md`](requirements.md) — requisitos funcionais e não funcionais;
 - [`api_contract.md`](api_contract.md) — rotas e exemplos de payload;

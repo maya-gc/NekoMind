@@ -1,5 +1,8 @@
 # NekoMind — MVP touch + Mac
 
+[Contexto para continuar o desenvolvimento](docs/handoff-colaborador.md): decisões,
+branch atual, testes, setup e pendências para colaboradores.
+
 A pessoa explica um assunto em voz alta e controla a sessão por um gatinho ESP32
 com **display touch obrigatório**. O microfone do **Mac** captura; o Mac transcreve,
 extrai assuntos e armazena a sessão localmente. Tópicos e métricas heurísticas não
