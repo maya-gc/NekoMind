@@ -3,6 +3,7 @@
 Frontend do MVP: consome somente a API do backend
 (frontend/streamlit/services/backend_client.py).
 """
+
 from __future__ import annotations
 
 import streamlit as st
@@ -36,8 +37,6 @@ st.markdown(
 # Estado de configuracao com defaults.
 if "backend_url" not in st.session_state:
     st.session_state["backend_url"] = "http://127.0.0.1:8000"
-if "demo_mode" not in st.session_state:
-    st.session_state["demo_mode"] = True
 
 st.sidebar.markdown("## 🗂 Navegação")
 st.sidebar.markdown(
@@ -45,7 +44,7 @@ st.sidebar.markdown(
     - **1. Dashboard** — visão geral
     - **2. Sessões** — histórico e detalhes
     - **3. Tópicos** — conceitos extraídos
-    - **4. Configurações** — backend e modo demo
+    - **4. Configurações** — backend e modo efetivo
     """
 )
 st.sidebar.caption(

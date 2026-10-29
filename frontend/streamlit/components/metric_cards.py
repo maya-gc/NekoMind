@@ -1,4 +1,5 @@
 """Cards de metricas do NekoMind."""
+
 from __future__ import annotations
 
 import streamlit as st
@@ -25,7 +26,7 @@ def metric_card(label: str, value: str, unit: str = "", key: str = "") -> None:
         f'<div class="neko-metric">'
         f'<div class="label">{label}</div>'
         f'<div class="value">{value} <span class="unit">{unit}</span></div>'
-        f'</div>',
+        f"</div>",
         unsafe_allow_html=True,
     )
 
@@ -45,7 +46,7 @@ def show_metric_cards(summary: dict) -> None:
         metric_card("Tempo estudado", f"{total_minutes:.1f}", "min")
     with cols[2]:
         metric_card(
-            "Clareza média",
+            "Clareza média heurística",
             f"{clarity:.1f}" if clarity is not None else "—",
             "/ 10",
         )

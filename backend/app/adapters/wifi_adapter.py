@@ -1,12 +1,9 @@
-"""Adaptador Wi-Fi (stub planejado).
+"""Esboco legado, fora do caminho MVP touch + Mac.
 
-Quando o firmware ganhar transporte Wi-Fi, este adapter recebera os
-mesmos tipos de mensagem do protocolo JSON Lines via TCP/WebSocket
-e os encaminhara para os servicos (audio_ingestion, session_analysis).
-
-Por ora o WebSocket /ws/device (app/api/websocket.py) ja aceita
-mensagens JSON no mesmo formato, servindo de ponto de entrada.
+O bridge executavel esta em app.mac; /ws/device legado foi desativado.
+Esta classe nao comprova integracao de hardware nem recebe audio no MVP.
 """
+
 from __future__ import annotations
 
 

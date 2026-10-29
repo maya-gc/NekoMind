@@ -1,69 +1,35 @@
-# Requisitos do NekoMind
+# Requisitos do NekoMind — MVP touch + Mac
 
-## Visão
+## Fluxo aprovado
 
-Sistema embarcado + web que apoia o estudante a aplicar a técnica Feynman:
-explicar um conceito em voz alta e receber feedback sobre clareza e
-abrangência da explicação.
+1. A pessoa toca em comecar no ESP32 com display touch.
+2. O Mac inicia de fato a captura pelo microfone local e confirma.
+3. O gatinho mostra gravando somente apos confirmacao do Mac.
+4. Pausar/retomar/finalizar pelo touch altera a captura real no Mac.
+5. O Mac encerra a captura, valida audio/fala, transcreve, extrai assuntos, calcula metricas heuristicas e persiste.
+6. O gatinho recebe apenas resultado validado da sessao atual. Erro, timeout, resposta antiga ou resposta de outra sessao nao sao sucesso.
 
 ## Requisitos funcionais
 
-### Firmware (ESP32-S3)
+- Touch obrigatorio como interface operacional da sessao.
+- Mac como fonte de audio no caminho principal.
+- USB/serial JSON Lines para comandos, estados, erros e resultados.
+- Demo util e identificado; modo real falha fechado, sem fallback silencioso para mock.
+- ASR lazy/cache por processo e configuracao.
+- Validacao de audio/fala antes de avaliar no modo real.
+- Idempotencia para inicio, upload de chunks e finalizacao.
+- Extracao local de topicos fundamentada na transcricao, sem quantidade fixa inventada.
+- SQLite local com migracao aditiva para bancos MVP existentes.
 
-| ID | Requisito |
-|---|---|
-| FR-IOT-01 | Capturar áudio do microfone INMP441 via I2S com DMA. |
-| FR-IOT-02 | Bufferizar áudio PCM mono em chunks de tamanho fixo. |
-| FR-IOT-03 | Enviar chunks ao computador via USB serial (JSON Lines). |
-| FR-IOT-04 | Exibir o estado da sessão no LCD por um avatar lúdico. |
-| FR-IOT-05 | Modelar estados: IDLE, RECORDING, SENDING, PROCESSING, SUCCESS, ERROR. |
-| FR-IOT-06 | Enviar mensagens de status/telemetria. |
-| FR-IOT-07 | (Futuro) Alternar transporte para Wi-Fi. |
-| FR-IOT-08 | Pinos, sample rate, chunk size e Wi-Fi centralizados em configuração. |
+## Fora de escopo
 
-### Backend
+- Gravador pelo navegador.
+- Audio vindo do ESP no caminho principal.
+- Escolha de placa, display, touch controller, pinos e tamanho.
+- Microfone embarcado, Wi-Fi e dispositivo independente do Mac.
+- Envio de audio/transcricao real para nuvem ou contratacao de servicos.
+- Avaliacao pedagogica definitiva.
 
-| ID | Requisito |
-|---|---|
-| FR-BE-01 | Receber e persistir sessões de estudo (início/fim, status). |
-| FR-BE-02 | Receber chunks de áudio (multipart) e via WebSocket. |
-| FR-BE-03 | Transcrever áudio (ASR) com adaptador substituível (mock por padrão). |
-| FR-BE-04 | Extrair tópicos/conceitos (LLM) com adaptador substituível (mock). |
-| FR-BE-05 | Calcular métricas: duração, palavras, nº de tópicos, diversidade lexical, cobertura e clareza. |
-| FR-BE-06 | Persistir em SQLite (PostgreSQL preparado via URL). |
-| FR-BE-07 | Expor endpoints REST: /health, sessões, áudio, finish, dashboard/summary. |
-| FR-BE-08 | Expor WebSocket /ws/device para o dispositivo. |
-| FR-BE-09 | Rodar integralmente sem chaves de API e sem baixar modelos de IA. |
-| FR-BE-10 | Marcar dados gerados por adapters mock como demonstração ([DEMO]). |
+## Evidencia esperada
 
-### Frontend
-
-| ID | Requisito |
-|---|---|
-| FR-FE-01 | Dashboard: total de sessões, tempo estudado, clareza média, tópicos. |
-| FR-FE-02 | Listar e detalhar sessões, exibir transcrição e cards de métricas. |
-| FR-FE-03 | Exibir avatar com estados espelhando o firmware. |
-| FR-FE-04 | Tela de configurações (URL do backend e modo demonstração). |
-| FR-FE-05 | Consumir somente a API do backend (nunca o banco diretamente). |
-
-## Requisitos não funcionais
-
-| ID | Requisito |
-|---|---|
-| FR-NF-01 | Backend em Python 3.11+ com FastAPI. |
-| FR-NF-02 | Frontend Streamlit em http://127.0.0.1:8501; backend em http://127.0.0.1:8000. |
-| FR-NF-03 | Ferramentas locais dentro do monorepo (ESP-IDF, tools, VS Code portátil). |
-| FR-NF-04 | Sem instalações globais de toolchain/IDE quando houver alternativa local. |
-| FR-NF-05 | Não versionar binários pesados, venvs, builds, .env (ver .gitignore). |
-| FR-NF-06 | Não expor chaves de API. |
-| FR-NF-07 | Latência alvo: captura e envio de chunks em tempo quase real no MVP. |
-| FR-NF-08 | Projeto compilável e executável com IA em modo mock (demonstração). |
-| FR-NF-09 | Testes automatizados básicos (health, sessão, persistência). |
-
-## Fora de escopo no MVP
-
-- Avaliação pedagógica definitiva (métricas são heurísticas).
-- Autenticação/autorização.
-- Suporte multi-dispositivo simultâneo.
-- PostgreSQL ativo (apenas preparado).
-- ASR/LLM reais (apenas pontos de extensão).
+Testes automatizados cobrem contratos de backend, bridge, VAD sintetico, idempotencia e falhas. Validacao fisica exige roteiro manual com hardware escolhido, microfone real, permissao macOS e modelo ASR real/local.

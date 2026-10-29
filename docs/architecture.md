@@ -1,109 +1,100 @@
-# Arquitetura do NekoMind
+# Arquitetura — MVP touch + Mac
 
-## Visão geral
+ESP32 com **display touch obrigatório** controla a sessão e apresenta avatar,
+estados, resumo e nova tentativa. O microfone do **Mac** captura a explicação;
+o Mac transcreve, extrai tópicos e persiste o resultado em SQLite. USB/serial
+transporta comandos, confirmações, estados, métricas compactas e resultados JSON
+Lines, sem áudio do ESP no caminho principal. Streamlit consulta o histórico; não
+é gravador de navegador. As superfícies web novas são `/touch`, `/public` e
+`/presenter`.
 
-```mermaid
-flowchart LR
-    subgraph Device["Dispositivo (ESP32-S3)"]
-        MIC[INMP441<br/>microfone digital] -->|I2S + DMA| FW[Firmware NekoMind]
-        FW -->|estado do avatar| LCD[LCD]
-    end
+Opcionalmente, o bridge no Mac mantém Kokoro pt-BR carregado para falas curtas
+da gatinha. Ele reproduz pelo alto-falante do Mac quando a sessão está pronta,
+pausada, processando ou concluída. O início e a retomada da captura cancelam a
+reprodução antes de abrir o microfone. Os pesos são preparados uma vez; a
+execução usa cache local e não envia texto a um serviço de voz. O firmware não
+recebe nem reproduz áudio.
 
-    FW -->|JSON Lines<br/>serial USB| BE[Backend FastAPI]
-    FW -.->|Wi-Fi TCP/WebSocket<br/>futuro| BE
+## Fluxo e fronteiras
 
-    subgraph Backend["Backend (Python 3.11+)"]
-        API[Rotas /api/v1 + /ws/device]
-        SRV[Serviços: ingestão, transcrição,<br/>tópicos, métricas]
-        REPO[Repositórios]
-        ASR[ASRAdapter<br/>mock / faster-whisper]
-        LLM[LLMAdapter<br/>mock / API externa]
-    end
+Touch → controlador portátil C → transporte serial → bridge local no Mac →
+microfone/arquivo PCM → API FastAPI em loopback → WAV validado → detector de fala
+e qualidade → ASR local → extrator de tópicos → transação SQLite → resultado validado
+→ touch/público/presenter.
 
-    BE --> DB[(SQLite<br/>MVP)]
-    DB -.-> PG[(PostgreSQL<br/>futuro)]
-    ASR --> BE
-    LLM --> BE
+A captura começa exclusivamente por comando iniciado no touch. O estado gravando
+exige confirmação do stream no Mac. Pausa para o stream; retomar o reabre. Finalizar
+para e fecha o arquivo antes de processamento. Silêncio não finaliza a sessão.
+Tópicos e métricas heurísticas não comprovam acerto factual nem domínio de conteúdo.
 
-    FR[Frontend Streamlit] -->|HTTP API| API
-```
+## Extensão opcional: conteúdo guiado
 
-## Fluxo de uma sessão
+O operador escolhe um texto local antes da sessão. O backend preserva uma cópia
+do conteúdo e versão na sessão; o modo livre não consulta o matcher nem inicia
+ASR parcial. No modo guiado real, o callback PCM oferece cópias a uma fila
+limitada, o worker usa o faster-whisper local em janelas com sobreposição e o
+serviço `content_matching.py` transforma parciais em sinais provisórios. Nenhum
+parcial substitui a transcrição final, entra no SQLite ou percorre o serial.
+O relatório final é calculado após a validação de fala e transcrição final,
+e é persistido junto ao resultado da sessão. Em sessão real guiada, um grafo
+local liga pontos da fonte a trechos da fala com relações tentativas. O grafo
+não altera a cobertura lexical e pode ficar indisponível sem falsificar o
+resultado. O painel público mostra somente
+o sinal compacto ao vivo e os detalhes do relatório depois da conclusão;
+o operador gerencia conteúdos em endpoints autenticados. A gatinha recebe
+somente estado/percentual/expressão com sessão e sequência.
 
-```mermaid
-sequenceDiagram
-    participant E as ESP32-S3
-    participant B as Backend
-    participant A as ASR/LLM (mock)
-    participant D as SQLite
+O protocolo v1 mantém `result` como único caminho de sucesso. `content` é
+ignorado por firmware antigo (Mac novo não o envia sem prefixo de capacidade)
+e por Mac antigo os comandos novos preservam a forma anterior. Detalhes,
+limiares e limites estão em [conteúdo guiado](guided-content.md).
 
-    E->>B: session_start
-    loop cada chunk
-        E->>B: audio_chunk (base64 / multipart)
-        B->>D: grava chunk + metadados
-    end
-    E->>B: session_end
-    B->>B: junta áudio -> WAV
-    B->>A: transcreve (transcrição [DEMO])
-    B->>A: extrai tópicos
-    B->>B: calcula métricas heurísticas
-    B->>D: persiste transcrição, tópicos, métricas
-    B-->>E: analysis_result (WebSocket)
-    FR->>B: GET /api/v1/dashboard/summary
-    B->>D: consulta agregados
-    B-->>FR: resumo do dashboard
-```
+## Componentes e ownership
 
-## Componentes
+- `backend/app/`: API, serviços, adaptadores, schemas, persistência e migração.
+- `backend/app/mac/`: bridge serial, captura local, diário de solicitações e recuperação.
+- `iot/nekomind_firmware/main/`: lógica portátil de sessão mais drivers SPI/USB
+  específicos do protótipo ESP32-S3 + ILI9341/XPT2046 documentado em `pipeline`.
+- `frontend/web/`: touch emulador com controles/resultado essencial, painel público do
+  Mac com evidências da jornada e presenter local reservado.
+- `frontend/streamlit/`: histórico, tópicos, proveniência e estados; sem captura.
 
-### IoT (firmware)
+Uma instância do bridge controla uma captura. Executar backend com um worker, sem
+reload durante sessões. Idempotência no banco protege criação e finalização;
+a confirmação visual sozinha não evita repetição. O diário do bridge resolve reenvio
+de comandos e reinícios incertos sem abrir captura automaticamente.
 
-- `main/nekomind_main.c` — ponto de entrada;
-- `session_controller` — máquina de estados da sessão;
-- `audio_capture` — buffer circular de chunks PCM;
-- `i2s_microphone` — driver INMP441 (I2S + DMA);
-- `audio_transport` — serial JSON Lines (Wi-Fi planejado);
-- `avatar_state` — estados IDLE/RECORDING/SENDING/PROCESSING/SUCCESS/ERROR;
-- `display_ui` — renderização do avatar no LCD (ou log no MVP).
+## Modos e privacidade
 
-Protocolo: [`docs/iot_protocol.md`](iot_protocol.md).
+Demo permanece útil, offline e explicitamente identificado, inclusive quando recebe
+silêncio. Real não pode trocar por mock em falhas. Cada etapa registra a origem
+executada; origem incompleta/desconhecida não equivale a resultado integralmente real.
+No modo feira, a projeção pública deriva fala detectada, duração, contagem de palavras e
+etapas concluídas desses dados persistidos. A projeção não expõe a transcrição completa.
+ASR usa cache lazy por configuração no mesmo processo. `local_keywords` é uma opção
+explícita local/offline para tópicos: não é LLM, não é mock e não chama nuvem. Não
+há chamada de IA remota ou credencial de API necessária ao processamento local.
 
-### Backend
+Loopback é o limite operacional do MVP, sem promessa de isolamento entre usuários
+locais. Não expor a API em rede. O backend gera `storage/operator-token` com modo
+`0600`; rotas `/api/v1/sessions`, `/api/v1/audio`, `/api/v1/experience/presenter`,
+`/commands`, `/bridge` e `/providers` exigem Bearer local. `/api/v1/experience/public`
+é leitura pública local e não comanda a experiência. O reset por inatividade é agendado
+no POST autenticado do bridge, durante heartbeat. O token fica apenas em memória no
+presenter/touch emulador; Streamlit lê o arquivo local para histórico. Arquivos de
+áudio, bancos, journals e token ficam locais e fora do Git; payloads de erro não devem
+incluir gravações ou transcrições.
 
-Camadas isoladas:
+Por padrão `retain_raw_audio=false`; depois de transcrição e persistência bem-sucedidas,
+o backend remove áudio bruto local da sessão. A propriedade `mac_directory` usa
+`mac_data_dir` quando configurado ou `storage_dir.parent / "mac"` como padrão.
 
-| Camada | Pasta | Responsabilidade |
-|---|---|---|
-| API | `app/api/` | rotas e validação (Pydantic) |
-| Serviços | `app/services/` | casos de uso |
-| Repositórios | `app/repositories/` | acesso ao banco |
-| Banco | `app/database/` | engine, modelos, sessões |
-| Adaptadores | `app/adapters/` | serial, Wi-Fi, ASR, LLM |
-| Schemas | `app/schemas/` | contratos de entrada/saída |
+## Futuro e pendências
 
-Decisões:
-
-- **SQLite por padrão** (arquivo local, zero setup); troca por PostgreSQL
-  é só mudar `NEKOMIND_DATABASE_URL`.
-- **Adapters substituíveis**: `MockASRAdapter`/`MockLLMAdapter` (padrão,
-  offline) com pontos de extensão para faster-whisper e APIs de LLM.
-- **Métricas heurísticas** em `services/clarity_evaluation.py`, cada uma
-  documentada e explicável.
-
-### Frontend
-
-- Streamlit; consumo exclusivamente via `services/backend_client.py`.
-- Páginas: Dashboard, Sessões, Tópicos, Configurações.
-
-## Segurança e configuração
-
-- Chaves de API apenas via `.env` (nunca versionado).
-- Configurações centralizadas em `backend/app/config.py` (prefixo
-  `NEKOMIND_`).
-
-## Limitações do MVP
-
-- ASR/LLM em modo mock (dados `[DEMO]`).
-- Firmware com captura e LCD simulados.
-- Serial ainda não conectada ao backend (upload via API/WebSocket).
-- Sem autenticação (uso local/didático).
+Microfone embarcado, Wi-Fi, autonomia sem Mac e serviços de IA em nuvem ficam fora
+desta implementação. O antigo esboço I2S é histórico e não prova captura real.
+Escolha de modelo ASR local e observação/calibração física do display e touch do
+protótipo têm gates separados. A pinagem assumida e a estratégia de flash estão em
+[ESP32-S3/display/touch](esp32-s3-display-touch.md).
+Ver [protocolo](iot_protocol.md), [dados](data_model.md),
+[validação manual](manual-validation.md) e mapa de entrega.

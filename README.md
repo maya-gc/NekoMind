@@ -1,122 +1,268 @@
-# NekoMind
+# NekoMind — MVP touch + Mac
 
-Sistema embarcado de apoio ao estudo baseado na **técnica Feynman**: o
-estudante explica um conceito em voz alta, o NekoMind captura o áudio
-(ESP32-S3 + INMP441), transcreve, extrai tópicos e calcula métricas de
-clareza e abrangência — tudo apresentado em um dashboard lúdico.
+[Contexto para continuar o desenvolvimento](docs/handoff-colaborador.md): decisões,
+branch atual, testes, setup e pendências para colaboradores.
 
-## Propósito
+A pessoa explica um assunto em voz alta e controla a sessão por um gatinho ESP32
+com **display touch obrigatório**. O microfone do **Mac** captura; o Mac transcreve,
+extrai assuntos e armazena a sessão localmente. Tópicos e métricas heurísticas não
+comprovam correção factual nem domínio do conteúdo.
 
-Transformar a técnica Feynman em um ciclo rápido e visível:
+Implementação de software e testes automatizados disponíveis nesta branch. Para a
+unidade conectada, a referência da branch `pipeline` identifica ESP32-S3 com LCD
+ILI9341 240×320 e touch XPT2046. O firmware agora inclui drivers SPI e USB/serial
+para essa pinagem; [ligações, build e calibração](docs/esp32-s3-display-touch.md).
+O build e o flash ESP-IDF passaram; após RST/EN, a pessoa na bancada confirmou que
+o gatinho aparece sem piscar. O touch físico foi calibrado. O fluxo completo de
+controles passou primeiro em demo: Diagnóstico → Começar → Pausar → Retomar →
+Finalizar → resultado identificado como demo → Nova tentativa. Em 21/09/2026,
+também passou uma sessão **real** na unidade conectada: diagnóstico pronto,
+captura de voz humana iniciada e finalizada pelo LCD, ASR local, tópicos locais e
+conclusão correlacionada no LCD e no painel público do Mac. O resultado foi
+persistido com origem real em todas as etapas. A avaliação acústica com diferentes
+vozes, distâncias, ruídos e pausas ainda precisa de ensaios adicionais.
+O extrator `local_keywords` agora é uma opção explícita aceita para execução local
+offline; ele não é LLM, não é mock, não chama nuvem e não prova domínio do assunto.
 
-1. O aluno fala sua explicação para o dispositivo (avatar "gatinho").
-2. O firmware envia o áudio ao computador (serial USB; Wi-Fi no futuro).
-3. O backend transcreve (ASR), extrai tópicos (LLM) e calcula métricas.
-4. O dashboard mostra a evolução das explicações.
+Em 01/10/2026, após corrigir o timeout ao tocar **Começar**, a pessoa na bancada
+confirmou que o fluxo voltou a funcionar no LCD físico. Antes, o reset automático
+do modo feira podia tirar o Mac de **Pronto** enquanto a pessoa preparava a fala;
+o início era recusado e o firmware podia descartar o erro da nova tentativa,
+mostrando apenas timeout. Agora **Pronto** aguarda o toque, e erros de início ou
+nova tentativa sem sessão são exibidos. A correção passou em 203 testes do backend,
+testes portáteis do firmware, build ESP-IDF e gravação verificada no ESP32-S3.
+Essa confirmação de bancada não substitui ensaios com diferentes vozes e ruídos.
 
-> ⚠️ **Importante**
-> O processamento por IA deve ser tratado como apoio à reflexão do estudante,
-> não como avaliação pedagógica definitiva. Métricas de clareza e abrangência
-> são heurísticas e devem ser apresentadas como estimativas.
+## Fluxo
 
-## Arquitetura (visão geral)
+Touch → USB/serial JSON Lines → bridge Mac → microfone Mac → API loopback →
+WAV + WebRTC VAD/qualidade → ASR → tópicos → SQLite → resultado validado → touch,
+painel público e painel do apresentador.
 
-```mermaid
-flowchart LR
-    ESP[ESP32-S3 + INMP441] -->|I2S + DMA| FW[Firmware NekoMind]
-    FW -->|JSON Lines / serial USB| BE[Backend FastAPI]
-    FW -.->|Wi-Fi futuro| BE
-    BE --> DB[(SQLite)]
-    BE --> AI[ASR + LLM<br/>mock por padrão]
-    BE --> WS[WebSocket /ws/device]
-    FR[Frontend Streamlit] -->|HTTP API| BE
-```
+No modo feira, o display do gatinho resume a conclusão em dois cartões: prova curta
+de captura/processamento e até cinco termos reconhecidos. A tela pública do Mac mostra
+a jornada, duração, contagem de palavras e origem local para a plateia acompanhar o
+funcionamento. A transcrição completa continua privada e nenhuma dessas evidências
+é apresentada como nota ou prova de domínio. Os termos refletem o que o ASR local
+reconheceu e podem divergir da fala quando o modelo ou a captação forem insuficientes.
 
-Mais detalhes em [`docs/architecture.md`](docs/architecture.md).
+O rosto no LCD e no painel do Mac usa a referência de gatinha branca com laço
+vermelho, olhos escuros, nariz amarelo e bigodes, desenhada com primitivas locais
+(sem imagem externa). No LCD há um botão **ESCURO/CLARO** no canto superior direito
+em todos os estados. Ele alterna imediatamente a paleta suave rosa e creme ou
+ameixa escura, persiste a escolha no NVS do ESP32 e não altera a captura nem envia
+comando ao Mac. O painel web conserva sua paleta própria.
 
-## Pré-requisitos
+A indicação de gravação depende de o stream ter iniciado. Pausa fecha o microfone;
+retomar reabre; finalizar encerra captura antes de avaliar. Somente resultado concluído
+da sessão correta produz conclusão. Há deduplicação, timeout, erro e nova tentativa.
+Streamlit consulta histórico e oferece demo identificada; não grava pelo navegador.
+As rotas web novas são `/touch` (emulador autorizado), `/public` (somente leitura,
+sem token) e `/presenter` (reservado ao operador). Microfone embarcado, Wi-Fi e
+autonomia sem Mac são possibilidades futuras.
 
-- **Python 3.11+** (backend e frontend);
-- **Git**;
-- (Opcional para firmware) **ESP-IDF** instalado pelo próprio projeto
-  (`scripts/setup_espidf_portable.sh`) e **VS Code portátil**;
-- Hardware (para gravar de verdade): ESP32-S3, microfone INMP441, LCD.
+## Resultado visual para apresentação
 
-## Estrutura
+A informação foi distribuída entre o gatinho e o Mac para manter o display pequeno
+legível e, ao mesmo tempo, deixar o funcionamento visível para a plateia:
 
-```
-nekomind/
-├── iot/nekomind_firmware/   firmware ESP-IDF (ESP32-S3)
-├── backend/                 FastAPI + SQLite + ASR/LLM
-├── frontend/streamlit/      dashboard (Streamlit)
-├── docs/                    requisitos, arquitetura, protocolo, DER
-├── scripts/                 setup e execução (.sh e .ps1)
-├── esp-idf/ e tools/        ESP-IDF e toolchains (gerados, não versionados)
-└── vscode-portable/         VS Code portátil (gerado, não versionado)
-```
+- **Gatinho/display:** preserva o rosto, os estados e os controles grandes. Ao final,
+  mostra dois cartões: uma confirmação curta de que houve fala e processamento e os
+  termos reconhecidos. O emulador limita a lista a cinco termos; o renderer portátil
+  do firmware agrupa até três no cartão compacto enquanto fonte e espaçamento ainda
+  dependem da validação no módulo físico.
+- **Painel público do Mac:** mostra captura, transcrição, extração e persistência,
+  com duração, quantidade de palavras reconhecidas e origem local. Ele serve como
+  evidência visual de que o fluxo percorreu as etapas, sem expor a transcrição.
+- **Resultado honesto:** a tela diz `Termos reconhecidos pelo NekoMind`, pois o ASR
+  pode divergir da fala. Conversas genéricas podem resultar em lista vazia; o sistema
+  não completa uma quantidade fixa nem apresenta os termos como prova de acerto.
+- **Modo demo:** continua disponível e sempre identificado. Dados simulados não são
+  exibidos como resultado real.
 
-## Setup
+Evidências inspecionadas no navegador: [display 320×240](ScreenshotsToCloseLoop/runs/presentation-evidence/touch-proof-320x240.jpg),
+[termos no display](ScreenshotsToCloseLoop/runs/presentation-evidence/touch-terms-320x240.jpg)
+e [painel público 1440×900](ScreenshotsToCloseLoop/runs/presentation-evidence/public-proof-1440x900.jpg).
 
-### 1. Backend e frontend (Python)
+## Status consolidado da branch
+
+A branch `feat/nekomind-touch-mac-mvp` contém as melhorias NM-001 a NM-019 e os
+ajustes encontrados durante os ensaios locais. A matriz detalhada por requisito está
+no [relatório final](docs/final-report.md).
+
+| Área | Entregue no software |
+|---|---|
+| Sessão e protocolo | Resultado correlacionado por sessão, comandos com `request_id`, ACKs, timeout, deduplicação, nova tentativa deliberada e rejeição de mensagens antigas ou de outra sessão. |
+| Captura no Mac | Iniciar, pausar, retomar e finalizar alteram a captura real; diagnóstico de permissão/dispositivo, calibração, recuperação após interrupção e prevenção de suspensão com `caffeinate`. |
+| Transcrição e fala | Cache lazy do faster-whisper por configuração, cleanup no encerramento, português preservado, WAV validado, WebRTC VAD, nível e clipping antes da análise. |
+| Real e demonstração | Provedores explícitos, falha clara para configuração indisponível e origem efetivamente usada persistida e exibida; qualquer etapa simulada identifica a sessão como demo. |
+| Assuntos | Extração lexical local ancorada na transcrição, sem lista fixa, fallback mock ou preenchimento artificial; remoção de termos genéricos, duplicatas e limite visual. |
+| Dados e privacidade | Migração SQLite aditiva, jornada persistida, retenção configurável, remoção de áudio bruto, exclusão confirmada, tombstones e limpeza de recibos sem conteúdo privado. |
+| Experiência da feira | Avatar e estados, touch/emulador, painel público somente leitura, painel do apresentador protegido por token local, histórico, assunto corrigível e resultado compacto em duas telas. |
+| Firmware e protótipo | Controlador de sessão, parser JSON Lines, eventos de toque e layouts portáteis; drivers ILI9341/XPT2046 e USB Serial/JTAG específicos do ESP32-S3 conectado. |
+
+Ajustes confirmados durante QA incluem: aguardar a janela real de calibração;
+criar o diretório de captura no primeiro uso; não gravar bytes durante a pausa;
+preservar e exibir `ended_at`; iniciar o diagnóstico real depois de validar o token;
+posicionar mensagens de token dentro do diálogo; distinguir recuperação ainda não
+consultada; usar confirmações acessíveis na página; corrigir overflow, botões e
+paginação em 240×320 e 320×240; e reduzir resultados de até onze cartões para dois.
+
+Validação atual: **187 testes de backend**, **28 testes web**, **6 testes do
+Streamlit** e **23 casos C portáteis** aprovados. Os gates de evidência do navegador
+e de assets passaram com 11 e 5 checks, respectivamente. Faster-whisper e microfone
+do Mac foram exercitados com voz sintetizada local. O build ESP-IDF v5.3.1 e a
+gravação USB da unidade ESP32-S3 foram executados nesta etapa; gatinho estável,
+toques, botões e controle da captura pelo Mac foram confirmados na bancada em
+modo demo. Uma sessão integralmente real com fala humana foi concluída no hardware
+e conferida no SQLite e em `/public`; isso valida o percurso, mas ainda não mede
+acurácia de transcrição, precisão dos termos nem robustez acústica.
+
+## Instalação no macOS
+
+Requer Python 3.11+ (testado com 3.12), Git e compilador C para os testes portáteis.
+Na raiz do repositório:
 
 ```bash
-# Linux/macOS
-bash scripts/setup_backend.sh
-bash scripts/setup_frontend.sh
-# Windows (PowerShell)
-.\scripts\setup_backend.ps1
-.\scripts\setup_frontend.ps1
+PYTHON_BIN=python3.12 bash scripts/setup_backend.sh
+backend/.venv/bin/python -m pip install -r backend/requirements-mac.txt
+cp -n backend/.env.example backend/.env  # preservar configuração existente
+bash scripts/run_backend.sh
 ```
 
-### 2. Firmware (opcional)
+O backend escuta `127.0.0.1:8000`, com **um worker e sem reload**. Não expor em rede.
+No startup ele cria `backend/storage/operator-token` com permissão `0600`; use esse
+valor apenas em memória no presenter/touch emulador, nunca em URL, log ou Git.
+Para o bridge, em outro terminal:
 
 ```bash
-bash scripts/setup_espidf_portable.sh   # baixa ESP-IDF + toolchains em ./esp-idf e ./tools
-source scripts/source_idf.sh
-cd iot/nekomind_firmware
-idf.py set-target esp32s3
-idf.py build
+cd backend
+.venv/bin/python -m serial.tools.list_ports
+.venv/bin/python -m sounddevice  # listar dispositivos; não grava
+.venv/bin/python -m app.mac --port /dev/cu.PORTA_ESCOLHIDA
+# Opcional: --device 'nome do microfone' --data-dir ./storage/mac
+# Demo operacional sem serial/microfone físico: .venv/bin/python -m app.mac --simulate
 ```
 
-### 3. VS Code portátil
+A porta acima é um placeholder; depende do hardware. Não abrir duas instâncias com
+a mesma porta/diretório. Após escolher o dispositivo, permitir microfone ao app de
+terminal que executa Python em **Ajustes do Sistema → Privacidade e Segurança →
+Microfone**. Se negado, a captura falha e o touch permite tentar novamente após corrigir.
+No modo real, aceitar um token local válido enquanto a experiência está no início
+dispara o diagnóstico do microfone automaticamente. O macOS mostra o pedido de
+permissão somente quando a decisão ainda está pendente; se a permissão já foi concedida,
+o diagnóstico segue direto para o estado pronto sem repetir a janela do sistema.
+Nenhum áudio é capturado antes de um comando de início. O bridge usa `caffeinate`;
+manter Mac ligado, tampa aberta e sem suspensão manual durante a sessão.
 
-Ver [`vscode-portable/README.md`](vscode-portable/README.md) e
-`scripts/launch_vscode.sh`/`.ps1`.
+## Demo e real
 
-## Execução
+O padrão é `NEKOMIND_MODE=demo`, ASR e extração `mock`. Sem modelo nem chave;
+o teste demo com silêncio continua disponível e identificado em cada resultado.
+O bridge real de captura pode operar em demo, mas a análise resultante é simulada.
+
+Para ensaiar processamento real local com o extrator lexical explícito:
 
 ```bash
-# Tudo (backend + frontend):
-bash scripts/run_all.sh            # ou .\scripts\run_all.ps1
-# Separadamente:
-bash scripts/run_backend.sh        # http://127.0.0.1:8000
-bash scripts/run_frontend.sh       # http://127.0.0.1:8501
-# Testes:
-bash scripts/run_tests.sh          # pytest do backend
+backend/.venv/bin/python -m pip install -r backend/requirements-real.txt
 ```
 
-## Comandos úteis
+Configurar `backend/.env`: `NEKOMIND_MODE=real`, `NEKOMIND_ASR_PROVIDER=faster_whisper`,
+`NEKOMIND_ASR_MODEL_SIZE=/caminho/absoluto/modelo-ctranslate2`, dispositivo `cpu`,
+compute_type `int8` e `NEKOMIND_LLM_PROVIDER=local_keywords` se a análise lexical
+offline for a opção desejada. Esses parâmetros são configuráveis, não um benchmark
+ou recomendação de modelo validada. O modelo ASR precisa ser preparado localmente
+pelo operador: `local_files_only=True` impede download automático. Não há chamada
+de IA remota nem chave necessária.
+Configuração desconhecida, modelo ausente, áudio sem fala ou extração inválida geram
+falha explícita, sem fallback. Reiniciar processos após ajustar configuração.
 
-| Ação | Linux/macOS | Windows |
-|---|---|---|
-| Setup backend | `bash scripts/setup_backend.sh` | `.\scripts\setup_backend.ps1` |
-| Setup frontend | `bash scripts/setup_frontend.sh` | `.\scripts\setup_frontend.ps1` |
-| Setup ESP-IDF | `bash scripts/setup_espidf_portable.sh` | `.\scripts\setup_espidf_portable.ps1` |
-| Rodar tudo | `bash scripts/run_all.sh` | `.\scripts\run_all.ps1` |
-| Testes | `bash scripts/run_tests.sh` | `.\scripts\run_tests.ps1` |
-| Abrir VS Code | `bash scripts/launch_vscode.sh` | `.\scripts\launch_vscode.ps1` |
+O extrator lexical usa frases literalmente presentes na transcrição, sem lista fixa,
+remove preenchimentos conversacionais e duplicatas contidas em termos maiores, com
+máximo de cinco tópicos e sem preenchimento artificial. Não faz validação factual;
+a qualidade semântica precisa ser avaliada na bancada. Substituir esse método por
+outro modelo ou API é uma decisão futura; nenhuma API de nuvem foi acionada.
 
-## Limitações do MVP
+## Conteúdo guiado opcional
 
-- **ASR e LLM em modo mock**: sem chaves de API e sem baixar modelos;
-  transcrições e tópicos são dados fictícios marcados como `[DEMO]`.
-- **Firmware simulado**: captura I2S e LCD por logs até os pinos serem
-  definidos (ver TODOs nos headers em `iot/nekomind_firmware/main/`).
-- **Transporte serial no MVP**: a ingestão real pelo dispositivo ainda
-  será ligada; por ora os uploads ocorrem via API (multipart) ou WebSocket.
-- **SQLite** como banco padrão (PostgreSQL planejado).
-- Métricas de clareza/abrangência são **heurísticas** de demonstração.
+No painel local `/presenter`, o operador pode colar texto ou abrir `.txt`, `.md`
+ou **PDF com texto selecionável**. A importação do PDF é local e mostra texto e
+pontos sugeridos para revisão. PDF escaneado sem texto selecionável é recusado
+com orientação para OCR, ainda não integrado. O limite é 5 MB, 20 páginas e
+50 mil caracteres extraídos. O arquivo PDF em si não é salvo; o texto aprovado
+entra na biblioteca local e na cópia da sessão.
 
-## Licença
+O painel do Mac agora concentra esse preparo em duas etapas: **adicionar contexto**
+(texto, PDF/TXT/MD ou URL pública) e **conferir e usar**. A URL é buscada pelo
+backend local; endereços internos, portas não padrão e redirecionamentos para
+redes privadas são bloqueados. O site visitado recebe a requisição HTTP normal;
+áudio e transcrições não são enviados a ele. A IA do briefing usa o Ollama local
+com `NEKOMIND_BRIEFING_MODEL` (padrão `qwen2.5:3b`) para escolher trechos já
+presentes no material; o operador revisa os pontos e toca **Salvar e usar na
+próxima sessão**. Nenhuma API de nuvem é chamada. Se o modelo falhar, aparece
+erro explícito e o texto permanece editável. A IA não verifica fatos nem atribui
+nota. Para executar a análise, o Ollama e esse modelo precisam estar instalados
+no Mac; o restante do modo livre não depende deles. Os controles de diagnóstico,
+histórico e manutenção ficam em **Ferramentas do operador**.
 
-MIT — ver [LICENSE](LICENSE).
+O texto e a seleção são separados: importar ou analisar só prepara a prévia;
+salvar e usar confirma o contexto para a sessão seguinte. O display continua com
+o rosto, controles e sinais resumidos; o painel público do Mac acompanha a
+jornada e o resultado.
+
+O modo livre continua padrão; basta deixar “Modo livre” selecionado. No modo real
+guiado, o Mac produz parciais provisórios de fala, calcula cobertura lexical
+local e envia apenas um sinal compacto de expressão para a gatinha. O relatório
+final compara os pontos com a transcrição final validada; o painel público mostra
+detalhes e o LCD, um resumo curto. Demo continua marcado como simulado.
+
+Cobertura e expressão não são nota, prova de correção factual ou de domínio.
+O texto e a fala permanecem locais. A análise do briefing percorre o material
+em partes e propõe pontos literais distribuídos pela fonte. Após uma sessão
+real guiada, Ollama também cria relações conceituais tentativas entre pontos
+e trechos da transcrição; o Mac mostra as evidências. Proximidade temática,
+possível alinhamento ou oposição não comprovam verdade nem domínio. Se Ollama
+estiver indisponível no fim, o grafo indica indisponibilidade e a cobertura
+lexical permanece. Captura e batimento continuam funcionando sem ele.
+Veja [método, limites e medições](docs/guided-content.md). A aparência e a
+latência do novo fluxo no LCD/microfone reais ainda exigem o roteiro físico.
+
+## Testes
+
+```bash
+backend/.venv/bin/python -m pip install -r backend/requirements-test.txt
+cd backend
+.venv/bin/python -m pytest -q
+.venv/bin/python -m unittest discover -s tests -p test_asr_lifecycle.py -v
+cd ..
+bash iot/nekomind_firmware/scripts/test_firmware.sh
+node --test frontend/tests/*.test.mjs
+python3 -m pytest frontend/streamlit/tests -q
+backend/.venv/bin/python -m ruff check backend/app backend/tests
+```
+
+Os testes usam microfone/modelos substitutos, SQLite temporário e uma PTY real do
+sistema para transporte. VAD instalado é exercitado com silêncio/ruído sintéticos;
+fala/níveis/pausas também usam substitutos conforme [método](docs/speech-validation.md).
+Nenhum teste sintético comprova touch, voz ou Whisper físicos. Para Streamlit e seus
+testes, ver [frontend](frontend/streamlit/README.md).
+
+## Dados, recuperação e documentação
+
+Áudio, SQLite, backups e journal ficam em `backend/storage/`, fora do Git. Por padrão
+`NEKOMIND_RETAIN_RAW_AUDIO=false`: depois de transcrição e persistência bem-sucedidas,
+o backend remove áudio bruto referenciado da sessão; exclusão confirmada remove sessão,
+chunks, temporários, transcrição, tópicos e métricas do escopo local conhecido. Cópias
+externas e backups feitos fora desse diretório continuam responsabilidade do operador.
+O journal precisa ser preservado para reconhecer retransmissões. Reinício durante
+captura gera recuperação, nunca reabre o microfone automaticamente.
+
+- [Entrega e evidências](docs/delivery.md)
+- [Status pronto para Notion — 11/09/2026](docs/notion-status-2026-09-11.md)
+- [Relatório final](docs/final-report.md) · [QA e incidente de banco](docs/qa-report.md)
+- [Arquitetura](docs/architecture.md) · [API](docs/api_contract.md)
+- [USB/serial e estados](docs/iot_protocol.md) · [Dados e migração](docs/data_model.md)
+- [ASR: cache e medição](docs/asr-model-lifecycle.md) · [VAD](docs/speech-validation.md)
+- [Hardware Teknimas/ILI9341](docs/hardware-teknimas-ili9341.md) · [Modo feira](docs/feira-mode.md)
+- [Painéis](docs/panels.md) · [Privacidade](docs/privacy-retention.md)
+- [Ensaio para apresentação](docs/day-of-rehearsal.md) · [Teste real na mesa](docs/manual-validation.md) · [Checklist manual](docs/manual-checklist.md)

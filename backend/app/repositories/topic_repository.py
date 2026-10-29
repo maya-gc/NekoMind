@@ -1,4 +1,5 @@
 """Acesso a dados dos topicos extraidos."""
+
 from __future__ import annotations
 
 from sqlalchemy import func, select
@@ -22,8 +23,12 @@ class TopicRepository:
             for t in topics
         ]
         self.db.add_all(rows)
-        self.db.commit()
         return rows
+
+    def replace_many(self, session_id: int, topics: list[dict]) -> list[Topic]:
+        self.db.query(Topic).filter(Topic.session_id == session_id).delete()
+        self.db.flush()
+        return self.create_many(session_id, topics)
 
     def most_frequent(self, limit: int = 5) -> list[tuple[str, int]]:
         stmt = (

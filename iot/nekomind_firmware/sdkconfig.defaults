@@ -1,13 +1,8 @@
-# NekoMind - sdkconfig.defaults (ESP32-S3)
-# Alvo padrao do projeto
+# Prototipo fisico documentado em origin/pipeline: ESP32-S3 com USB Serial/JTAG.
+# Flash/PSRAM do modulo ainda exigem confirmacao. Serial leva apenas comandos e
+# resultados; o microfone do Mac faz a captura.
 CONFIG_IDF_TARGET="esp32s3"
-
-# Flash/psRAM comuns em placas ESP32-S3 devkit (ajuste para sua placa)
-CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
-CONFIG_SPIRAM=y
-CONFIG_SPIRAM_MODE_OCT=y
-
-# Serial/USB CDC para o transporte de audio via USB (espadilha de console)
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
-
-# Particoes padrao sao suficientes para o MVP
+CONFIG_VFS_SUPPORT_IO=y
+# A cena 240x320 e montada na inicializacao e exige mais que o default da main.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=12288

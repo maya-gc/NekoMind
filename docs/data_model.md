@@ -1,83 +1,118 @@
-# Modelo de dados
+# Persistência do MVP
 
-## Entidades
+`StudySession` relaciona 1:N com `Topic`, `Metric` e `AudioChunk`. Estados persistidos:
+`recording`, `paused`, `processing`, `completed`, `error`, `recovery` e `cancelled`.
+Transcrição, tópicos e métricas finais pertencem sempre ao id da sessão. A transação
+de conclusão grava o conjunto final; falha não deve deixar nota ou tópicos de uma
+análise incompleta.
 
-```mermaid
-erDiagram
-    STUDY_SESSION {
-        int id PK
-        string title
-        datetime started_at
-        datetime ended_at
-        float duration_seconds
-        enum status
-        text transcription
-        float clarity_score
-        bool is_demo
-    }
+- `start_request_id` tem unicidade (não nulos); `request_id` mantém compatibilidade.
+  Payload divergente com o mesmo pedido retorna409. `finish_request_id` registra a
+  solicitação que adquiriu o processamento; consultas/reenvios não criam nova análise.
+- `capture_source` identifica `mac_microphone`; `device_session_id` é metadado opcional.
+- `mode`, `asr_provider_config`, `topic_provider_config` congelam modo/provedores no início.
+  `asr_provider_used`, `topic_provider_used` registram etapas realmente executadas.
+  A origem ASR fica registrada mesmo se a extração falhar depois.
+- `is_demo` é verdadeiro em demo ou quando qualquer adaptador executado é simulado.
+  `analysis_origin` resume a classificação. Origem legada ausente é desconhecida;
+  `is_demo=false` sozinho não comprova execução real.
+- `audio_validation`/`speech_validation` preservam compatibilidade entre consumidores;
+  guardam JSON resumido do gate de fala quando executado. `error_code`/`error_message`
+  apresentam falhas sem logs internos nem conteúdo da explicação.
+- `subject`, `subject_confirmed` e `metric_method_version` sustentam histórico por
+  assunto. Somente sessões completadas, confirmadas e do mesmo método entram na tendência.
+- `journey_json` registra etapas reais `capture`, `transcription`, `topics` e `result`
+  com status, duração, provider e `is_demo`.
+- `deletion_pending` é marcado antes de remoção confirmada para tornar falha parcial
+  visível e evitar tratar a sessão como íntegra.
 
-    TOPIC {
-        int id PK
-        int session_id FK
-        string name
-        float relevance
-        text notes
-    }
+`Experience` é singleton operacional para touch/público/presenter: guarda `generation`,
+sessão atual, estado, modo feira, heartbeat, diagnósticos, voz compacta e calibração
+sanitizada. `OperatorCommand` guarda comandos locais por `request_id`, payload, resposta
+resumida e status. O journal não deve conter áudio, transcrição completa ou token. Quando
+uma sessão é excluída, recibos que apontam para ela são removidos ou têm resposta
+limpa; no journal Mac, a resposta vira tombstone `session_deleted` para preservar
+idempotência sem manter conteúdo do resultado.
 
-    METRIC {
-        int id PK
-        int session_id FK
-        string name
-        float value
-        string unit
-    }
+## Áudio e concorrência
 
-    AUDIO_CHUNK {
-        int id PK
-        int session_id FK
-        int sequence
-        string format
-        int sample_rate
-        int byte_size
-        string file_path
-    }
+`AudioChunk` registra sessão, sequência, formato, taxa, tamanho e caminho. Existe índice
+único `(session_id, sequence)`. O upload adquire transação SQLite `BEGIN IMMEDIATE`,
+reconfere estado e conteúdo. Mesma sequência/bytes devolve registro existente;
+conteúdo diferente ou lacuna falha. A análise adquire estado `processing` por UPDATE
+condicional; outra finalização recebe o estado existente. Apenas chunks referenciados
+pelo banco entram no merge; arquivos órfãos de interrupção não são áudio confirmado.
+Arquivos são imutáveis por tentativa. Falhas normais limpam o arquivo da tentativa;
+crash de processo pode deixar órfãos para inspeção/remoção manual, sem excluir dados antigos.
+Quando `retain_raw_audio=false`, a conclusão bem-sucedida remove os arquivos brutos
+referenciados após transcrição/persistência. A garantia cobre diretórios locais conhecidos
+da sessão; cópias externas, backups fora do diretório e arquivos movidos manualmente
+não são apagados pelo backend.
+Falha nessa limpeza não desfaz a análise já concluída: a sessão permanece `completed`
+com `error_code=audio_cleanup_failed` até uma recuperação `analyze` limpar o áudio
+pendente.
 
-    STUDY_SESSION ||--o{ TOPIC : "extrai"
-    STUDY_SESSION ||--o{ METRIC : "avalia"
-    STUDY_SESSION ||--o{ AUDIO_CHUNK : "recebe"
-```
+O journal separado do bridge armazena payload/recibo por `request_id` e a sessão ativa.
+É necessário preservar o journal em reconexões. Reinício nunca abre microfone sozinho.
+Dados do journal, gravações e backups não são versionados.
+Exclusão confirmada usa `deletion_pending` como tombstone antes de apagar arquivos e
+linhas; falha parcial permite repetir a exclusão sem reprocessar a sessão.
 
-## Descrição
+## Migração de banco existente
 
-- **StudySession**: uma explicação gravada. `status` em
-  `recording | processing | completed | error`. `clarity_score` (0..10)
-  é uma heurística de demonstração.
-- **Topic**: conceito extraído da transcrição. `relevance` em 0..1 e
-  `notes` (observações do LLM/reflexão).
-- **Metric**: métricas calculadas por sessão (`duration_seconds`,
-  `word_count`, `topic_count`, `lexical_diversity`, `topic_coverage`,
-  `clarity_score`), cada uma com `value` + `unit`.
-- **AudioChunk**: metadados de cada bloco de áudio recebido; o payload
-  bruto fica em disco (`storage/audio/session_<id>/chunk_<seq>.raw`),
-  referenciado por `file_path`.
+`init_db()` inspeciona colunas, executa a migração aditiva versionada
+`20260911_nm019_backend_lifecycle`, cria tabelas ausentes, garante índices e registra
+interrupções. `create_all()` não é usado como migração de colunas. Antes de adicionar
+colunas, a API SQLite de backup cria `nekomind.db.bak-<timestamp>` consistente com WAL.
+Se backup falha, migração para. Nenhum registro antigo é apagado; origem não conhecida
+não é fabricada. Duplicatas legadas que impeçam índice único bloqueiam inicialização,
+exigindo inspeção, sem deduplicação destrutiva automática.
 
-## Por que SQLite no MVP?
+Executar com backend/bridge anteriores parados e um único worker. No startup, sessões
+em recording/paused/processing recebem `recovery` e `backend_restarted`. Isso é
+recuperação conservadora, não retomada automática. Bancos novos também recebem índices únicos.
+Somente SQLite foi implementado/testado para esta estratégia; trocar URL para PostgreSQL
+não oferece equivalência garantida.
 
-1. **Zero configuração**: arquivo local, sem servidor nem credenciais —
-   ideal para um trabalho acadêmico e para rodar em qualquer máquina.
-2. **Portabilidade**: o banco viaja com o projeto (útil para entrega).
-3. **Camada de acesso única**: o código usa SQLAlchemy; trocar para
-   PostgreSQL é apenas alterar `NEKOMIND_DATABASE_URL`
-   (`postgresql+psycopg://...`). Nenhuma mudança em repositórios/modelos.
-4. **Carga baixa**: dados de um único estudante em uma única máquina.
+## Rollback
 
-## Migrações
+Parar backend e bridge. Preservar uma cópia do banco/áudio/journal atuais antes de
+qualquer restauração. Para voltar à versão antiga, selecionar explicitamente o backup
+anterior à migração e restaurá-lo com os processos parados; não misturar arquivos WAL/SHM
+do banco novo. A restauração perde sessões posteriores ao backup se não forem guardadas
+separadamente. Preferir correção aditiva quando houver novos dados. Não há down migration
+automática ou comando que apague dados em execução.
 
-No MVP as tabelas são criadas em `init_db()` (startup) via
-`Base.metadata.create_all`. Para evoluir o schema, `database/migrations/`
-é o local dos scripts (futuro: Alembic).
+`DeletedSessionTombstone` conserva IDs de sessão e de pedido excluídos, sem conteúdo.
+A alocação de sessão adquire `BEGIN IMMEDIATE` antes de calcular o próximo ID,
+considerando sessões vivas e tombstones. IDs excluídos não voltam a identificar outro visitante.
 
-## Banco de dados de dados locais
+## Conteúdo guiado opcional — migração 20260928_nm020_guided_content
 
-O arquivo SQLite com dados locais fica em `backend/storage/` e é
-ignorado pelo Git (ver `.gitignore`).
+`ReferenceContent` é biblioteca local com `id`, título, texto, idioma, origem,
+versão, pontos JSON, flag feira e datas. `StudySession` recebe quatro colunas
+anexáveis: `reference_content_id`, `reference_version`,
+`reference_snapshot_json` e `content_report_json`, todas nulas em sessões
+livres/antigas. O snapshot guarda o texto e pontos exatos da versão usada;
+por isso uma edição ou exclusão da biblioteca não altera o histórico.
+O relatório tem `method_version` próprio e não entra nas métricas antigas.
+As origens `typed`, `txt`, `md`, `pdf` e `url` cabem na coluna `source` existente;
+esta ampliação não altera o esquema. O PDF bruto e a URL original não são
+persistidos, apenas o texto revisado. A escolha de pontos pelo Ollama local
+aparece na prévia do operador; modelo/provedor do briefing ainda não são
+metadados persistentes da biblioteca e não devem ser apresentados como prova
+auditável de como cada conteúdo antigo foi preparado.
+
+`migrate_sqlite_schema` inspeciona colunas, faz backup SQLite consistente via
+API de backup se faltar alguma coluna **ou** a nova tabela, aplica somente
+`ALTER TABLE ... ADD COLUMN` e registra a versão em `schema_migrations`.
+`create_all` é usado depois apenas para criar **tabelas novas**, não como
+migração de colunas. O teste `test_sqlite_migration.py` cria um banco legado,
+verifica backup/tabela/colunas e os dados preservados. Não há `drop_all` em
+produção, nem down migration automática. Restauração exige parar backend e
+bridge e escolher explicitamente o backup apropriado, considerando WAL/SHM.
+
+Conteúdo de referência, relatório e transcrição permanecem no SQLite local;
+parciais de ASR não são colunas e não são persistidos. Exclusão de sessão pelo
+fluxo NM-010 remove snapshot e relatório junto com a linha. Backups externos
+seguem sob responsabilidade do operador.

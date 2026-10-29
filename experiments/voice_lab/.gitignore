@@ -1,0 +1,4 @@
+.venv/
+kokoro-venv/
+chatterbox-ptbr-space/
+__pycache__/

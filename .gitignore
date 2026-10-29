@@ -28,11 +28,15 @@ sdkconfig.old
 managed_components/
 
 # Dados locais (banco SQLite e audio)
-backend/storage/*.db
-backend/storage/audio/
+backend/storage/
+*.raw
+*.sqlite3-*
+*.db-*
+*.db.bak-*
 *.db
 *.sqlite3
 *.wav
+*.aiff
 
 # Streamlit
 frontend/streamlit/.streamlit/secrets.toml

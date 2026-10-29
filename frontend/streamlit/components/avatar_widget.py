@@ -1,14 +1,16 @@
 """Widget do avatar NekoMind (mascote gato em arte ASCII/emoji).
 
 Estados espelham o firmware (iot/nekomind_firmware): IDLE, RECORDING,
-SENDING, PROCESSING, SUCCESS, ERROR.
+PAUSED, PROCESSING, SUCCESS, ERROR.
 """
+
 from __future__ import annotations
 
 import streamlit as st
 
 AVATAR_FACES = {
     "IDLE": "(=^.^=) 🐾 aguardando...",
+    "PAUSED": "(=^-^=) pausa",
     "RECORDING": "(=O.o=) 🎙 ouvindo você explicar...",
     "SENDING": "(=>^.^)=> 📡 enviando áudio...",
     "PROCESSING": "(=@.@=) 🧠 pensando...",
