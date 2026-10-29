@@ -221,11 +221,25 @@ primeira medida de recuperação.
 
 ## Como compartilhar este contexto
 
-Envie ao colaborador **este arquivo**, o [PR #1](https://github.com/maya-gc/NekoMind/pull/1)
-e, se quiser mostrar o caminho das decisões, o link compartilhado do chat em
-mensagem separada. O link do chat é uma captura para leitura; não concede acesso
-ao checkout, ao ESP, aos modelos nem ao token. Como o repositório é público,
-o link do chat não foi colocado aqui para não publicar a conversa inteira.
+Envie ao colaborador este arquivo como ponto de entrada. Os links abaixo reúnem
+o registro da conversa, o código e os estudos usados nas decisões:
+
+| Link | Para que serve |
+| --- | --- |
+| [Conversa compartilhada](https://chatgpt.com/s/cx_6ae3caae8cf88191b66318c2b8de9ba4) | Histórico das decisões até a criação do link. É uma captura de leitura; não transfere arquivos locais, modelos, ferramentas nem credenciais. |
+| [Repositório NekoMind](https://github.com/maya-gc/NekoMind) | Entrada do projeto; a branch padrão ainda não contém o estado atual descrito aqui. |
+| [Branch atual](https://github.com/maya-gc/NekoMind/tree/codex/nekomind-current-snapshot) · [PR #1](https://github.com/maya-gc/NekoMind/pull/1) | Código e documentação para continuar; o PR segue em rascunho. |
+| [Página NekoMind no Notion](https://app.notion.com/p/alest/NekoMind-3d6d61744f458093a7f8decf21173007?source=copy_link) | Contexto histórico fornecido pelo responsável. Ela não estava 100% atualizada; conferir qualquer divergência contra a branch e os testes. Acesso pode depender das permissões do Notion. |
+| [Arquitetura](architecture.md) · [diálogo no touch](interactive-dialogue.md) · [conteúdo guiado](guided-content.md) | Contratos e limites técnicos do fluxo atual. |
+| [Roteiro de bancada](day-of-rehearsal.md) · [hardware](esp32-s3-display-touch.md) · [protocolo](iot_protocol.md) | Reprodução no ESP físico e interpretação da evidência. |
+| [Análise de produto/A3](../output/pdf/NekoMind_analise_produto_A3_sintese_detalhada.pdf) · [hipótese B](../output/pdf/NekoMind_hipotese_B_viabilidade_custo_desempenho.pdf) · [plano visual](../output/pdf/NekoMind_plano_visual_IA_local_ESP32S3.pdf) · [parecer inicial](../output/pdf/NekoMind_parecer_proposta_IA_SD_USB_WiFi.pdf) | PDFs gerados durante a exploração. São históricos; a hipótese B foi descartada para o MVP atual e preços citados não são cotações novas. |
+| [Teste das vozes](../experiments/voice_lab/README.md) · [amostra Kokoro](../output/audio/nekomind-kokoro-ptbr-followup-preview.wav) · [amostra Chatterbox](../output/audio/nekomind-chatterbox-ptbr-followup-preview.wav) | Comparação que levou à escolha do Kokoro pela rapidez. |
+
+**Atenção:** este repositório é público. Ao publicar o link da conversa aqui,
+quem puder abrir esse compartilhamento poderá ler o conteúdo que ele expõe.
+Revise o compartilhamento antes de encaminhá-lo; o link não substitui o acesso
+ao repositório e ao ambiente local de desenvolvimento.
+
 Se ele usar outra conversa com uma IA para desenvolver, pode começar com:
 “Abra a branch `codex/nekomind-current-snapshot`, leia
 `docs/handoff-colaborador.md` e `docs/interactive-dialogue.md`, confira o código
