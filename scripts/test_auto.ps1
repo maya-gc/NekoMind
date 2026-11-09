@@ -3,8 +3,10 @@
 #   1. testes do backend (pytest)       2. testes do frontend (node)
 #   3. pipeline ponta a ponta com toque virtual + voz do Windows (SAPI)
 #   4. teste de fumaca da placa ESP pela USB (pulado se nao houver placa)
-# Uso:  powershell -ExecutionPolicy Bypass -File scripts\test_auto.ps1 [-Asr whisper] [-SemPlaca]
-param([ValidateSet("roteiro","whisper")][string]$Asr = "roteiro", [switch]$SemPlaca, [string]$Porta = "")
+#   5. testes do firmware em C no computador (compilador via ziglang)
+# Uso:  powershell -ExecutionPolicy Bypass -File scripts\test_auto.ps1 [-Asr whisper] [-SemPlaca] [-Repeticoes 5] [-SemCapturas]
+param([ValidateSet("roteiro","whisper")][string]$Asr = "roteiro", [switch]$SemPlaca, [string]$Porta = "",
+      [int]$Repeticoes = 1, [switch]$SemCapturas, [switch]$TempoEstrito)
 $ErrorActionPreference = "Continue"
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new()
 $env:PYTHONIOENCODING = "utf-8"
@@ -24,7 +26,7 @@ if (-not (Test-Path $Py)) {
   & $cmd @a -m venv (Join-Path $Backend ".venv")
 }
 Write-Host ">> Conferindo dependencias..."
-& $Py -m pip install -q -r (Join-Path $Backend "requirements-test.txt") *> (Join-Path $Out "01_pip.txt")
+& $Py -m pip install -q -r (Join-Path $Backend "requirements-dev.txt") *> (Join-Path $Out "01_pip.txt")
 
 Push-Location $Backend
 & $Py -m pytest -q -rfEs -p no:cacheprovider *> (Join-Path $Out "02_pytest.txt"); $ok = $LASTEXITCODE -eq 0
@@ -40,8 +42,13 @@ if (Get-Command node -ErrorAction SilentlyContinue) {
 Pop-Location
 
 Push-Location $Backend
-& $Py -m app.devtools.pipeline --asr $Asr --out (Join-Path $Out "pipeline") *> (Join-Path $Out "04_pipeline.txt"); $ok = $LASTEXITCODE -eq 0
+$pargs = @("--asr", $Asr, "--repeticoes", $Repeticoes, "--out", (Join-Path $Out "pipeline"))
+if (-not $SemCapturas) { $pargs += "--capturas" }
+if ($TempoEstrito) { $pargs += "--tempo-estrito" }
+& $Py -m app.devtools.pipeline @pargs *> (Join-Path $Out "04_pipeline.txt"); $ok = $LASTEXITCODE -eq 0
 Res "Pipeline toque virtual" $ok ((Select-String -Path (Join-Path $Out "04_pipeline.txt") -Pattern "RESULTADO" | ForEach-Object { $_.Line }) -join " ")
+& $Py -m app.devtools.c_compiler *> (Join-Path $Out "06_firmware.txt"); $ok = $LASTEXITCODE -eq 0
+Res "Firmware (teste em C)" $ok ((Select-String -Path (Join-Path $Out "06_firmware.txt") -Pattern "RESULTADO" | ForEach-Object { $_.Line }) -join " ")
 if (-not $SemPlaca) {
   $pa = @(); if ($Porta) { $pa = @("--port", $Porta) }
   & $Py -m app.devtools.esp_probe @pa *> (Join-Path $Out "05_placa.txt"); $ok = $LASTEXITCODE -eq 0
@@ -50,3 +57,5 @@ if (-not $SemPlaca) {
 Pop-Location
 Write-Host ""
 Write-Host "Logs e relatorio: $Out"
+$html = Join-Path $Out "pipeline\relatorio.html"
+if (Test-Path $html) { Write-Host "Relatorio visual: $html" }
