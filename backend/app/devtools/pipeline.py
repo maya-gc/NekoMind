@@ -226,13 +226,23 @@ class Screens:
                 page = self.browser.new_page(viewport={"width": size[0], "height": size[1]},
                                              device_scale_factor=2 if page_name == "touch" else 1)
                 page.goto(f"{self.base}/{page_name}", wait_until="networkidle", timeout=15000)
-                page.wait_for_timeout(1200)
+                # /public e /touch consultam o backend periodicamente; espere o ciclo.
+                self.bridge_tick()
+                page.wait_for_timeout(3500)
                 page.screenshot(path=str(self.out / name))
                 page.close()
                 self.report.screens.append({"cenario": scenario, "etapa": label,
                                             "tela": page_name, "arquivo": f"telas/{name}"})
             except Exception as exc:  # noqa: BLE001 - screenshots never fail the run
                 self.report.info.setdefault("avisos", []).append(f"captura {name}: {exc}")
+
+    bridge = None
+
+    def bridge_tick(self):
+        if self.bridge is not None:
+            with contextlib.suppress(Exception):
+                self.bridge.tick(force=True)
+                self.bridge.wait_for_operations()
 
     def stop(self):
         with contextlib.suppress(Exception):
@@ -256,7 +266,8 @@ class _NoScreens:
 class Session:
     """Bridge + virtual touch + silent speaker for one scenario."""
 
-    def __init__(self, client, workdir: Path, name: str, audio: list[Path], demo: bool):
+    def __init__(self, client, workdir: Path, name: str, audio: list[Path], demo: bool,
+                 screens=None):
         from app.devtools.virtual_touch import VirtualTouch
         from app.mac.backend import LocalBackend
         from app.mac.bridge import MacBridge
@@ -270,6 +281,8 @@ class Session:
                                 speaker=self.speaker)
         self.touch = VirtualTouch(self.bridge)
         self.wire_path = base / "serial.jsonl"
+        if screens is not None:
+            screens.bridge = self.bridge
 
     def close(self):
         with contextlib.suppress(Exception):
@@ -331,7 +344,7 @@ def scenario_demo(ctx):
     report, scenario = ctx["report"], "demo"
     # Modo livre: sem material selecionado (rodadas seguintes herdam o guiado).
     ctx["client"].put("/api/v1/experience/selection", json={"content_id": None})
-    s = Session(ctx["client"], ctx["out"], scenario, [ctx["audio"] / "demo.wav"], demo=True)
+    s = Session(ctx["client"], ctx["out"], scenario, [ctx["audio"] / "demo.wav"], demo=True, screens=ctx["screens"])
     try:
         t = time.monotonic()
         idle = s.touch.send("status")
@@ -369,7 +382,7 @@ def scenario_guided(ctx):
     _select_content(ctx["client"], report, scenario, CONTENT_TITLE, CONTENT_TEXT)
     ctx["transcripts"][:] = [SPEECH["resposta1"], SPEECH["resposta2"]]
     s = Session(ctx["client"], ctx["out"], scenario,
-                [ctx["audio"] / "resposta1.wav", ctx["audio"] / "resposta2.wav"], demo=False)
+                [ctx["audio"] / "resposta1.wav", ctx["audio"] / "resposta2.wav"], demo=False, screens=ctx["screens"])
     try:
         ready = _ready(s, report, scenario)
         missions = ready.get("missions") or []
@@ -418,7 +431,7 @@ def scenario_long(ctx):
     report, scenario = ctx["report"], "longo"
     _select_content(ctx["client"], report, scenario, LONG_TITLE, LONG_TEXT, LONG_POINTS)
     ctx["transcripts"][:] = [SPEECH["longo"]]
-    s = Session(ctx["client"], ctx["out"], scenario, [ctx["audio"] / "longo.wav"], demo=False)
+    s = Session(ctx["client"], ctx["out"], scenario, [ctx["audio"] / "longo.wav"], demo=False, screens=ctx["screens"])
     try:
         ready = _ready(s, report, scenario)
         missions = ready.get("missions") or []
@@ -443,7 +456,7 @@ def scenario_wrong(ctx):
     report, scenario = ctx["report"], "errada"
     _select_content(ctx["client"], report, scenario, CONTENT_TITLE, CONTENT_TEXT)
     ctx["transcripts"][:] = [SPEECH["errada"]]
-    s = Session(ctx["client"], ctx["out"], scenario, [ctx["audio"] / "errada.wav"], demo=False)
+    s = Session(ctx["client"], ctx["out"], scenario, [ctx["audio"] / "errada.wav"], demo=False, screens=ctx["screens"])
     try:
         _ready(s, report, scenario)
         sid = _start(s, report, scenario)
@@ -470,7 +483,7 @@ def scenario_silence(ctx):
         return []
     _select_content(ctx["client"], report, scenario, CONTENT_TITLE, CONTENT_TEXT)
     ctx["transcripts"][:] = [""]
-    s = Session(ctx["client"], ctx["out"], scenario, [ctx["audio"] / "silencio.wav"], demo=False)
+    s = Session(ctx["client"], ctx["out"], scenario, [ctx["audio"] / "silencio.wav"], demo=False, screens=ctx["screens"])
     try:
         _ready(s, report, scenario)
         sid = _start(s, report, scenario)
@@ -491,7 +504,7 @@ def scenario_noise(ctx):
     report, scenario = ctx["report"], "ruido"
     _select_content(ctx["client"], report, scenario, CONTENT_TITLE, CONTENT_TEXT)
     ctx["transcripts"][:] = [SPEECH["resposta1"]]
-    s = Session(ctx["client"], ctx["out"], scenario, [ctx["audio"] / "ruido.wav"], demo=False)
+    s = Session(ctx["client"], ctx["out"], scenario, [ctx["audio"] / "ruido.wav"], demo=False, screens=ctx["screens"])
     try:
         _ready(s, report, scenario)
         sid = _start(s, report, scenario)
@@ -512,7 +525,7 @@ def scenario_usb_drop(ctx):
     _select_content(ctx["client"], report, scenario, CONTENT_TITLE, CONTENT_TEXT)
     ctx["transcripts"][:] = [SPEECH["resposta1"]]
     s = Session(ctx["client"], ctx["out"], scenario, [ctx["audio"] / "resposta1.wav"],
-                demo=False)
+                demo=False, screens=ctx["screens"])
     try:
         _ready(s, report, scenario)
         sid = _start(s, report, scenario)

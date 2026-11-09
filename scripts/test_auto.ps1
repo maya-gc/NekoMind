@@ -53,6 +53,10 @@ if (-not $SemPlaca) {
   $pa = @(); if ($Porta) { $pa = @("--port", $Porta) }
   & $Py -m app.devtools.esp_probe @pa *> (Join-Path $Out "05_placa.txt"); $ok = $LASTEXITCODE -eq 0
   Res "Placa ESP (USB)" $ok ((Select-String -Path (Join-Path $Out "05_placa.txt") -Pattern "RESULTADO" | ForEach-Object { $_.Line }) -join " ")
+  if ($ok) {
+    & $Py -m app.devtools.esp_tap_flow @pa --out (Join-Path $Out "placa") *> (Join-Path $Out "07_placa_toques.txt"); $ok = $LASTEXITCODE -eq 0
+    Res "Placa: fluxo com toques" $ok ((Select-String -Path (Join-Path $Out "07_placa_toques.txt") -Pattern "RESULTADO" | ForEach-Object { $_.Line }) -join " ")
+  }
 }
 Pop-Location
 Write-Host ""

@@ -1,6 +1,6 @@
 # Pipelines de teste — Windows e macOS
 
-Atualizado em 09/11/2026. O projeto roda no **macOS** (onde foi validado na
+Atualizado em 09/11/2026 (segunda rodada: CI, 7 cenários, toque no firmware). O projeto roda no **macOS** (onde foi validado na
 bancada) e no **Windows**. O caminho do Mac não mudou: `afplay`, `caffeinate`,
 `fcntl`, `O_NOFOLLOW` e a permissão `0600` do token continuam iguais. As
 diferenças de sistema ficam isoladas em `backend/app/platform_support.py`.
@@ -16,6 +16,17 @@ Há duas pipelines com objetivos diferentes:
 | Placa ESP | Teste de fumaça pela USB (heartbeat + `display_ack`) | Fluxo completo na placa |
 | Comando Windows | `scripts\test_auto.ps1` | `scripts\test_bancada.ps1 -Porta COM3` |
 | Comando macOS | `bash scripts/test_auto.sh` | `bash scripts/test_bancada.sh /dev/cu.usbmodem…` |
+
+## Visão geral
+
+```text
+           ┌── CI GitHub (Windows + macOS, a cada push) ──────────────────────┐
+           │ pytest · node --test · firmware em C · pipeline 7 cenários       │
+           └──────────────────────────────────────────────────────────────────┘
+ test_auto ─ pytest ─ frontend ─ pipeline (toque virtual) ─ firmware C ─ placa USB
+ esp_tap_flow ─ toques simulados DENTRO do firmware (!tap) ─ LCD real ─ bridge real
+ test_bancada / apresentar ─ pessoa tocando, microfone e voz reais
+```
 
 ## Pipeline automática
 
@@ -40,9 +51,42 @@ Etapas, com log em `backend/storage/pipeline/<data-hora>/`:
    - **demo**: Diagnóstico → Começar → Pausar → Continuar → Finalizar → resultado → Voltar;
    - **guiado** (modo real): operador salva o material “Ciclo da água” →
      Diagnóstico → missões no touch → Começar (missão 1) → 1ª resposta →
-     **pergunta** → Pedir dica → Responder → 2ª resposta → **comparação**.
-4. `python -m app.devtools.esp_probe` — se a placa estiver na USB, confirma o
+     **pergunta** → Pedir dica → Responder → 2ª resposta → **comparação**;
+   - **longo**: 5 pontos → 5 missões; a pergunta é sobre a missão 4 escolhida;
+   - **errada**: resposta sem relação com o material não inventa cobertura;
+   - **silencio**: 3 s de silêncio viram **erro claro** (nunca resultado);
+   - **ruido**: resposta com ruído vira resultado ou erro com código;
+   - **queda_usb**: o cabo “cai” durante a gravação → recuperação → Retomar →
+     resultado.
+
+   Opções: `--cenario X` (repetível), `--repeticoes N` (taxa de sucesso por
+   etapa), `--capturas` (fotos de `/public` e `/touch` em cada etapa, usando
+   Edge/Chrome já instalados), `--tempo-estrito` (etapa acima do orçamento de
+   tempo falha), `--asr whisper`.
+4. `python -m app.devtools.c_compiler` — testes do firmware em C no computador.
+   Usa `cc`/`gcc`/`clang` ou o clang do pacote `ziglang` (Windows sem MSYS2).
+5. `python -m app.devtools.esp_probe` — se a placa estiver na USB, confirma o
    heartbeat do firmware e que o LCD redesenhou (`draw_ok`). Não grava firmware.
+
+### Fluxo completo na placa com toques simulados
+
+`python -m app.devtools.esp_tap_flow --port COM3` (Mac: `--port /dev/cu.…`).
+Com o firmware de 09/11/2026 gravado (`scripts\firmware.ps1 -Gravar -Porta COM3`),
+o computador envia `!tap diagnose`, `!tap start`… e **o próprio firmware**
+executa o toque: mesmo hit test de um dedo, só em botões visíveis e habilitados.
+Cada etapa espera o `display_ack` da tela desenhada. O resto da cadeia é real.
+`!tap 120 260` também aceita coordenadas.
+
+### ASR real
+
+`scripts\baixar_modelo_asr.ps1` (ou `.sh`) uma vez, depois
+`python -m app.devtools.pipeline --asr whisper`. O áudio da voz do sistema passa
+pelo faster-whisper de verdade; o orçamento de tempo é ampliado.
+
+### CI
+
+`.github/workflows/testes.yml` roda em `windows-latest` e `macos-latest` a cada
+push na `main` e em PRs. O relatório da pipeline fica nos artefatos do run.
 
 Relatório: `pipeline/relatorio.md` (tabela de etapas, falas da gatinha) e
 `relatorio.json`; o tráfego serial virtual fica em `*/serial.jsonl` e os WAV da
@@ -90,11 +134,12 @@ Voz Kokoro no Windows: `winget install --id eSpeak-NG.eSpeak-NG` e depois
 
 ## Limites conhecidos
 
-- O toque virtual fala com o bridge, não com a placa: para simular toques
-  **dentro** do firmware seria preciso um comando de depuração no ESP e gravar
-  um firmware novo (não feito).
+- O toque virtual da pipeline fala com o bridge; o toque **dentro** do
+  firmware (`!tap`) exige a placa com o firmware de 09/11/2026.
+- `!tap` é um comando de depuração aceito pela serial; não altera o protocolo
+  JSON e não envia nada ao computador por conta própria.
 - `tests/test_mac_serial.py` usa pseudo-terminal POSIX e é pulado no Windows.
 - Testes que criam links simbólicos são pulados no Windows sem Modo de
   Desenvolvedor.
-- O teste do firmware em C (`iot/nekomind_firmware/scripts/test_firmware.sh`)
-  precisa de um compilador C (no Windows, instale MSYS2/MinGW `gcc`).
+- No Windows, `pip install ziglang` (já em `requirements-dev.txt`) fornece o
+  compilador C dos testes do firmware.

@@ -44,6 +44,12 @@ jobs:
       - name: Pipeline com toque virtual e voz do sistema
         working-directory: backend
         run: python -m app.devtools.pipeline --out ../relatorio-pipeline
+      - name: Checklist de apresentação (plano B)
+        working-directory: backend
+        run: python -m app.devtools.preflight --plano-b --sem-placa --voz silent
+      - name: Script do Mac (test_auto.sh)
+        if: runner.os == 'macOS'
+        run: bash scripts/test_auto.sh --sem-placa --sem-capturas
       - name: Relatório
         if: always()
         uses: actions/upload-artifact@v4

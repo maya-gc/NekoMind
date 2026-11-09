@@ -10,4 +10,4 @@ AUDIO=(); for f in "$@"; do AUDIO+=(--audio-file "$f"); done
 (cd "$BACKEND" && "$PY" -m uvicorn app.main:app --host 127.0.0.1 --port 8000) &
 SRV=$!; trap 'kill $SRV 2>/dev/null' EXIT; sleep 3
 echo "Operador: http://127.0.0.1:8000/presenter  Plateia: http://127.0.0.1:8000/public"
-cd "$BACKEND" && "$PY" -m app.mac --port "$PORT" --voice "$VOICE" "${AUDIO[@]}"
+cd "$BACKEND" && "$PY" -m app.mac --port "$PORT" --voice "$VOICE" ${AUDIO[@]+"${AUDIO[@]}"}
