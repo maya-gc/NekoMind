@@ -1,19 +1,20 @@
 """Actual Python encoder -> compiled C controller; synthetic recorder/backend."""
 
 import json
-import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 
+from app.devtools.c_compiler import exe, find_c_compiler
 from app.mac.protocol import encode_line
 from tests.test_mac_bridge import Backend, Recorder, command, make_bridge, run_background
 
 
 def test_python_telemetry_is_accepted_by_c_controller(tmp_path):
-    if not shutil.which("cc"):
-        pytest.skip("C host compiler unavailable")
+    compiler = find_c_compiler()
+    if compiler is None:
+        pytest.skip("C host compiler unavailable (instale gcc/clang ou pip install ziglang)")
     root = Path(__file__).resolve().parents[2]
     source = tmp_path / "interop.c"
     source.write_text("""
@@ -35,10 +36,10 @@ int main(void) {
 }
 """)
     fw = root / "iot/nekomind_firmware/main"
-    binary = tmp_path / "interop"
+    binary = exe(tmp_path / "interop")
     subprocess.run(
         [
-            "cc",
+            *compiler,
             "-std=c11",
             "-Wall",
             "-Wextra",

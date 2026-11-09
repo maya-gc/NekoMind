@@ -1,0 +1,4 @@
+# Ferramentas opcionais da pipeline de testes (Windows e macOS).
+-r requirements-test.txt
+ziglang>=0.13      # compilador C para os testes do firmware sem MSYS2/Xcode
+playwright>=1.48   # capturas de /public e /touch (usa Edge/Chrome já instalados)

@@ -27,6 +27,8 @@ BUTTONS = {
     "Responder": "answer",
     "Tentar de novo": "retry",
     "Voltar": "reset",
+    "Retomar": "recover",
+    "Descartar": "discard",
 }
 
 

@@ -1,0 +1,53 @@
+# Testes automáticos do NekoMind em Windows (desenvolvimento) e macOS (apresentação).
+name: testes
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  testes:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONWARNINGS: ignore::DeprecationWarning
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Dependências
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements-test.txt ziglang
+      - name: Backend (pytest)
+        working-directory: backend
+        run: python -m pytest -q -rfEs -p no:cacheprovider
+      - name: Frontend (node --test)
+        shell: bash
+        run: node --test frontend/tests/*.test.mjs
+      - name: Firmware (teste em C no host)
+        working-directory: backend
+        run: python -m app.devtools.c_compiler
+      - name: Pipeline com toque virtual e voz do sistema
+        working-directory: backend
+        run: python -m app.devtools.pipeline --out ../relatorio-pipeline
+      - name: Relatório
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-${{ matrix.os }}
+          path: relatorio-pipeline
+          if-no-files-found: ignore

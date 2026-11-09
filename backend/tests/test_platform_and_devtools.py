@@ -102,13 +102,16 @@ def test_automated_pipeline_demo_and_guided(client, tmp_path, monkeypatch):
     monkeypatch.setattr(os_voice, "synthesize", fake_voice)
     monkeypatch.setattr(audio_processing, "validate_speech", lambda p, **k: {"speech_seconds": 1})
     monkeypatch.setattr(semantic_graph, "build_semantic_graph", no_graph)
-    report = pipeline.run(tmp_path / "out", ["demo", "guiado"], "roteiro", timeout=30,
+    report = pipeline.run(tmp_path / "out", ["demo", "guiado", "longo", "errada", "queda_usb"],
+                          "roteiro", timeout=30,
                           client=client)
     failed = [s for s in report.steps if not s["ok"]]
     assert not failed, failed
     names = {s["etapa"] for s in report.steps}
     assert {"Toque Pedir dica", "2ª resposta -> comparação"} <= names
     assert (tmp_path / "out" / "relatorio.md").is_file()
+    assert "APROVADO" in (tmp_path / "out" / "relatorio.html").read_text(encoding="utf-8")
+    assert {"Pergunta sobre a missão escolhida", "Toque Retomar -> gravando"} <= names
     lines = (tmp_path / "out" / "guiado" / "serial.jsonl").read_text(encoding="utf-8")
     sent = [json.loads(json.loads(line)["tx"])["command"]
             for line in lines.splitlines() if '"tx"' in line]
