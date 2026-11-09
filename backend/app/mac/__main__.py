@@ -1,11 +1,13 @@
-"""Run with python -m app.mac --port /dev/cu... on macOS."""
+"""Run with ``python -m app.mac --port /dev/cu...`` (macOS) or ``--port COM3`` (Windows).
+
+Test helpers: ``--audio-file fala.wav`` replaces the microphone by WAV files and
+``--voice silent`` / ``--voice kokoro-file`` avoid playing audio.
+"""
 
 import argparse
-import fcntl
 import logging
 import os
 import signal
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -15,8 +17,10 @@ from app.config import get_settings
 from app.mac.backend import LocalBackend
 from app.mac.bridge import MacBridge
 from app.mac.capture import MacRecorder
+from app.mac.file_capture import FileRecorder
 from app.mac.serial_loop import run_serial
-from app.mac.speaker import KokoroSpeaker
+from app.mac.speaker import KokoroSpeaker, SilentSpeaker
+from app.platform_support import keep_awake, lock_exclusive_nonblocking
 
 logger = logging.getLogger(__name__)
 
@@ -111,15 +115,27 @@ def main():
         "--device", default=None, help="Nome do dispositivo PortAudio; padrao do Mac se omitido"
     )
     parser.add_argument("--data-dir", type=Path, default=default_mac_dir)
-    parser.add_argument("--voice", choices=("off", "kokoro"), default=settings.tts_provider)
+    parser.add_argument(
+        "--voice",
+        choices=("off", "kokoro", "kokoro-file", "silent"),
+        default=settings.tts_provider,
+        help="kokoro toca no alto-falante; kokoro-file so grava WAV; silent so registra o texto",
+    )
+    parser.add_argument(
+        "--audio-file",
+        type=Path,
+        action="append",
+        default=[],
+        help="WAV usado no lugar do microfone (repita para a 1a e a 2a resposta)",
+    )
     parser.add_argument(
         "--simulate", action="store_true", help="Usa DemoRecorder sintetico, sem microfone real"
     )
     args = parser.parse_args()
     if args.simulate and getattr(settings, "mode", "demo") != "demo":
         parser.error("--simulate exige configuracao de demo")
-    if sys.platform != "darwin" and not args.simulate:
-        parser.error("Este componente de captura do MVP requer macOS")
+    if sys.platform not in {"darwin", "win32"} and not (args.simulate or args.audio_file):
+        parser.error("Este componente de captura do MVP requer macOS ou Windows")
     if not args.port and not args.simulate:
         parser.error("Selecione a porta USB com --port ou NEKOMIND_SERIAL_PORT")
     os.umask(0o077)
@@ -135,29 +151,43 @@ def main():
 
     with (args.data_dir / "bridge.lock").open("a") as lock:
         try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            lock_exclusive_nonblocking(lock)
         except BlockingIOError:
             parser.error("Ja existe um bridge para este diretorio")
         speaker = None
-        if args.voice == "kokoro":
+        if args.voice in {"kokoro", "kokoro-file"}:
             try:
-                speaker = KokoroSpeaker(args.data_dir / "speech")
+                speaker = KokoroSpeaker(args.data_dir / "speech", play=args.voice == "kokoro")
                 speaker.preload()
             except Exception as exc:  # noqa: BLE001 - setup error shown before capture starts
                 if speaker is not None:
                     speaker.close()
-                parser.error(f"Voz Kokoro indisponivel: {exc}. Rode scripts/setup_voice_mac.sh.")
+                setup = (
+                    "scripts/setup_voice_windows.ps1"
+                    if sys.platform == "win32"
+                    else "scripts/setup_voice_mac.sh"
+                )
+                parser.error(f"Voz Kokoro indisponivel: {exc}. Rode {setup}.")
+        elif args.voice == "silent":
+            speaker = SilentSpeaker(args.data_dir / "speech")
+            logger.info("Voz silenciosa: falas registradas em %s", speaker.log_path)
         backend = LocalBackend(args.backend)
-        recorder = (
-            DemoRecorder(args.data_dir / "capture")
-            if args.simulate
-            else MacRecorder(args.data_dir / "capture", device=args.device)
-        )
+        if args.audio_file:
+            recorder = FileRecorder(
+                args.data_dir / "capture",
+                args.audio_file,
+                is_demo=getattr(settings, "mode", "demo") == "demo",
+            )
+        elif args.simulate:
+            recorder = DemoRecorder(args.data_dir / "capture")
+        else:
+            recorder = MacRecorder(args.data_dir / "capture", device=args.device)
         bridge = MacBridge(backend, recorder, args.data_dir / "journal.db", speaker=speaker)
         awake = None
-        if sys.platform == "darwin" and not args.simulate:
-            # Explicitly keep this Mac awake while the bridge is running.
-            awake = subprocess.Popen(["/usr/bin/caffeinate", "-i", "-w", str(os.getpid())])
+        if not args.simulate:
+            # Explicitly keep this computer awake while the bridge is running
+            # (caffeinate on macOS, SetThreadExecutionState on Windows).
+            awake = keep_awake()
         try:
             if args.simulate and not args.port:
                 logger.info("Bridge demo operacional iniciado; comandos chegam pelo backend.")

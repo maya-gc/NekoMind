@@ -1,5 +1,11 @@
-"""Local pt-BR speech on the Mac; synthesis never blocks touch or capture."""
+"""Local pt-BR speech (macOS and Windows); synthesis never blocks touch or capture.
 
+``KokoroSpeaker(play=False)`` keeps the rendered WAV files instead of playing
+them, and ``SilentSpeaker`` only records the phrases: both serve automated
+tests on machines without a loudspeaker.
+"""
+
+import json
 import logging
 import os
 import shutil
@@ -8,15 +14,20 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import RLock
+from time import time
+
+from app.platform_support import IS_MACOS, audio_player_available, audio_player_command
 
 logger = logging.getLogger(__name__)
 
 
 class KokoroSpeaker:
-    """Keep Kokoro warm and play only the latest utterance through macOS."""
+    """Keep Kokoro warm and play only the latest utterance (afplay or SoundPlayer)."""
 
-    def __init__(self, directory: Path):
+    def __init__(self, directory: Path, *, play: bool = True):
         self.directory = directory
+        self.play = play
+        self.rendered = 0
         self.lock = RLock()
         self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="nekomind-voice")
         self.pipeline = None
@@ -26,11 +37,13 @@ class KokoroSpeaker:
         self.closed = False
 
     def preload(self):
-        """Fail at startup if the local model or the macOS player is unavailable."""
-        if not Path("/usr/bin/afplay").is_file():
-            raise RuntimeError("afplay indisponivel neste Mac")
+        """Fail at startup if the local model or the system player is unavailable."""
+        if self.play and not audio_player_available():
+            raise RuntimeError(
+                "afplay indisponivel neste Mac" if IS_MACOS else "Player de audio indisponivel"
+            )
         if shutil.which("espeak-ng") is None:
-            raise RuntimeError("espeak-ng indisponivel neste Mac")
+            raise RuntimeError("espeak-ng indisponivel neste computador")
         os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
         import torch
         from huggingface_hub import hf_hub_download
@@ -114,11 +127,16 @@ class KokoroSpeaker:
             ) as handle:
                 path = Path(handle.name)
             sf.write(path, np.concatenate(chunks), 24000, subtype="PCM_16")
+            if not self.play:
+                self.rendered += 1
+                path.replace(self.directory / f"fala-{self.rendered:03d}.wav")
+                path = None
+                return
             with self.lock:
                 if self.closed or generation != self.generation:
                     return
                 self.playback = subprocess.Popen(
-                    ["/usr/bin/afplay", str(path)],
+                    audio_player_command(path),
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
@@ -148,3 +166,35 @@ class KokoroSpeaker:
                 playback.kill()
                 playback.wait(timeout=1)
         self.pool.shutdown(wait=True, cancel_futures=True)
+
+
+class SilentSpeaker:
+    """Speaker for automated tests: records each phrase, never plays audio."""
+
+    def __init__(self, directory: Path):
+        self.directory = directory
+        self.directory.mkdir(parents=True, exist_ok=True)
+        self.log_path = self.directory / "falas.jsonl"
+        self.lock = RLock()
+        self.spoken: list[str] = []
+        self.stops = 0
+
+    def preload(self):
+        return None
+
+    def speak(self, text: str):
+        phrase = " ".join(text.split())
+        if not phrase or len(phrase) > 240:
+            raise ValueError("Fala vazia ou longa demais")
+        with self.lock:
+            self.spoken.append(phrase)
+            with self.log_path.open("a", encoding="utf-8") as out:
+                out.write(json.dumps({"t": round(time(), 3), "fala": phrase}, ensure_ascii=False))
+                out.write("\n")
+
+    def stop(self):
+        with self.lock:
+            self.stops += 1
+
+    def close(self):
+        return None

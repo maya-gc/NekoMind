@@ -4,6 +4,8 @@ import json
 import sqlite3
 from pathlib import Path
 
+import pytest
+
 from app.config import get_settings
 
 
@@ -45,7 +47,10 @@ def test_session_directory_symlink_never_deletes_external_file(client, tmp_path)
     sentinel.write_text("synthetic sentinel")
     link = get_settings().storage_dir / f"session_{sid}"
     link.parent.mkdir(parents=True, exist_ok=True)
-    link.symlink_to(outside, target_is_directory=True)
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError as exc:  # Windows sem Modo de Desenvolvedor nao cria links
+        pytest.skip(f"Sistema nao permite criar link simbolico: {exc}")
     response = client.request("DELETE", f"/api/v1/sessions/{sid}", json={"confirmed": True})
     assert response.status_code == 409
     assert sentinel.read_text() == "synthetic sentinel"

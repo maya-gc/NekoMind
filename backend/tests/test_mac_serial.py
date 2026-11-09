@@ -1,11 +1,14 @@
 """Strict wire parser and real pseudo-terminal transport, no physical ESP32."""
 
 import os
-import pty
 import threading
 import time
 
 import pytest
+
+# Pseudo-terminals are POSIX-only; on Windows this module is skipped (the
+# serial loop itself is covered by test_devtools_pipeline and the ESP probe).
+pty = pytest.importorskip("pty", reason="pty/termios indisponivel no Windows")
 
 from app.mac.backend import LocalBackend
 from app.mac.protocol import decode_display_ack, decode_line, encode_line

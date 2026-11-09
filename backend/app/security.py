@@ -3,13 +3,13 @@
 import hmac
 import os
 import secrets
-import stat
 from pathlib import Path
 from threading import Lock
 
 from fastapi import Header, HTTPException
 
 from app.config import get_settings
+from app.platform_support import is_private_file, open_regular_readonly
 
 _lock = Lock()
 
@@ -31,10 +31,10 @@ def operator_token() -> str:
                 out.write(secrets.token_urlsafe(32))
                 out.flush()
                 os.fsync(out.fileno())
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        fd = open_regular_readonly(path)
         with os.fdopen(fd) as stream:
             info = os.fstat(stream.fileno())
-            if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077:
+            if not is_private_file(info):
                 raise RuntimeError("Arquivo de acesso local deve ter permissao 0600.")
             value = stream.read(128).strip()
         if len(value) < 32:

@@ -1,6 +1,7 @@
 """Local operational boundary; synthetic sessions only."""
 
 import json
+import os
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -90,7 +91,10 @@ def test_token_file_is_private_and_reused(client):
     from app.security import operator_token, operator_token_path
 
     assert operator_token() == operator_token()
-    assert operator_token_path().stat().st_mode & 0o777 == 0o600
+    if os.name == "nt":  # NTFS ACLs, not mode bits, protect the user profile.
+        assert operator_token_path().is_file()
+    else:
+        assert operator_token_path().stat().st_mode & 0o777 == 0o600
 
 
 def test_expired_capture_heartbeat_never_remains_recording(client, monkeypatch):

@@ -210,7 +210,10 @@ def test_recovery_manifest_rejects_external_traversal_symlink_and_missing_chunk_
     with pytest.raises(RuntimeError, match="capture_recovery_missing"):
         r.recovery_manifest(24)
 
-    raw_path.symlink_to(external)
+    try:
+        raw_path.symlink_to(external)
+    except OSError as exc:  # Windows sem Modo de Desenvolvedor nao cria links
+        pytest.skip(f"Sistema nao permite criar link simbolico: {exc}")
     manifest_path.write_text(
         json.dumps(
             {

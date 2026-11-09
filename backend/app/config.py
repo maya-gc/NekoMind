@@ -45,7 +45,7 @@ class Settings(BaseSettings):
 
     # Serial e microfone sao configurados no CLI app.mac. PCM fixo em 16 kHz.
     serial_port: str = ""
-    tts_provider: Literal["off", "kokoro"] = "off"
+    tts_provider: Literal["off", "kokoro", "kokoro-file", "silent"] = "off"
     retain_raw_audio: bool = False
     mac_data_dir: Path | None = None
     fair_idle_seconds: int = Field(default=90, ge=15, le=3600)
