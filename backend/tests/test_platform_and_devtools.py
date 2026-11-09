@@ -116,3 +116,38 @@ def test_automated_pipeline_demo_and_guided(client, tmp_path, monkeypatch):
     sent = [json.loads(json.loads(line)["tx"])["command"]
             for line in lines.splitlines() if '"tx"' in line]
     assert {"diagnose", "start", "finish", "hint", "answer"} <= set(sent)
+
+
+def test_ai_tutor_adapts_question_hint_and_comparison(client, tmp_path, monkeypatch):
+    from app.devtools import os_voice, pipeline
+    from app.services import audio_processing, semantic_graph, tutor_ai
+
+    def fake_voice(text, out, **kwargs):
+        out.parent.mkdir(parents=True, exist_ok=True)
+        write_wav(out, seconds=1.0, rate=16000, channels=1)
+        return {"engine": "teste", "detail": "voz=teste", "is_speech": True, "path": str(out)}
+
+    def no_graph(*args, **kwargs):
+        raise semantic_graph.SemanticGraphError("offline")
+
+    monkeypatch.setattr(os_voice, "synthesize", fake_voice)
+    monkeypatch.setattr(audio_processing, "validate_speech", lambda p, **k: {"speech_seconds": 1})
+    monkeypatch.setattr(semantic_graph, "build_semantic_graph", no_graph)
+    monkeypatch.setenv("NEKOMIND_TUTOR_PROVIDER", "ollama")
+    monkeypatch.setattr(tutor_ai, "first_turn", lambda point, transcript, model, **k: {
+        "question": "Como a Hamiltoniana dita a evolução no tempo?",
+        "hint": "Dica: lembre da equação de Schrödinger."})
+    monkeypatch.setattr(tutor_ai, "second_turn", lambda *a, **k: {
+        "comparison": "Agora você ligou H à evolução temporal; falta citar autovalores."})
+    report = pipeline.run(tmp_path / "out", ["complexo"], "roteiro", timeout=30, client=client)
+    failed = [s for s in report.steps if not s["ok"]]
+    assert not failed, failed
+    detail = " ".join(s["detalhe"] for s in report.steps)
+    assert "Schrödinger" in detail and "autovalores" in detail
+
+
+def test_ai_tutor_bounds_text_for_the_lcd():
+    from app.services.tutor_ai import LIMITS, _short
+
+    text = _short("palavra " * 80, LIMITS["comparison"])
+    assert len(text.encode("utf-8")) <= LIMITS["comparison"] and text.endswith("...")

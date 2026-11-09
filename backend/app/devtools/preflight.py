@@ -148,6 +148,20 @@ def check_ollama(c):
               "Só é usada para sugerir pontos do material; o fluxo funciona sem ela")
 
 
+def check_tutor(c):
+    from app.config import get_settings
+    from app.services import tutor_ai
+
+    settings = get_settings()
+    if settings.tutor_provider == "regras":
+        c.add("Tutor (perguntas)", "aviso", "regras locais (sem IA)")
+    elif tutor_ai.available(settings.tutor_model):
+        c.add("Tutor (perguntas)", "ok", f"IA local {settings.tutor_model}: perguntas adaptadas ao assunto")
+    else:
+        c.add("Tutor (perguntas)", "aviso", f"{settings.tutor_model} indisponível; usando regras locais",
+              f"Instale o Ollama e rode: ollama pull {settings.tutor_model}")
+
+
 def check_disk(c):
     free = shutil.disk_usage(ROOT).free / 1e9
     c.add("Espaço em disco", "ok" if free > 2 else "aviso", f"{free:.1f} GB livres")
@@ -174,6 +188,7 @@ def main(argv=None):
     check_asr(c, args.plano_b, args.modelo)
     check_voice(c, args.voz)
     check_ollama(c)
+    check_tutor(c)
     check_disk(c)
     if args.json:
         args.json.write_text(json.dumps({"porta": port, "itens": c.items}, ensure_ascii=False,

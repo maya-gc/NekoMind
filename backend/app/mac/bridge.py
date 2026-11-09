@@ -113,6 +113,7 @@ class MacBridge:
         self.demo = bool(self.demo)
         self._spoken_result_sid = self.sid if self.state == "completed" else None
         self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="nekomind-analysis")
+        self.tutor_cache: dict = {}
         self.ops_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="nekomind-ops")
         self.future = None
         self.ops_futures = []
@@ -255,6 +256,38 @@ class MacBridge:
             return "Obrigada por explicar! Quer tentar de novo e ligar duas ideias com um exemplo?"
         return "Obrigada por explicar! Quer tentar de novo e incluir um exemplo?"
 
+    def _prefetch_tutor(self, sid, row):
+        """Ask the local AI tutor before publishing the result (never under the lock)."""
+        try:
+            if row.get("status") != "completed" or self.demo:
+                return
+            settings = get_settings()
+            provider = getattr(settings, "tutor_provider", "regras")
+            model = getattr(settings, "tutor_model", "")
+            if provider == "regras":
+                return
+            from app.services import tutor_ai
+
+            if provider == "auto" and not tutor_ai.available(model):
+                return
+            with self.lock:
+                item = dict(self.interaction)
+            transcript = row.get("transcription", "") or ""
+            if sid == item.get("first_sid") and item.get("stage") == "explaining":
+                focus = choose_focus(row.get("content_report"), item.get("mission_index", 0))
+                if focus is None:
+                    return
+                result = tutor_ai.first_turn(focus[1], transcript, model)
+                self.tutor_cache[("first", sid)] = {**result, "point": focus[1]}
+            elif sid == item.get("second_sid") and item.get("stage") == "answering":
+                result = tutor_ai.second_turn(
+                    item.get("focus_point", ""), item.get("question", ""),
+                    item.get("first_transcript", ""), transcript, model,
+                )
+                self.tutor_cache[("second", sid)] = result
+        except Exception:  # noqa: BLE001 - tutor IA e opcional; regras locais assumem
+            logger.warning("Tutor IA indisponivel; usando regras locais.")
+
     def _prepare_interaction_result(self, row):
         item = self.interaction
         if self.demo or not item:
@@ -265,12 +298,17 @@ class MacBridge:
                 return None
             index, point = focus
             first_match = match_point(point, row.get("transcription", ""))
+            tutor = self.tutor_cache.pop(("first", self.sid), None)
+            if tutor and tutor.get("point") != point:
+                tutor = None
             item.update(
                 stage="question",
                 focus_index=index,
                 focus_point=point,
-                question=question_for(point),
-                hint=hint_for(point),
+                question=tutor["question"] if tutor else question_for(point),
+                hint=tutor["hint"] if tutor else hint_for(point),
+                tutor="ia_local" if tutor else "regras",
+                first_transcript=(row.get("transcription", "") or "")[:2000],
                 hint_shown=False,
                 first_status=first_match.status,
                 first_evidence=first_match.evidence or "",
@@ -279,11 +317,12 @@ class MacBridge:
             return item["question"]
         if self.sid == item.get("second_sid") and item.get("stage") == "answering":
             second_match = match_point(item["focus_point"], row.get("transcription", ""))
+            tutor = self.tutor_cache.pop(("second", self.sid), None)
             item.update(
                 stage="done",
                 second_status=second_match.status,
                 second_evidence=second_match.evidence or "",
-                comparison=comparison_for(
+                comparison=tutor["comparison"] if tutor else comparison_for(
                     item["focus_point"], item["first_status"], second_match.status,
                     item.get("first_evidence", ""), second_match.evidence or "",
                 ),
@@ -976,6 +1015,7 @@ class MacBridge:
             elif not has_uploaded:
                 self.backend.upload(sid, path)
             row = self.backend.finish(sid, rid)
+            self._prefetch_tutor(sid, row)  # IA local fora da trava: o touch segue respondendo
             with self.lock:
                 if epoch != self.epoch or sid != self.sid:
                     return

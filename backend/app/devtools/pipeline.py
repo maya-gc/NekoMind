@@ -54,15 +54,27 @@ LONG_POINTS = [
 ]
 LONG_TEXT = ". ".join(LONG_POINTS) + "."
 
+QUANTUM_TITLE = "Hamiltoniana na mecânica quântica"
+QUANTUM_POINTS = [
+    "A Hamiltoniana é o operador da energia total",
+    "Ela gera a evolução temporal pela equação de Schrödinger",
+    "Seus autovalores são os níveis de energia permitidos",
+]
+QUANTUM_TEXT = ". ".join(QUANTUM_POINTS) + "."
+
 SPEECH = {
     "resposta1": "A água do mar evapora com o calor do Sol.",
     "resposta2": "O vapor sobe, esfria e forma as nuvens. Depois as gotas caem como chuva.",
     "demo": "Hoje eu vou explicar a fotossíntese das plantas.",
     "errada": "Eu gosto de jogar futebol com meus amigos no sábado.",
     "longo": "A clorofila transforma a luz em energia para a planta crescer.",
+    "quantico1": "A Hamiltoniana representa a energia total do sistema quântico.",
+    "quantico2": "Pela equação de Schrödinger a Hamiltoniana faz o estado evoluir no "
+                 "tempo, e os autovalores dela são as energias possíveis.",
 }
 
-ALL_SCENARIOS = ["demo", "guiado", "longo", "errada", "silencio", "ruido", "queda_usb"]
+ALL_SCENARIOS = ["demo", "guiado", "longo", "errada", "silencio", "ruido", "queda_usb",
+                 "complexo"]
 
 # Orçamento de tempo por etapa (ms). Com --asr whisper o dobro + 20 s.
 BUDGET_MS = {
@@ -550,6 +562,51 @@ def scenario_usb_drop(ctx):
     return s.speaker.spoken
 
 
+def scenario_complex(ctx):
+    """Advanced subject: with the AI tutor the question must be specific."""
+    from app.config import get_settings
+    from app.mac.dialogue import question_for
+
+    report, scenario = ctx["report"], "complexo"
+    _select_content(ctx["client"], report, scenario, QUANTUM_TITLE, QUANTUM_TEXT,
+                    QUANTUM_POINTS)
+    ctx["transcripts"][:] = [SPEECH["quantico1"], SPEECH["quantico2"]]
+    s = Session(ctx["client"], ctx["out"], scenario,
+                [ctx["audio"] / "quantico1.wav", ctx["audio"] / "quantico2.wav"], demo=False,
+                screens=ctx["screens"])
+    try:
+        _ready(s, report, scenario)
+        sid = _start(s, report, scenario, mission=1)
+        t = time.monotonic()
+        s.touch.tap("Finalizar", sid)
+        first = s.touch.poll(sid, _until_result, timeout=ctx["timeout"])
+        follow = first.get("followup") or {}
+        _check(report, scenario, "1ª resposta -> pergunta",
+               follow.get("stage") == "question", f"pergunta={follow.get('question')!r}", t)
+        tutor = s.bridge.interaction.get("tutor")
+        if get_settings().tutor_provider != "regras":
+            _check(report, scenario, "Pergunta adaptada pela IA",
+                   tutor == "ia_local" and follow.get("question") != question_for(
+                       QUANTUM_POINTS[1]), f"tutor={tutor}", None)
+        ctx["screens"].shot(scenario, "pergunta")
+        s.touch.tap("Pedir dica", sid)
+        second = s.touch.tap("Responder", sid)
+        sid2 = second.get("session_id")
+        t = time.monotonic()
+        s.touch.tap("Finalizar", sid2)
+        done = s.touch.poll(sid2, lambda r: r.get("type") == "error" or (
+            _until_result(r) and (r.get("followup") or {}).get("stage") == "done"),
+            timeout=ctx["timeout"])
+        d = done.get("followup") or {}
+        _check(report, scenario, "2ª resposta -> comparação",
+               d.get("stage") == "done" and bool(d.get("comparison")),
+               f"dica={d.get('hint')!r} comparacao={d.get('comparison')!r}", t)
+        ctx["screens"].shot(scenario, "comparacao")
+    finally:
+        s.close()
+    return s.speaker.spoken
+
+
 SCENARIOS = {
     "demo": (scenario_demo, "demo"),
     "guiado": (scenario_guided, "real"),
@@ -558,6 +615,7 @@ SCENARIOS = {
     "silencio": (scenario_silence, "real"),
     "ruido": (scenario_noise, "real"),
     "queda_usb": (scenario_usb_drop, "real"),
+    "complexo": (scenario_complex, "real"),
 }
 
 
@@ -695,6 +753,7 @@ def run(out: Path, scenarios: list[str], asr: str, timeout: float = 120.0, clien
         "microfone": "substituído por WAV (voz do sistema, silêncio e ruído gerados)",
         "voz da gatinha": "silenciosa (texto registrado, nada é tocado)",
         "asr": asr,
+        "tutor": os.environ.get("NEKOMIND_TUTOR_PROVIDER", "auto"),
         "cenarios": ", ".join(scenarios),
     })
     audio_dir = _prepare_audio(out, report)
@@ -806,7 +865,10 @@ def main(argv=None):
     parser.add_argument("--out", type=Path, default=None,
                         help="Pasta do relatório (padrão: backend/storage/pipeline/<data>)")
     parser.add_argument("--timeout", type=float, default=120.0)
+    parser.add_argument("--tutor", choices=("regras", "ia"), default="regras",
+                        help="ia = pergunta/dica/comparação pelo Ollama local")
     args = parser.parse_args(argv)
+    os.environ["NEKOMIND_TUTOR_PROVIDER"] = "ollama" if args.tutor == "ia" else "regras"
     warnings.simplefilter("ignore", DeprecationWarning)
     stamp = time.strftime("%Y%m%d-%H%M%S")
     base = Path(__file__).resolve().parents[2] / "storage" / "pipeline"

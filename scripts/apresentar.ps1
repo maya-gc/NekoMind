@@ -17,7 +17,10 @@ if ($Porta) { $pf += @("--porta",$Porta) }
 if ($PlanoB) { $pf += "--plano-b" }
 & $Py @pf
 if ($LASTEXITCODE -ne 0 -and -not $Forcar) { Write-Host "`nCorrija os itens acima, use -PlanoB ou -Forcar."; Pop-Location; exit 1 }
-if (-not $Porta) { $Porta = (Get-Content $json -Raw | ConvertFrom-Json).porta }
+$pfj = Get-Content $json -Raw | ConvertFrom-Json
+if (-not $Porta) { $Porta = $pfj.porta }
+$vozItem = $pfj.itens | Where-Object { $_.item -eq "Voz da gatinha" }
+if ($Voz -eq "kokoro" -and $vozItem.status -ne "ok") { Write-Warning "Voz Kokoro indisponivel; seguindo sem som (rode scripts\preparar_windows.ps1)."; $Voz = "silent" }
 if (-not $Porta) { Write-Error "Placa nao encontrada."; Pop-Location; exit 1 }
 if ($PlanoB) { $env:NEKOMIND_MODE="demo"; $env:NEKOMIND_ASR_PROVIDER="mock"; $env:NEKOMIND_LLM_PROVIDER="mock"; $extra=@("--simulate") }
 else { $env:NEKOMIND_MODE="real"; $env:NEKOMIND_ASR_PROVIDER="faster_whisper"; $env:NEKOMIND_LLM_PROVIDER="local_keywords"; $env:NEKOMIND_ASR_MODEL_SIZE=$Modelo; $extra=@() }

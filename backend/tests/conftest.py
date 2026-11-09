@@ -36,6 +36,7 @@ def reset_settings(monkeypatch: pytest.MonkeyPatch, tmp_path):
     monkeypatch.setenv("NEKOMIND_ASR_MODEL_SIZE", "small")
     monkeypatch.setenv("NEKOMIND_ASR_DEVICE", "cpu")
     monkeypatch.setenv("NEKOMIND_ASR_COMPUTE_TYPE", "int8")
+    monkeypatch.setenv("NEKOMIND_TUTOR_PROVIDER", "regras")  # testes nunca chamam o Ollama
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()

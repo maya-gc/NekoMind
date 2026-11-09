@@ -16,7 +16,7 @@ from pathlib import Path
 from threading import RLock
 from time import time
 
-from app.platform_support import IS_MACOS, audio_player_available, audio_player_command
+from app.platform_support import IS_MACOS, IS_WINDOWS, audio_player_available, audio_player_command
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,14 @@ class KokoroSpeaker:
             raise RuntimeError(
                 "afplay indisponivel neste Mac" if IS_MACOS else "Player de audio indisponivel"
             )
+        if IS_WINDOWS:
+            # O instalador do eSpeak NG nem sempre poe a pasta no PATH; o
+            # fonemizador do Kokoro aceita a DLL por variavel de ambiente.
+            default = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "eSpeak NG"
+            if (default / "libespeak-ng.dll").is_file():
+                os.environ.setdefault("PHONEMIZER_ESPEAK_LIBRARY", str(default / "libespeak-ng.dll"))
+                os.environ.setdefault("PHONEMIZER_ESPEAK_PATH", str(default / "espeak-ng.exe"))
+                os.environ["PATH"] = f"{default}{os.pathsep}{os.environ.get('PATH', '')}"
         if shutil.which("espeak-ng") is None:
             raise RuntimeError("espeak-ng indisponivel neste computador")
         os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
