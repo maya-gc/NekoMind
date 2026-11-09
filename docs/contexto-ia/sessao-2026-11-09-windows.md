@@ -49,3 +49,47 @@ Execução `scripts\test_auto.ps1` no commit `9b1eebb`:
   `bash scripts/test_auto.sh` + bancada para confirmar.
 - Toque físico (XPT2046), voz Kokoro no Windows e ASR real com a voz da
   usuária não foram exercitados.
+
+---
+
+# Segunda rodada (09/11/2026, tarde) — deixar o projeto “redondo”
+
+Pedido: executar as sugestões aprovadas — fechar lacunas de verificação,
+robustecer a pipeline e preparar a apresentação. Apresentação e vídeos serão
+no **Mac**; desenvolvimento e mídias no **Windows**.
+
+## O que foi feito
+
+| Tema | Entrega |
+|---|---|
+| CI | `.github/workflows/testes.yml`: Windows e macOS a cada push — pytest, frontend, firmware em C, pipeline, checklist em plano B e, no Mac, `scripts/test_auto.sh`. Primeira prova de que o caminho do Mac funciona: no runner macOS passaram os testes exclusivos de POSIX (pty, permissão 0600). |
+| Firmware em C no Windows | `app.devtools.c_compiler` usa `cc/gcc/clang` ou o clang do `ziglang` (pip). `test_serial_interop` deixou de ser pulado no Windows. |
+| Pipeline | 7 cenários (demo, guiado, longo, errada, silêncio, ruído, queda do USB), orçamento de tempo, `--repeticoes`, `--capturas` (Edge/Chrome via Playwright) e relatório HTML. |
+| Toque no firmware | Comando de depuração `!tap <botão>` / `!tap x y`: o firmware executa o toque pelo mesmo hit test do dedo. `app.devtools.esp_tap_flow` roda o fluxo guiado inteiro na placa esperando cada `display_ack`. Firmware compilado e **gravado** na placa da Maya (COM3), hash verificado. |
+| ASR real | `scripts/baixar_modelo_asr` + `--asr whisper`. Encontrado e corrigido bug: PyAV atual não aceita um argumento que o faster-whisper 1.2.1 passa → toda transcrição real falhava (`analysis_failed`). O adaptador agora lê o WAV PCM16 16 kHz do bridge diretamente. Isso também quebraria o Mac numa instalação nova. |
+| Apresentação | `app.devtools.preflight` + `scripts/apresentar.sh/.ps1` (checklist, backend, bridge, telas) e plano B em demo identificado; `docs/apresentacao.md` (véspera, roteiro de 3 min, vídeo no Mac, perguntas da banca); README vitrine. |
+
+## Evidência no Windows da Maya (placa em COM3)
+
+- `test_auto.ps1`: pytest 216 ok, frontend 40/40, pipeline 7/7 cenários
+  aprovados, firmware em C ok (ziglang), placa ok.
+- `esp_tap_flow` com o firmware novo: Diagnóstico → Pronto → Começar →
+  Gravando → Finalizar → pergunta → dica → Responder → comparação → Voltar,
+  todos confirmados pelo LCD (`display_ack`) — **PLACA APROVADA**.
+- CI verde em Windows e macOS (commit `309b738`).
+- Pipeline com **ASR real** (`--asr whisper`, modelo `small` em CPU): 7/7
+  cenários aprovados; ~4,3 s por resposta analisada (transcrição ~1,8 s);
+  14 capturas de tela sincronizadas com o estado.
+- Checklist pré-palco no Windows: **PRONTO PARA APRESENTAR** (placa, microfone
+  fifine, faster-whisper em cache, VAD); avisos só para voz silenciosa e Ollama.
+
+## Observações para mídias
+
+- Na tela pública do guiado aparece “0% dos pontos mencionados” mesmo com a
+  comparação dizendo que o trecho apareceu: o material curto vira 1 ponto
+  longo e a cobertura é lexical. Revisar a regra antes de filmar.
+- Capturas feitas com `--asr roteiro` mostram “faster_whisper/REAL” nas telas
+  porque o roteiro substitui só a transcrição. Para mídia pública, gere com
+  `--asr whisper` (transcrição de verdade).
+- A captura por arquivo aparece na jornada como `mac_microphone`; é a voz do
+  sistema, não uma pessoa. Não usar essas telas como prova de uso real.
