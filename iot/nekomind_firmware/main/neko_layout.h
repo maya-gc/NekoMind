@@ -86,6 +86,14 @@ bool neko_layout_build(neko_controller_state_t state,
                        size_t requested_card_index,
                        neko_layout_model_t *out);
 void neko_layout_set_theme(neko_layout_model_t *layout, bool dark_theme);
+/* Depuracao: toque simulado. Converte nome do botao ("start", "hint"...) no
+ * evento e acha o centro do alvo visivel no layout atual. */
+bool neko_touch_event_from_name(const char *name, neko_touch_event_t *out_event);
+bool neko_layout_center_of(const neko_layout_model_t *layout,
+                           neko_touch_event_t event,
+                           int *out_x,
+                           int *out_y);
+
 bool neko_layout_hit_test(const neko_layout_model_t *layout,
                           int x,
                           int y,

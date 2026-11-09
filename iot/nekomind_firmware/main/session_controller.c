@@ -226,10 +226,40 @@ static void poll_touch(uint32_t t_ms)
     }
 }
 
+/* Depuracao/testes automaticos: "!tap start" ou "!tap 120 260" percorre o
+ * mesmo caminho de um toque fisico (hit test do layout visivel + botao
+ * habilitado). Nao envia nada ao Mac por conta propria. */
+static void simulate_tap(const char *arg, uint32_t t_ms)
+{
+    neko_touch_event_t event = NEKO_TOUCH_STATUS;
+    bool enabled = false;
+    int x = -1;
+    int y = -1;
+    if (sscanf(arg, "%d %d", &x, &y) != 2) {
+        neko_touch_event_t wanted;
+        if (!neko_touch_event_from_name(arg, &wanted)
+            || !neko_layout_center_of(&s_layout, wanted, &x, &y)) {
+            ESP_LOGW(TAG, "sim_tap %s: botao nao esta na tela", arg);
+            return;
+        }
+    }
+    if (!neko_layout_hit_test(&s_layout, x, y, &event, &enabled) || !enabled) {
+        ESP_LOGW(TAG, "sim_tap %s (%d,%d): sem alvo habilitado", arg, x, y);
+        return;
+    }
+    ESP_LOGI(TAG, "sim_tap %s (%d,%d): ok", arg, x, y);
+    if (event == NEKO_TOUCH_THEME) toggle_theme(t_ms);
+    else neko_controller_touch(&s_controller, event, t_ms);
+}
+
 static void poll_serial(uint32_t t_ms)
 {
     esp_err_t err = audio_transport_poll_rx(s_rx_line, sizeof(s_rx_line), 0);
     if (err == ESP_OK) {
+        if (strncmp(s_rx_line, "!tap ", 5) == 0) {
+            simulate_tap(s_rx_line + 5, t_ms);
+            return;
+        }
         if (strcmp(s_rx_line, "!touch-calibrate") == 0) {
             esp_err_t cal = board_touch_calibrate();
             ESP_LOGI(TAG, "calibracao touch: %s", esp_err_to_name(cal));

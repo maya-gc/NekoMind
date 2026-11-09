@@ -1257,6 +1257,32 @@ static void test_browser_commands_sync_to_physical_screen(void)
     assert(controller.session_id == 0 && controller.mission_count == 0);
 }
 
+static void test_simulated_tap_finds_visible_button_center(void)
+{
+    neko_layout_model_t layout;
+    neko_touch_event_t event = NEKO_TOUCH_STATUS;
+    bool enabled = false;
+    int x = 0;
+    int y = 0;
+    memset(&layout, 0, sizeof(layout));
+    layout.hit_count = 2;
+    layout.hits[0].event = NEKO_TOUCH_START;
+    layout.hits[0].rect = (neko_layout_rect_t){10, 20, 100, 50};
+    layout.hits[0].enabled = true;
+    layout.hits[1].event = NEKO_TOUCH_HINT;
+    layout.hits[1].rect = (neko_layout_rect_t){10, 80, 100, 50};
+    layout.hits[1].enabled = false;
+    assert(neko_touch_event_from_name("start", &event) && event == NEKO_TOUCH_START);
+    assert(neko_touch_event_from_name("answer", &event) && event == NEKO_TOUCH_ANSWER);
+    assert(!neko_touch_event_from_name("inexistente", &event));
+    assert(neko_layout_center_of(&layout, NEKO_TOUCH_START, &x, &y) && x == 60 && y == 45);
+    assert(neko_layout_hit_test(&layout, x, y, &event, &enabled));
+    assert(event == NEKO_TOUCH_START && enabled);
+    assert(neko_layout_center_of(&layout, NEKO_TOUCH_HINT, &x, &y));
+    assert(neko_layout_hit_test(&layout, x, y, &event, &enabled) && !enabled);
+    assert(!neko_layout_center_of(&layout, NEKO_TOUCH_ANSWER, &x, &y));
+}
+
 int main(void)
 {
     test_valid_completion_requires_correlated_result();
@@ -1289,6 +1315,7 @@ int main(void)
     test_capability_request_id_keeps_v1_command_shape();
     test_touch_mission_hint_answer_and_comparison();
     test_browser_commands_sync_to_physical_screen();
+    test_simulated_tap_finds_visible_button_center();
     puts("firmware controller tests passed");
     return 0;
 }

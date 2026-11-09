@@ -268,6 +268,56 @@ void neko_layout_set_theme(neko_layout_model_t *layout, bool dark_theme)
     }
 }
 
+static const struct {
+    const char *name;
+    neko_touch_event_t event;
+} k_touch_names[] = {
+    {"start", NEKO_TOUCH_START},       {"pause", NEKO_TOUCH_PAUSE},
+    {"resume", NEKO_TOUCH_RESUME},     {"finish", NEKO_TOUCH_FINISH},
+    {"retry", NEKO_TOUCH_RETRY},       {"status", NEKO_TOUCH_STATUS},
+    {"resend", NEKO_TOUCH_RESEND},     {"diagnose", NEKO_TOUCH_DIAGNOSE},
+    {"calibrate", NEKO_TOUCH_CALIBRATE}, {"recover", NEKO_TOUCH_RECOVER},
+    {"discard", NEKO_TOUCH_DISCARD},   {"cancel", NEKO_TOUCH_CANCEL},
+    {"reset", NEKO_TOUCH_RESET},       {"next_card", NEKO_TOUCH_NEXT_CARD},
+    {"prev_card", NEKO_TOUCH_PREV_CARD}, {"mission_next", NEKO_TOUCH_MISSION_NEXT},
+    {"mission_prev", NEKO_TOUCH_MISSION_PREV}, {"hint", NEKO_TOUCH_HINT},
+    {"answer", NEKO_TOUCH_ANSWER},     {"theme", NEKO_TOUCH_THEME},
+};
+
+bool neko_touch_event_from_name(const char *name, neko_touch_event_t *out_event)
+{
+    size_t i;
+    if (name == NULL || out_event == NULL) {
+        return false;
+    }
+    for (i = 0; i < sizeof(k_touch_names) / sizeof(k_touch_names[0]); i++) {
+        if (strcmp(name, k_touch_names[i].name) == 0) {
+            *out_event = k_touch_names[i].event;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool neko_layout_center_of(const neko_layout_model_t *layout,
+                           neko_touch_event_t event,
+                           int *out_x,
+                           int *out_y)
+{
+    size_t i;
+    if (layout == NULL || out_x == NULL || out_y == NULL) {
+        return false;
+    }
+    for (i = 0; i < layout->hit_count; i++) {
+        if (layout->hits[i].event == event) {
+            *out_x = layout->hits[i].rect.x + layout->hits[i].rect.width / 2;
+            *out_y = layout->hits[i].rect.y + layout->hits[i].rect.height / 2;
+            return true;
+        }
+    }
+    return false;
+}
+
 bool neko_layout_hit_test(const neko_layout_model_t *layout,
                           int x,
                           int y,

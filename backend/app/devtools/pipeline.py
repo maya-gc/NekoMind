@@ -274,6 +274,12 @@ class Session:
     def close(self):
         with contextlib.suppress(Exception):
             self.touch.tap("Voltar", self.bridge.sid)
+        # Publish the final idle snapshot before closing: a slower machine could
+        # otherwise leave an older "processing" snapshot as the last word.
+        with contextlib.suppress(Exception):
+            self.bridge.wait_for_operations()
+            self.bridge.tick(force=True)
+            self.bridge.wait_for_operations()
         self.touch.close()
         self.bridge.close()
         self.wire_path.parent.mkdir(parents=True, exist_ok=True)
@@ -299,10 +305,18 @@ def _select_content(client, report, scenario, title, text, points=None):
         payload["points"] = points
     content = client.post("/api/v1/contents", json=payload)
     ok = content.status_code == 201
+    selected = None
     if ok:
-        ok = client.put("/api/v1/experience/selection",
-                        json={"content_id": content.json()["id"]}).status_code == 200
-    _check(report, scenario, "Operador salva o material", ok, f"HTTP {content.status_code}", t)
+        deadline = time.monotonic() + 10
+        while True:  # 409 = a sessão anterior ainda está sendo encerrada
+            selected = client.put("/api/v1/experience/selection",
+                                  json={"content_id": content.json()["id"]}).status_code
+            if selected != 409 or time.monotonic() > deadline:
+                break
+            time.sleep(0.3)
+        ok = selected == 200
+    _check(report, scenario, "Operador salva o material", ok,
+           f"conteúdo HTTP {content.status_code}, seleção HTTP {selected}", t)
 
 
 def _start(s, report, scenario, mission=0):
