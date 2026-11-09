@@ -1,7 +1,58 @@
-# NekoMind — MVP touch + Mac
+# NekoMind — estação de estudo com gatinha touch
 
-[Contexto para continuar o desenvolvimento](docs/handoff-colaborador.md): decisões,
-branch atual, testes, setup e pendências para colaboradores.
+[![testes](https://github.com/maya-gc/NekoMind/actions/workflows/testes.yml/badge.svg)](https://github.com/maya-gc/NekoMind/actions/workflows/testes.yml)
+![Windows](https://img.shields.io/badge/Windows-desenvolvimento-0078D6)
+![macOS](https://img.shields.io/badge/macOS-apresenta%C3%A7%C3%A3o-555555)
+![ESP32-S3](https://img.shields.io/badge/ESP32--S3-LCD%20touch-E7352C)
+
+A pessoa escolhe um ponto do material no **display touch da gatinha**, explica em
+voz alta, recebe uma **pergunta** e uma **dica**, responde de novo e vê uma
+**comparação** entre as duas respostas. Tudo roda **localmente**: ESP32-S3 com LCD
+240×320 + computador (microfone, transcrição faster-whisper e voz Kokoro pt-BR).
+
+```text
+Touch ESP32-S3 ──USB/JSON Lines──▶ bridge ──▶ microfone ──▶ API local ──▶ VAD → ASR → análise
+      ▲                                                                         │
+      └──────────── pergunta · dica · comparação ◀── voz da gatinha ◀───────────┘
+                        /public (plateia) · /presenter (operador)
+```
+
+## Começar em 3 comandos
+
+| | Windows (desenvolvimento) | macOS (apresentação) |
+|---|---|---|
+| Ambiente + todos os testes | `scripts\test_auto.ps1` | `bash scripts/test_auto.sh` |
+| Modelo de transcrição (uma vez) | `scripts\baixar_modelo_asr.ps1` | `bash scripts/baixar_modelo_asr.sh` |
+| Apresentar (checklist + telas) | `scripts\apresentar.ps1` | `bash scripts/apresentar.sh` |
+
+PowerShell: prefixe com `powershell -ExecutionPolicy Bypass -File`.
+
+## Qualidade
+
+- **CI em Windows e macOS** a cada push: backend (pytest), frontend, firmware em C
+  e a pipeline ponta a ponta. O relatório de cada execução fica anexado ao run.
+- **Pipeline automática e silenciosa** — sem alto-falante, sem microfone e sem
+  tocar no display: toque virtual no protocolo do firmware, respostas faladas pela
+  voz do sistema, 7 cenários (demo, guiado, conteúdo longo, resposta errada,
+  silêncio, ruído, queda do USB), orçamento de tempo, repetições e relatório HTML
+  com capturas das telas. [Como funciona](docs/pipelines-de-teste.md).
+- **Bancada manual** com placa, microfone e voz reais: `scripts/test_bancada`.
+- **Checklist pré-palco** e **plano B** em demo identificado:
+  [guia de apresentação e vídeo](docs/apresentacao.md).
+
+## Documentação
+
+[Contexto para continuar](docs/handoff-colaborador.md) ·
+[Sessões de IA](docs/contexto-ia/README.md) ·
+[Pipelines de teste](docs/pipelines-de-teste.md) ·
+[Apresentação e vídeo](docs/apresentacao.md) ·
+[Arquitetura](docs/architecture.md) · [Protocolo](docs/iot_protocol.md) ·
+[Hardware](docs/esp32-s3-display-touch.md)
+
+---
+
+## Histórico do MVP touch + Mac
+
 
 A pessoa explica um assunto em voz alta e controla a sessão por um gatinho ESP32
 com **display touch obrigatório**. O microfone do **Mac** captura; o Mac transcreve,

@@ -342,7 +342,8 @@ def scenario_demo(ctx):
         result = s.touch.poll(sid, _until_result, timeout=ctx["timeout"])
         _check(report, scenario, "Finalizar -> resultado",
                result.get("type") == "result" and bool(result.get("topics")),
-               f"tipo={result.get('type')} topicos={result.get('topics')}", t)
+               f"tipo={result.get('type')} code={result.get('code')} "
+               f"topicos={result.get('topics')}", t)
         ctx["screens"].shot(scenario, "resultado")
     finally:
         s.close()
@@ -681,7 +682,13 @@ def run(out: Path, scenarios: list[str], asr: str, timeout: float = 120.0, clien
             from app.adapters import asr_adapter
             from app.services.transcription import TranscriptionResult
 
+            original = transcription.transcribe_audio_result
+
             def scripted(path, **kwargs):
+                from app.config import get_settings
+
+                if get_settings().asr_provider == "mock":  # demo keeps its own mock ASR
+                    return original(path, **kwargs)
                 text = transcripts.pop(0) if len(transcripts) > 1 else (transcripts or [""])[0]
                 return TranscriptionResult(text, "faster_whisper", False)
 
