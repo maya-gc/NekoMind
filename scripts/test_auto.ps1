@@ -8,6 +8,7 @@ param([ValidateSet("roteiro","whisper")][string]$Asr = "roteiro", [switch]$SemPl
 $ErrorActionPreference = "Continue"
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new()
 $env:PYTHONIOENCODING = "utf-8"
+$env:PYTHONWARNINGS = "ignore::DeprecationWarning"
 $Root = Split-Path -Parent $PSScriptRoot
 $Backend = Join-Path $Root "backend"
 $Py = Join-Path $Backend ".venv\Scripts\python.exe"
