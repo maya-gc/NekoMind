@@ -30,6 +30,7 @@ import sys
 import tempfile
 import time
 import traceback
+import warnings
 from pathlib import Path
 
 CONTENT_TITLE = "Ciclo da água"
@@ -357,6 +358,7 @@ def main(argv=None):
                         help="Pasta do relatório (padrão: backend/storage/pipeline/<data>)")
     parser.add_argument("--timeout", type=float, default=120.0)
     args = parser.parse_args(argv)
+    warnings.simplefilter("ignore", DeprecationWarning)  # avisos do TestClient no relatório
     stamp = time.strftime("%Y%m%d-%H%M%S")
     base = Path(__file__).resolve().parents[2] / "storage" / "pipeline"
     out = (args.out or base / stamp).resolve()

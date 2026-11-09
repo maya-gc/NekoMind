@@ -1,8 +1,27 @@
 # NekoMind — contexto para continuar o desenvolvimento
 
-Atualizado em 29/10/2026. Este documento sintetiza as decisões deste chat e o
-estado do código publicado. Não é uma transcrição integral da conversa nem substitui
+Atualizado em 29/10/2026, com a atualização de 09/11/2026 logo abaixo. Este
+documento sintetiza as decisões deste chat e o estado do código publicado. Não é uma transcrição integral da conversa nem substitui
 um novo teste na máquina de quem vai desenvolver.
+
+## Atualização de 09/11/2026 — repositório consolidado, Windows e pipelines
+
+- **Use `main`.** As quatro branches antigas (`main`, `pipeline`,
+  `feat/nekomind-touch-mac-mvp`, `codex/nekomind-current-snapshot`) foram
+  unidas em `main` sem perder histórico. Os avisos abaixo sobre “não começar
+  por `main`” e sobre o PR #1 valem só para o estado de 29/10.
+- **Contexto das sessões de IA:** índice em
+  [`docs/contexto-ia/README.md`](contexto-ia/README.md) (prompt mestre, plano,
+  log dos agentes e referência técnica da branch `pipeline`).
+- **Windows + macOS:** backend e bridge rodam nos dois. Diferenças de sistema
+  ficam em `backend/app/platform_support.py`; o caminho do Mac validado na
+  bancada não mudou.
+- **Duas pipelines de teste:** automática e silenciosa (toque virtual, voz do
+  sistema no lugar do microfone, gatinha sem som) e bancada manual (placa,
+  microfone e voz reais). Ver [pipelines-de-teste.md](pipelines-de-teste.md).
+- **Bancada da Maya (Windows):** placa em `COM3` (VID 0x303A), microfone, sem
+  alto-falante. Em 09/11 o teste de fumaça confirmou heartbeat do firmware e
+  `display_ack` com `draw_ok=true`. Use `-Voz silent` ou `kokoro-file`.
 
 ## Leia isto primeiro
 
@@ -139,6 +158,13 @@ no display depois da correção, mas **generalização semântica não foi valid
 
 ## Preparar outra máquina para desenvolver ou testar
 
+**Windows (09/11/2026):** `git clone https://github.com/maya-gc/NekoMind.git`,
+depois `powershell -ExecutionPolicy Bypass -File scripts\test_auto.ps1` cria o
+ambiente Python, instala as dependências e roda toda a pipeline automática. Para
+a bancada: `scripts\test_bancada.ps1 -Porta COM3`. Detalhes em
+[pipelines-de-teste.md](pipelines-de-teste.md). As instruções abaixo são as do
+Mac (29/10) e continuam válidas; hoje parta de `main`.
+
 Trabalhar a partir da branch publicada, em branch própria para as mudanças:
 
 ```bash
@@ -213,7 +239,10 @@ primeira medida de recuperação.
 4. **Produto:** validar com estudantes e docentes se o objeto físico melhora a
    experiência frente a um app. Não há evidência de ganho educacional nem de
    viabilidade comercial estabelecida.
-5. **Git:** o histórico de commits do checkout original está parcialmente preso
+5. **Testes automáticos:** a pipeline silenciosa cobre o fluxo, não a acurácia
+   do ASR com vozes reais nem o hardware de toque. Próximo passo possível: um
+   comando de depuração no firmware para simular toques dentro do ESP.
+6. **Git (histórico de 29/10):** o histórico de commits do checkout original está parcialmente preso
    em objetos do Git sem dados locais no iCloud. A branch do PR publica o
    **estado atual dos arquivos em um commit único**, não todo o histórico. Para
    colaborar agora, usar essa branch; não tentar reconstruir a história a partir

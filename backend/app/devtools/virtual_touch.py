@@ -53,6 +53,9 @@ class VirtualTouch:
     def send(self, command: str, session_id=None, mission_index=None) -> dict:
         frame = self._frame(command, session_id, mission_index)
         decoded = decode_line(frame)  # same validation as the serial loop
+        marker = getattr(self.bridge, "mark_serial_connected", None)
+        if marker is not None:  # run_serial does this for every valid frame
+            marker()
         response = self.bridge.handle(decoded)
         raw = encode_line(response)
         reply = json.loads(raw.decode("utf-8"))
@@ -63,6 +66,11 @@ class VirtualTouch:
     def tap(self, button: str, session_id=None, mission_index=None) -> dict:
         """Simulate a tap on an LCD button by its label."""
         return self.send(BUTTONS[button], session_id, mission_index)
+
+    def close(self):
+        marker = getattr(self.bridge, "mark_serial_disconnected", None)
+        if marker is not None:
+            marker()
 
     def pump(self):
         tick = getattr(self.bridge, "tick", None)

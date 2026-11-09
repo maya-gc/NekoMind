@@ -6,6 +6,8 @@
 # Uso:  powershell -ExecutionPolicy Bypass -File scripts\test_auto.ps1 [-Asr whisper] [-SemPlaca]
 param([ValidateSet("roteiro","whisper")][string]$Asr = "roteiro", [switch]$SemPlaca, [string]$Porta = "")
 $ErrorActionPreference = "Continue"
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new()
+$env:PYTHONIOENCODING = "utf-8"
 $Root = Split-Path -Parent $PSScriptRoot
 $Backend = Join-Path $Root "backend"
 $Py = Join-Path $Backend ".venv\Scripts\python.exe"

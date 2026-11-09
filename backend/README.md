@@ -65,7 +65,17 @@ fala gerada.
 
 ```bash
 bash scripts/run_tests.sh   # pytest com SQLite temporário isolado
+bash scripts/test_auto.sh   # macOS: pytest + frontend + pipeline com toque virtual + placa
 ```
+
+```powershell
+scripts\test_auto.ps1       # Windows: o mesmo, sem alto-falante e sem microfone
+python -m app.devtools.pipeline --help
+python -m app.devtools.esp_probe --port COM3
+```
+
+Ver [`docs/pipelines-de-teste.md`](../docs/pipelines-de-teste.md). Código
+específico de sistema operacional fica em `app/platform_support.py`.
 
 ## Arquitetura em camadas
 

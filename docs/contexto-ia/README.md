@@ -1,6 +1,7 @@
 # Contexto de IA do NekoMind — índice consolidado
 
-Consolidado em 08/11/2026 a partir das 4 branches do repositório `maya-gc/NekoMind`.
+Consolidado em 08/11/2026 a partir das 4 branches do repositório `maya-gc/NekoMind`;
+atualizado em 09/11/2026.
 
 ## Onde está cada parte do contexto
 
@@ -19,3 +20,12 @@ Consolidado em 08/11/2026 a partir das 4 branches do repositório `maya-gc/NekoM
 
 **Observação:** nenhuma branch contém transcrições brutas de sessões (.jsonl, histórico de chat).
 O registro integral da conversa está apenas no link do ChatGPT acima.
+
+## Linha do tempo das sessões de IA
+
+| Data | Ferramenta | O que foi decidido/feito | Onde está |
+|---|---|---|---|
+| 19–21/09/2026 | Agentes (architect → coder → tester → reviewer) | Plataforma LCD Touch, protocolo JSON Lines, referência técnica de hardware | `pipeline/` |
+| até 29/10/2026 | Codex/ChatGPT | Arquitetura ESP + Mac, voz Kokoro, diálogo de duas respostas, testes de bancada | [`../handoff-colaborador.md`](../handoff-colaborador.md) |
+| 08/11/2026 | Claude | Branches unidas em `main` com todo o histórico; este índice | este arquivo |
+| 09/11/2026 | Claude | Suporte a Windows sem mudar o caminho do Mac; pipeline automática silenciosa (toque virtual, voz do sistema, gatinha sem som) e pipeline de bancada; teste de fumaça da placa na bancada Windows (COM3) | [`../pipelines-de-teste.md`](../pipelines-de-teste.md), [`sessao-2026-11-09-windows.md`](sessao-2026-11-09-windows.md) |
