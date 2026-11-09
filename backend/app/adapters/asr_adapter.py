@@ -52,6 +52,24 @@ class MockASRAdapter(ASRAdapter):
         return DEMO_TRANSCRIPTION
 
 
+def _pcm16_wav_samples(audio_path: Path):
+    """float32 samples for a 16 kHz mono PCM16 WAV, or None for anything else."""
+    import wave
+
+    try:
+        with wave.open(str(audio_path), "rb") as wav:
+            if (wav.getnchannels(), wav.getsampwidth(), wav.getframerate()) != (1, 2, 16000):
+                return None
+            pcm = wav.readframes(wav.getnframes())
+    except (wave.Error, EOFError, OSError):
+        return None
+    try:
+        import numpy as np
+    except ImportError:  # faster-whisper always brings numpy; tests may not
+        return None
+    return np.frombuffer(pcm, dtype="<i2").astype("float32") / 32768.0
+
+
 class FasterWhisperAdapter(ASRAdapter):
     """Local transcription. Model path must already be available offline."""
 
@@ -67,9 +85,15 @@ class FasterWhisperAdapter(ASRAdapter):
             raise FileNotFoundError("Audio ausente; confira a captura e tente novamente")
         if not audio_path.stat().st_size:
             raise ValueError("Audio vazio; confira a captura e tente novamente")
+        samples = _pcm16_wav_samples(audio_path)
         with _model_lock:
             model = self._load()
-            segments, _info = model.transcribe(str(audio_path), language="pt", vad_filter=True)
+            # The bridge always produces WAV PCM16 mono 16 kHz: decode it here so
+            # transcription does not depend on PyAV/ffmpeg versions (PyAV 16
+            # dropped an argument faster-whisper 1.2.1 passes). Other formats
+            # still go through faster-whisper's own decoder.
+            source = samples if samples is not None else str(audio_path)
+            segments, _info = model.transcribe(source, language="pt", vad_filter=True)
             return " ".join(seg.text.strip() for seg in segments).strip()
 
     def transcribe_pcm(self, pcm: bytes) -> str:

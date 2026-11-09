@@ -53,6 +53,33 @@ class ASRLifecycleTests(unittest.TestCase):
         self.patcher.start()
         self.addCleanup(self.patcher.stop)
 
+    def test_bridge_wav_is_decoded_without_pyav(self):
+        try:
+            import numpy  # noqa: F401
+        except ImportError:
+            self.skipTest("numpy ausente")
+        import wave
+
+        received = []
+        original = self.factory.transcribe
+
+        def spy(model, source, **kwargs):
+            received.append(source)
+            return original(model, source, **kwargs)
+
+        wav_path = Path(self.temp.name) / "bridge.wav"
+        with wave.open(str(wav_path), "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(16000)
+            wav.writeframes(b"\x00\x10" * 1600)
+        with patch.object(self.factory, "transcribe", spy):
+            self.assertEqual(asr.FasterWhisperAdapter().transcribe(wav_path),
+                             "explicação em português")
+            asr.FasterWhisperAdapter().transcribe(self.path)  # not a WAV: path fallback
+        self.assertEqual(len(received[0]), 1600)
+        self.assertEqual(received[1], str(self.path))
+
     def test_lazy_shared_across_adapters(self):
         first, second = asr.FasterWhisperAdapter(), asr.FasterWhisperAdapter()
         self.assertEqual(self.models, [])
