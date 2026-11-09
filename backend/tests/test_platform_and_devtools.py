@@ -109,5 +109,7 @@ def test_automated_pipeline_demo_and_guided(client, tmp_path, monkeypatch):
     names = {s["etapa"] for s in report.steps}
     assert {"Toque Pedir dica", "2ª resposta -> comparação"} <= names
     assert (tmp_path / "out" / "relatorio.md").is_file()
-    wire = (tmp_path / "out" / "guiado" / "serial.jsonl").read_text(encoding="utf-8")
-    assert '"command":"hint"' in wire and '"command":"answer"' in wire
+    lines = (tmp_path / "out" / "guiado" / "serial.jsonl").read_text(encoding="utf-8")
+    sent = [json.loads(json.loads(line)["tx"])["command"]
+            for line in lines.splitlines() if '"tx"' in line]
+    assert {"diagnose", "start", "finish", "hint", "answer"} <= set(sent)
