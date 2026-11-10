@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     # quando o modelo estiver instalado e cai nas regras locais se nao estiver.
     tutor_provider: Literal["auto", "ollama", "regras"] = "auto"
     tutor_model: str = Field(default="qwen2.5:7b", min_length=1)
+    tutor_level: Literal["crianca", "enem", "faculdade"] = "enem"
 
     @property
     def mac_directory(self) -> Path:

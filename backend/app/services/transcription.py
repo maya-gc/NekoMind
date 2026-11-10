@@ -29,6 +29,7 @@ def transcribe_audio_result(
     audio_path: Path | None,
     *,
     provider: str | None = None,
+    vocabulary: str = "",
 ) -> TranscriptionResult:
     settings = get_settings()
     adapter = get_asr_adapter(
@@ -37,5 +38,6 @@ def transcribe_audio_result(
         settings.asr_device,
         settings.asr_compute_type,
     )
-    text = adapter.transcribe(audio_path or Path(""))
+    path = audio_path or Path("")
+    text = adapter.transcribe(path, vocabulary) if vocabulary else adapter.transcribe(path)
     return TranscriptionResult(text=text, provider=adapter.provider, is_demo=adapter.is_demo)

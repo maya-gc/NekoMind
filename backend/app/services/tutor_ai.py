@@ -58,7 +58,15 @@ def available(model: str, *, ttl: float = 60.0) -> bool:
     return ok
 
 
-def _ask(model: str, prompt: str, keys: tuple[str, ...], timeout: float) -> dict:
+LEVELS = {
+    "crianca": "Fale como para uma criança de 10 anos: frases curtas, exemplos do dia a dia.",
+    "enem": "Fale como para um estudante do ensino médio se preparando para o ENEM.",
+    "faculdade": "Fale como para um universitário: rigor técnico e termos corretos da área.",
+}
+ASSESSMENTS = {"correto", "parcial", "equivoco", "nao_mencionou"}
+
+
+def _ask(model: str, prompt: str, timeout: float) -> dict:
     payload = {
         "model": model,
         "system": SYSTEM,
@@ -66,19 +74,27 @@ def _ask(model: str, prompt: str, keys: tuple[str, ...], timeout: float) -> dict
         "format": "json",
         "stream": False,
         "keep_alive": "30m",
-        "options": {"temperature": 0.3, "num_predict": 220},
+        "options": {"temperature": 0.3, "num_predict": 320},
     }
     with httpx.Client(trust_env=False, timeout=timeout) as client:
         response = client.post(f"{OLLAMA}/api/generate", json=payload)
         response.raise_for_status()
     data = json.loads(response.json()["response"])
-    out = {}
-    for key in keys:
-        value = data.get(key)
-        if not isinstance(value, str) or not value.strip():
-            raise ValueError(f"campo ausente: {key}")
-        out[key] = _short(value, LIMITS[key])
-    return out
+    if not isinstance(data, dict):
+        raise ValueError("resposta nao e objeto JSON")
+    return data
+
+
+def _text(data: dict, key: str, limit: int) -> str:
+    value = data.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"campo ausente: {key}")
+    return _short(value, limit)
+
+
+def _assessment(data: dict) -> str:
+    value = str(data.get("assessment", "")).strip().lower()
+    return value if value in ASSESSMENTS else "parcial"
 
 
 def warm_up(model: str) -> bool:
@@ -95,30 +111,59 @@ def warm_up(model: str) -> bool:
 
 
 def first_turn(point: str, transcript: str, model: str, *, material: str = "",
-               timeout: float = 40.0) -> dict:
-    """Return {"question", "hint"} about the gap in the first explanation."""
+               level: str = "enem", history: str = "", timeout: float = 40.0) -> dict:
+    """Judge the explanation by meaning and return question + three graded hints.
+
+    Returns {"assessment", "misconception", "question", "hint", "hints"}.
+    ``assessment``: correto | parcial | equivoco | nao_mencionou (paraphrases
+    count; exact words are not required).
+    """
     prompt = (
+        f"{LEVELS.get(level, LEVELS['enem'])}\n"
         f"Material de estudo (contexto): {material[:1500]}\n\n"
         f"Ponto da missão: {point}\n"
-        f"O que o estudante explicou (transcrição automática, pode ter erros): "
-        f"{transcript[:1500] or '(nada)'}\n\n"
-        "Compare a explicação com o ponto. Escreva UMA pergunta curta que leve o "
-        "estudante a explicar a parte que faltou ou corrigir um equívoco, e UMA "
-        "dica que oriente sem entregar a resposta.\n"
-        'JSON: {"question": "<até 120 caracteres>", "hint": "Dica: <até 100 caracteres>"}'
+        f"O que o estudante explicou (transcrição automática, pode ter erros de "
+        f"grafia): {transcript[:1500] or '(nada)'}\n"
+        f"{('Histórico: ' + history) if history else ''}\n\n"
+        "1) Avalie pelo SIGNIFICADO (paráfrases valem): assessment = correto, "
+        "parcial, equivoco (disse algo errado) ou nao_mencionou.\n"
+        "2) Se houver equívoco, descreva-o em misconception (senão, string vazia).\n"
+        "3) Escreva UMA pergunta curta: se houve equívoco, leve o estudante a "
+        "perceber o erro; senão, pergunte sobre o que faltou; se estava correto, "
+        "aprofunde (por quê? exemplo? consequência?).\n"
+        "4) Escreva três dicas graduais, sem entregar a resposta: hint1 = pista "
+        "leve; hint2 = analogia; hint3 = começo de um exemplo.\n"
+        'JSON: {"assessment": "...", "misconception": "...", "question": "<até 120 '
+        'caracteres>", "hint1": "Dica: ...", "hint2": "Dica: ...", "hint3": "Dica: ..."}'
     )
-    return _ask(model, prompt, ("question", "hint"), timeout)
+    data = _ask(model, prompt, timeout)
+    hints = [_text(data, "hint1", LIMITS["hint"])]
+    for key in ("hint2", "hint3"):
+        value = data.get(key)
+        if isinstance(value, str) and value.strip():
+            hints.append(_short(value, LIMITS["hint"]))
+    return {
+        "assessment": _assessment(data),
+        "misconception": _short(data.get("misconception") or "", 160),
+        "question": _text(data, "question", LIMITS["question"]),
+        "hint": hints[0],
+        "hints": hints,
+    }
 
 
 def second_turn(point: str, question: str, first: str, second: str, model: str, *,
-                timeout: float = 40.0) -> dict:
-    """Return {"comparison"}: what improved and what is still missing."""
+                level: str = "enem", timeout: float = 40.0) -> dict:
+    """Return {"comparison", "assessment"} for the second explanation."""
     prompt = (
+        f"{LEVELS.get(level, LEVELS['enem'])}\n"
         f"Ponto da missão: {point}\nPergunta feita: {question}\n"
         f"1ª explicação: {first[:1200] or '(nada)'}\n"
         f"2ª explicação: {second[:1200] or '(nada)'}\n\n"
-        "Diga em UMA frase curta o que melhorou na 2ª explicação e, se houver, o "
-        "que ainda falta. Seja específica ao conteúdo; não dê nota.\n"
-        'JSON: {"comparison": "<até 90 caracteres>"}'
+        "Avalie a 2ª explicação pelo SIGNIFICADO: assessment = correto, parcial, "
+        "equivoco ou nao_mencionou. Em UMA frase curta diga o que melhorou e, se "
+        "houver, o que ainda falta ou está errado. Seja específica; não dê nota.\n"
+        'JSON: {"assessment": "...", "comparison": "<até 90 caracteres>"}'
     )
-    return _ask(model, prompt, ("comparison",), timeout)
+    data = _ask(model, prompt, timeout)
+    return {"comparison": _text(data, "comparison", LIMITS["comparison"]),
+            "assessment": _assessment(data)}

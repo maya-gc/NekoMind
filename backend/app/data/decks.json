@@ -1,0 +1,60 @@
+[
+ {
+  "title": "Ciclo da água",
+  "nivel": "simples",
+  "points": [
+   "A água do mar evapora com o calor do Sol",
+   "O vapor sobe, esfria e forma as nuvens",
+   "As gotas das nuvens caem como chuva",
+   "A chuva volta para os rios e o mar"
+  ],
+  "text": "A água do mar evapora com o calor do Sol. O vapor sobe, esfria e forma as nuvens. As gotas das nuvens caem como chuva. A chuva volta para os rios e o mar."
+ },
+ {
+  "title": "Fotossíntese",
+  "nivel": "simples",
+  "points": [
+   "A planta absorve luz do Sol pelas folhas",
+   "As raízes puxam água do solo",
+   "As folhas captam gás carbônico do ar",
+   "A clorofila transforma luz em energia química",
+   "A planta produz glicose e libera oxigênio"
+  ],
+  "text": "A planta absorve luz do Sol pelas folhas. As raízes puxam água do solo. As folhas captam gás carbônico do ar. A clorofila transforma luz em energia química. A planta produz glicose e libera oxigênio."
+ },
+ {
+  "title": "Frações",
+  "nivel": "simples",
+  "points": [
+   "Uma fração representa partes iguais de um todo",
+   "O denominador diz em quantas partes o todo foi dividido",
+   "O numerador diz quantas partes foram tomadas",
+   "Frações equivalentes representam a mesma quantidade"
+  ],
+  "text": "Uma fração representa partes iguais de um todo. O denominador diz em quantas partes o todo foi dividido. O numerador diz quantas partes foram tomadas. Frações equivalentes representam a mesma quantidade."
+ },
+ {
+  "title": "Hamiltoniana na mecânica quântica",
+  "nivel": "complexo",
+  "points": [
+   "A Hamiltoniana é o operador da energia total do sistema",
+   "Ela é a soma da energia cinética com a energia potencial",
+   "Ela gera a evolução temporal pela equação de Schrödinger",
+   "Seus autovalores são os níveis de energia permitidos",
+   "Seus autovetores são os estados estacionários"
+  ],
+  "text": "A Hamiltoniana é o operador da energia total do sistema. Ela é a soma da energia cinética com a energia potencial. Ela gera a evolução temporal pela equação de Schrödinger. Seus autovalores são os níveis de energia permitidos. Seus autovetores são os estados estacionários."
+ },
+ {
+  "title": "Computação quântica",
+  "nivel": "complexo",
+  "points": [
+   "Um qubit pode estar em superposição dos estados zero e um",
+   "A medição faz o qubit colapsar para zero ou um",
+   "O emaranhamento correlaciona qubits mesmo separados",
+   "Portas quânticas são operações unitárias e reversíveis",
+   "A interferência amplifica as respostas corretas do algoritmo"
+  ],
+  "text": "Um qubit pode estar em superposição dos estados zero e um. A medição faz o qubit colapsar para zero ou um. O emaranhamento correlaciona qubits mesmo separados. Portas quânticas são operações unitárias e reversíveis. A interferência amplifica as respostas corretas do algoritmo."
+ }
+]

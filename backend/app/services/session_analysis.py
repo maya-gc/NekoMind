@@ -109,7 +109,21 @@ def _analyze_session_claimed(
             started = journey.now_marker()
             journey.save_step(session, "transcription", status="running", provider=asr_provider)
             session_repo.save(session)
-            transcript = transcription.transcribe_audio_result(wav, provider=asr_provider)
+            vocabulary = ""
+            if session.reference_snapshot_json:
+                try:
+                    snap = json.loads(session.reference_snapshot_json)
+                    vocabulary = " ".join(
+                        [str(snap.get("title", ""))] + [str(p) for p in snap.get("points", [])]
+                    ).strip()
+                except (TypeError, ValueError):
+                    vocabulary = ""
+            if vocabulary:
+                transcript = transcription.transcribe_audio_result(
+                    wav, provider=asr_provider, vocabulary=vocabulary
+                )
+            else:
+                transcript = transcription.transcribe_audio_result(wav, provider=asr_provider)
             _raise_if_cancelled(db, session)
             session.transcription = transcript.text
             session.asr_provider_used = transcript.provider

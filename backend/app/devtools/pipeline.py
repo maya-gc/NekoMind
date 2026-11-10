@@ -593,7 +593,14 @@ def scenario_complex(ctx):
                    tutor == "ia_local" and follow.get("question") != question_for(
                        QUANTUM_POINTS[1]), f"tutor={tutor}", None)
         ctx["screens"].shot(scenario, "pergunta")
-        s.touch.tap("Pedir dica", sid)
+        h1 = (s.touch.tap("Pedir dica", sid).get("followup") or {}).get("hint")
+        h2 = (s.touch.tap("Pedir dica", sid).get("followup") or {}).get("hint")
+        if tutor == "ia_local":
+            _check(report, scenario, "Dicas graduais (2 toques)", bool(h1) and bool(h2)
+                   and h1 != h2, f"1ª={h1!r} 2ª={h2!r}", None)
+            report.step(scenario, "Avaliação por significado", True,
+                        f"1ª fala={s.bridge.interaction.get('first_assessment')} "
+                        f"equívoco={s.bridge.interaction.get('misconception')!r}")
         second = s.touch.tap("Responder", sid)
         sid2 = second.get("session_id")
         t = time.monotonic()
@@ -606,6 +613,10 @@ def scenario_complex(ctx):
                d.get("stage") == "done" and bool(d.get("comparison")),
                f"dica={d.get('hint')!r} comparacao={d.get('comparison')!r}", t)
         ctx["screens"].shot(scenario, "comparacao")
+        queue = s.bridge.review_queue()
+        report.step(scenario, "Memória de estudo registrada", True,
+                    f"2ª fala={s.bridge.interaction.get('second_assessment') or 'regras'}; "
+                    f"{len(queue)} ponto(s) para revisar")
     finally:
         s.close()
     return s.speaker.spoken
@@ -869,10 +880,13 @@ def main(argv=None):
     parser.add_argument("--out", type=Path, default=None,
                         help="Pasta do relatório (padrão: backend/storage/pipeline/<data>)")
     parser.add_argument("--timeout", type=float, default=120.0)
+    parser.add_argument("--nivel", choices=("crianca", "enem", "faculdade"), default=None)
     parser.add_argument("--tutor", choices=("regras", "ia"), default="regras",
                         help="ia = pergunta/dica/comparação pelo Ollama local")
     args = parser.parse_args(argv)
     os.environ["NEKOMIND_TUTOR_PROVIDER"] = "ollama" if args.tutor == "ia" else "regras"
+    if args.nivel:
+        os.environ["NEKOMIND_TUTOR_LEVEL"] = args.nivel
     warnings.simplefilter("ignore", DeprecationWarning)
     stamp = time.strftime("%Y%m%d-%H%M%S")
     base = Path(__file__).resolve().parents[2] / "storage" / "pipeline"

@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from queue import Empty, SimpleQueue
 from threading import RLock
-from time import monotonic
+from time import monotonic, time
 
 from app.config import get_settings
 from app.mac.dialogue import (
@@ -94,6 +94,9 @@ class MacBridge:
         )
         self.db.execute(
             "CREATE TABLE IF NOT EXISTS interaction (id INTEGER PRIMARY KEY CHECK(id=1), payload TEXT NOT NULL)"
+        )
+        self.db.execute(
+            "CREATE TABLE IF NOT EXISTS memory(content_id INTEGER, point TEXT, status TEXT, ts REAL)"
         )
         saved_interaction = self.db.execute("SELECT payload FROM interaction WHERE id=1").fetchone()
         try:
@@ -257,6 +260,36 @@ class MacBridge:
             return "Obrigada por explicar! Quer tentar de novo e ligar duas ideias com um exemplo?"
         return "Obrigada por explicar! Quer tentar de novo e incluir um exemplo?"
 
+    def _memory_note(self, point):
+        """What happened the last time this point was studied (local journal)."""
+        try:
+            row = self.db.execute(
+                "SELECT status, ts FROM memory WHERE content_id IS ? AND point=? "
+                "ORDER BY ts DESC LIMIT 1", (self.mission_content_id, point)).fetchone()
+        except Exception:  # noqa: BLE001
+            return ""
+        if not row:
+            return ""
+        days = max(0, int((time() - row[1]) // 86400))
+        return f"há {days} dia(s) este ponto ficou como '{row[0]}'."
+
+    def _remember_point(self, point, status):
+        try:
+            self.db.execute("INSERT INTO memory VALUES(?,?,?,?)",
+                            (self.mission_content_id, point, str(status), time()))
+            self.db.commit()
+        except Exception:  # noqa: BLE001 - memoria e opcional
+            logger.warning("Memoria de estudo indisponivel.")
+
+    def review_queue(self, limit=5):
+        """Points whose last result was not 'correto', oldest first (spaced review)."""
+        rows = self.db.execute(
+            "SELECT content_id, point, status, MAX(ts) FROM memory GROUP BY content_id, point"
+        ).fetchall()
+        due = [r for r in rows if r[2] not in {"correto", "covered"}]
+        return [{"content_id": r[0], "point": r[1], "status": r[2]}
+                for r in sorted(due, key=lambda r: r[3])[:limit]]
+
     def _prefetch_tutor(self, sid, row):
         """Ask the local AI tutor before publishing the result (never under the lock)."""
         try:
@@ -278,12 +311,17 @@ class MacBridge:
                 focus = choose_focus(row.get("content_report"), item.get("mission_index", 0))
                 if focus is None:
                     return
-                result = tutor_ai.first_turn(focus[1], transcript, model)
+                level = getattr(settings, "tutor_level", "enem")
+                result = tutor_ai.first_turn(
+                    focus[1], transcript, model, level=level,
+                    history=self._memory_note(focus[1]),
+                )
                 self.tutor_cache[("first", sid)] = {**result, "point": focus[1]}
             elif sid == item.get("second_sid") and item.get("stage") == "answering":
                 result = tutor_ai.second_turn(
                     item.get("focus_point", ""), item.get("question", ""),
                     item.get("first_transcript", ""), transcript, model,
+                    level=getattr(settings, "tutor_level", "enem"),
                 )
                 self.tutor_cache[("second", sid)] = result
         except Exception as exc:  # noqa: BLE001 - tutor IA e opcional; regras locais assumem
@@ -309,7 +347,11 @@ class MacBridge:
                 focus_point=point,
                 question=tutor["question"] if tutor else question_for(point),
                 hint=tutor["hint"] if tutor else hint_for(point),
+                hints=tutor.get("hints", []) if tutor else [],
+                hint_level=0,
                 tutor="ia_local" if tutor else "regras",
+                first_assessment=tutor.get("assessment", "") if tutor else "",
+                misconception=tutor.get("misconception", "") if tutor else "",
                 first_transcript=(row.get("transcription", "") or "")[:2000],
                 hint_shown=False,
                 first_status=first_match.status,
@@ -329,6 +371,9 @@ class MacBridge:
                     item.get("first_evidence", ""), second_match.evidence or "",
                 ),
             )
+            item["second_assessment"] = (tutor or {}).get("assessment", "")
+            self._remember_point(item["focus_point"],
+                                 item["second_assessment"] or second_match.status)
             self._save_interaction()
             return item["comparison"]
         return None
@@ -574,6 +619,11 @@ class MacBridge:
                 or item.get("stage") not in {"question", "hint"}
             ):
                 return self._remember(rid, self._error(rid, "invalid_state"))
+            hints = item.get("hints") or []
+            if hints:  # dicas graduais: pista -> analogia -> exemplo
+                level = min(int(item.get("hint_level", 0)), len(hints) - 1)
+                item["hint"] = hints[level]
+                item["hint_level"] = level + 1
             item["stage"] = "hint"
             item["hint_shown"] = True
             self._save_interaction()

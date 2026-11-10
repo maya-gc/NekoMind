@@ -38,7 +38,7 @@ class ASRAdapter:
     provider = "unknown"
     is_demo = False
 
-    def transcribe(self, audio_path: Path) -> str:  # pragma: no cover
+    def transcribe(self, audio_path: Path, vocabulary: str = "") -> str:  # pragma: no cover
         raise NotImplementedError
 
 
@@ -48,7 +48,7 @@ class MockASRAdapter(ASRAdapter):
     provider = "mock"
     is_demo = True
 
-    def transcribe(self, audio_path: Path) -> str:
+    def transcribe(self, audio_path: Path, vocabulary: str = "") -> str:
         return DEMO_TRANSCRIPTION
 
 
@@ -80,7 +80,7 @@ class FasterWhisperAdapter(ASRAdapter):
         self.device = device
         self.compute_type = compute_type
 
-    def transcribe(self, audio_path: Path) -> str:
+    def transcribe(self, audio_path: Path, vocabulary: str = "") -> str:
         if not audio_path.is_file():
             raise FileNotFoundError("Audio ausente; confira a captura e tente novamente")
         if not audio_path.stat().st_size:
@@ -93,7 +93,10 @@ class FasterWhisperAdapter(ASRAdapter):
             # dropped an argument faster-whisper 1.2.1 passes). Other formats
             # still go through faster-whisper's own decoder.
             source = samples if samples is not None else str(audio_path)
-            segments, _info = model.transcribe(source, language="pt", vad_filter=True)
+            # Termos do material orientam a grafia de nomes tecnicos
+            # ("Schrödinger", "autovalores") sem alterar o que foi dito.
+            extra = {"initial_prompt": vocabulary[:400]} if vocabulary.strip() else {}
+            segments, _info = model.transcribe(source, language="pt", vad_filter=True, **extra)
             return " ".join(seg.text.strip() for seg in segments).strip()
 
     def transcribe_pcm(self, pcm: bytes) -> str:

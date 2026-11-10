@@ -24,6 +24,26 @@ melhorou e o que ainda falta.
 2. No display, escolha a missão, explique, finalize. A gatinha pergunta sobre o
    que faltou; peça dica; responda de novo; veja a comparação.
 
+## Novidades de 10/11/2026
+
+- **Avaliação por significado:** a IA classifica cada fala como correta,
+  parcial, com equívoco ou não mencionada — paráfrases valem. Se houver
+  equívoco, a pergunta leva você a perceber o erro.
+- **Dicas graduais:** cada toque em **Pedir dica** traz uma dica mais forte
+  (pista → analogia → começo de exemplo).
+- **Vocabulário técnico:** os termos do material orientam a transcrição
+  (“Schrödinger”, “autovalores”).
+- **Níveis:** `NEKOMIND_TUTOR_LEVEL=crianca|enem|faculdade` muda o tom.
+- **Memória:** o resultado de cada ponto fica no diário local e entra no
+  contexto da próxima pergunta sobre o mesmo ponto; `review_queue()` lista o
+  que revisar.
+- **Decks prontos:** `python -m app.devtools.decks` importa 3 temas simples e
+  2 complexos para a biblioteca do `/presenter`.
+
+Ainda não feito: mais de duas rodadas por missão e escolha de deck/nível pelo
+display (exigem mudar firmware e protocolo); fila de revisão ainda não aparece
+nas telas; avaliação da IA não substitui a cobertura lexical do `/public`.
+
 ## Limites
 
 A IA pode errar em física avançada: trate pergunta e comparação como estímulo

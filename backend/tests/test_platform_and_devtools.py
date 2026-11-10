@@ -134,16 +134,55 @@ def test_ai_tutor_adapts_question_hint_and_comparison(client, tmp_path, monkeypa
     monkeypatch.setattr(audio_processing, "validate_speech", lambda p, **k: {"speech_seconds": 1})
     monkeypatch.setattr(semantic_graph, "build_semantic_graph", no_graph)
     monkeypatch.setenv("NEKOMIND_TUTOR_PROVIDER", "ollama")
-    monkeypatch.setattr(tutor_ai, "first_turn", lambda point, transcript, model, **k: {
-        "question": "Como a Hamiltoniana dita a evolução no tempo?",
-        "hint": "Dica: lembre da equação de Schrödinger."})
+    seen = {}
+
+    def first(point, transcript, model, **k):
+        seen.update(k)
+        return {"question": "Como a Hamiltoniana dita a evolução no tempo?",
+                "hint": "Dica: lembre da equação de Schrödinger.",
+                "hints": ["Dica: lembre da equação de Schrödinger.",
+                          "Dica: pense em H como o motor do relógio do sistema."],
+                "assessment": "parcial", "misconception": ""}
+
+    monkeypatch.setattr(tutor_ai, "first_turn", first)
+    monkeypatch.setattr(tutor_ai, "warm_up", lambda model: True)
     monkeypatch.setattr(tutor_ai, "second_turn", lambda *a, **k: {
-        "comparison": "Agora você ligou H à evolução temporal; falta citar autovalores."})
+        "comparison": "Agora você ligou H à evolução temporal; falta citar autovalores.",
+        "assessment": "parcial"})
     report = pipeline.run(tmp_path / "out", ["complexo"], "roteiro", timeout=30, client=client)
     failed = [s for s in report.steps if not s["ok"]]
     assert not failed, failed
     detail = " ".join(s["detalhe"] for s in report.steps)
     assert "Schrödinger" in detail and "autovalores" in detail
+    assert "motor do relógio" in detail  # segunda dica, mais forte que a primeira
+    assert seen.get("level") == "enem" and "1 ponto(s) para revisar" in detail
+
+
+def test_decks_cover_simple_and_complex_and_import_once(client):
+    from app.devtools import decks
+
+    levels = {d["nivel"] for d in decks.load()}
+    assert levels == {"simples", "complexo"}
+    assert len(decks.import_decks(client)) == len(decks.load())
+    assert decks.import_decks(client) == []
+
+
+def test_asr_receives_material_vocabulary(tmp_path):
+    from app.adapters import asr_adapter as asr
+
+    calls = []
+
+    class Model:
+        def transcribe(self, source, **kwargs):
+            calls.append(kwargs)
+            return iter(()), None
+
+    adapter = asr.FasterWhisperAdapter()
+    adapter._load = lambda: Model()
+    wav = write_wav(tmp_path / "a.wav", seconds=0.2, rate=16000, channels=1)
+    adapter.transcribe(wav, "Hamiltoniana Schrödinger autovalores")
+    adapter.transcribe(wav)
+    assert calls[0]["initial_prompt"].startswith("Hamiltoniana") and "initial_prompt" not in calls[1]
 
 
 def test_ai_tutor_bounds_text_for_the_lcd():
