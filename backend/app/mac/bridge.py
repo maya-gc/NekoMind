@@ -114,6 +114,7 @@ class MacBridge:
         self._spoken_result_sid = self.sid if self.state == "completed" else None
         self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="nekomind-analysis")
         self.tutor_cache: dict = {}
+        self.tutor_pending: set = set()
         self.ops_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="nekomind-ops")
         self.future = None
         self.ops_futures = []
@@ -285,8 +286,9 @@ class MacBridge:
                     item.get("first_transcript", ""), transcript, model,
                 )
                 self.tutor_cache[("second", sid)] = result
-        except Exception:  # noqa: BLE001 - tutor IA e opcional; regras locais assumem
-            logger.warning("Tutor IA indisponivel; usando regras locais.")
+        except Exception as exc:  # noqa: BLE001 - tutor IA e opcional; regras locais assumem
+            logger.warning("Tutor IA indisponivel (%s); usando regras locais.",
+                           type(exc).__name__)
 
     def _prepare_interaction_result(self, row):
         item = self.interaction
@@ -427,6 +429,8 @@ class MacBridge:
                     self._save_active()
                     return self._error(rid, self.code)
                 if row.get("status") == "completed":
+                    if self.sid in self.tutor_pending:
+                        return self._base(rid)
                     return self._result(rid, row)
                 if row.get("status") not in {"processing", "recording", "paused"}:
                     return self._error(rid, "invalid_result")
@@ -818,7 +822,22 @@ class MacBridge:
         )
         return self._base(rid)
 
+    def _warm_tutor(self):
+        """Load the tutor model while the student reads the missions (best effort)."""
+        try:
+            settings = get_settings()
+            if self.demo or getattr(settings, "tutor_provider", "regras") == "regras":
+                return
+            from threading import Thread
+
+            from app.services import tutor_ai
+
+            Thread(target=tutor_ai.warm_up, args=(settings.tutor_model,), daemon=True).start()
+        except Exception:  # noqa: BLE001
+            pass
+
     def _run_diagnostics(self, rid, calibrate, epoch):
+        self._warm_tutor()
         components = []
         try:
             components.extend(self.backend.readiness().get("components", []))
@@ -1014,8 +1033,14 @@ class MacBridge:
                 self.backend.upload_manifest(sid, manifest)
             elif not has_uploaded:
                 self.backend.upload(sid, path)
-            row = self.backend.finish(sid, rid)
-            self._prefetch_tutor(sid, row)  # IA local fora da trava: o touch segue respondendo
+            # Enquanto o tutor IA pensa, status/tick continuam dizendo "processing":
+            # sem isso um heartbeat publicava o resultado com as regras locais.
+            self.tutor_pending.add(sid)
+            try:
+                row = self.backend.finish(sid, rid)
+                self._prefetch_tutor(sid, row)  # fora da trava: o touch segue respondendo
+            finally:
+                self.tutor_pending.discard(sid)
             with self.lock:
                 if epoch != self.epoch or sid != self.sid:
                     return
@@ -1159,7 +1184,7 @@ class MacBridge:
                                 self.journey = {"step": step, **entry}
                                 break
                         if self.event_rid:
-                            if row.get("status") == "completed":
+                            if row.get("status") == "completed" and sid not in self.tutor_pending:
                                 self.events.put(self._result(self.event_rid, row))
                             else:
                                 self.events.put(self._base(self.event_rid))

@@ -401,7 +401,7 @@ def scenario_guided(ctx):
         _check(report, scenario, "Missões no touch", len(missions) >= 1,
                f"{len(missions)} missão(ões): {missions[:3]}", None)
         ctx["screens"].shot(scenario, "missoes")
-        sid = _start(s, report, scenario)
+        sid = _start(s, report, scenario, mission=min(1, len(missions) - 1))
         t = time.monotonic()
         s.touch.tap("Finalizar", sid)
         first = s.touch.poll(sid, _until_result, timeout=ctx["timeout"])
@@ -568,6 +568,10 @@ def scenario_complex(ctx):
     from app.mac.dialogue import question_for
 
     report, scenario = ctx["report"], "complexo"
+    if get_settings().tutor_provider != "regras":
+        from app.services import tutor_ai
+
+        tutor_ai.warm_up(get_settings().tutor_model)
     _select_content(ctx["client"], report, scenario, QUANTUM_TITLE, QUANTUM_TEXT,
                     QUANTUM_POINTS)
     ctx["transcripts"][:] = [SPEECH["quantico1"], SPEECH["quantico2"]]

@@ -12,7 +12,7 @@ melhorou e o que ainda falta.
   para a nuvem.
 - **Limites da tela:** pergunta ≤ 140 bytes, dica ≤ 120, comparação ≤ 94.
 - **O touch não trava:** a IA roda antes de publicar o resultado, fora da trava
-  do bridge; se demorar mais de 25 s ou falhar, as regras locais assumem.
+  do bridge; se demorar mais de 40 s ou falhar, as regras locais assumem.
 - **Modelo:** `NEKOMIND_TUTOR_MODEL=qwen2.5:7b` (melhor em temas avançados; GPU
   ajuda). Em máquina fraca: `qwen2.5:3b`.
 

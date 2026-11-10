@@ -65,6 +65,7 @@ def _ask(model: str, prompt: str, keys: tuple[str, ...], timeout: float) -> dict
         "prompt": prompt,
         "format": "json",
         "stream": False,
+        "keep_alive": "30m",
         "options": {"temperature": 0.3, "num_predict": 220},
     }
     with httpx.Client(trust_env=False, timeout=timeout) as client:
@@ -80,8 +81,21 @@ def _ask(model: str, prompt: str, keys: tuple[str, ...], timeout: float) -> dict
     return out
 
 
+def warm_up(model: str) -> bool:
+    """Load the model into memory so the first question does not time out."""
+    if not available(model):
+        return False
+    try:
+        with httpx.Client(trust_env=False, timeout=180) as client:
+            client.post(f"{OLLAMA}/api/generate",
+                        json={"model": model, "prompt": "", "keep_alive": "30m"})
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def first_turn(point: str, transcript: str, model: str, *, material: str = "",
-               timeout: float = 25.0) -> dict:
+               timeout: float = 40.0) -> dict:
     """Return {"question", "hint"} about the gap in the first explanation."""
     prompt = (
         f"Material de estudo (contexto): {material[:1500]}\n\n"
@@ -97,7 +111,7 @@ def first_turn(point: str, transcript: str, model: str, *, material: str = "",
 
 
 def second_turn(point: str, question: str, first: str, second: str, model: str, *,
-                timeout: float = 25.0) -> dict:
+                timeout: float = 40.0) -> dict:
     """Return {"comparison"}: what improved and what is still missing."""
     prompt = (
         f"Ponto da missão: {point}\nPergunta feita: {question}\n"

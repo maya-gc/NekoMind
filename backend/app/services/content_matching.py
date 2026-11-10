@@ -91,7 +91,15 @@ def terms(text: str) -> set[str]:
 def derive_points(text: str) -> list[str]:
     """Use explicit nonempty lines as points; no generated claims."""
     raw = [re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", p).strip() for p in text.splitlines()]
-    return [p for p in raw if p and terms(p)][:30]
+    points = [p for p in raw if p and terms(p)]
+    if len(points) == 1:
+        # Um paragrafo unico vira uma missao por frase: missoes curtas cabem no
+        # LCD e a cobertura deixa de exigir o paragrafo inteiro numa fala.
+        sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", points[0])]
+        sentences = [s for s in sentences if s and terms(s)]
+        if len(sentences) > 1:
+            points = sentences
+    return points[:30]
 
 
 def suggest_review_points(text: str, limit: int = 8) -> list[str]:
