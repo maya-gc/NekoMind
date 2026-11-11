@@ -190,3 +190,41 @@ def test_ai_tutor_bounds_text_for_the_lcd():
 
     text = _short("palavra " * 80, LIMITS["comparison"])
     assert len(text.encode("utf-8")) <= LIMITS["comparison"] and text.endswith("...")
+
+
+def test_bridge_publishes_assessment_and_review_for_screens(client, tmp_path):
+    payload = {
+        "session_id": None, "state": "idle", "is_demo": False,
+        "followup": None,
+        "review": [{"content_id": 1, "point": "A Hamiltoniana gera a evolução", "status": "parcial"}],
+    }
+    assert client.post("/api/v1/experience/bridge", json=payload).status_code == 200
+    presenter = client.get("/api/v1/experience/presenter").json()
+    assert presenter["review"][0]["status"] == "parcial"
+    public = client.get("/api/v1/experience/public")
+    if public.status_code == 200:
+        assert public.json().get("review", []) == []
+    followup = {"stage": "question", "point_index": 0, "question": "Por quê?",
+                "assessment": "equivoco", "tutor": "ia_local"}
+    done = client.post("/api/v1/experience/bridge", json={**payload, "state": "completed",
+                                                           "followup": followup})
+    assert done.status_code == 200
+
+
+def test_reconcile_softens_off_point_correct_only():
+    from app.services.tutor_ai import reconcile
+
+    assert reconcile("correto", "not_mentioned") == "parcial"
+    assert reconcile("correto", "covered") == "correto"
+    assert reconcile("equivoco", "not_mentioned") == "equivoco"
+
+
+def test_tutor_eval_set_is_balanced():
+    import json
+    from collections import Counter
+
+    from app.devtools.tutor_eval import DATA
+
+    items = json.loads(DATA.read_text(encoding="utf-8"))
+    assert Counter(i["esperado"] for i in items) == {
+        "correto": 6, "parcial": 6, "equivoco": 6, "nao_mencionou": 6}

@@ -97,6 +97,18 @@ def _assessment(data: dict) -> str:
     return value if value in ASSESSMENTS else "parcial"
 
 
+def reconcile(assessment: str, lexical_status: str) -> str:
+    """Second opinion: a 'correto' with zero overlap with the point becomes 'parcial'.
+
+    The small local model sometimes accepts an explanation of another point of
+    the material as correct. Paraphrases still pass when they share at least
+    some terms with the point; misconceptions are never softened.
+    """
+    if assessment == "correto" and lexical_status == "not_mentioned":
+        return "parcial"
+    return assessment
+
+
 def warm_up(model: str) -> bool:
     """Load the model into memory so the first question does not time out."""
     if not available(model):

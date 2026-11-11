@@ -44,6 +44,22 @@ Ainda não feito: mais de duas rodadas por missão e escolha de deck/nível pelo
 display (exigem mudar firmware e protocolo); fila de revisão ainda não aparece
 nas telas; avaliação da IA não substitui a cobertura lexical do `/public`.
 
+## Medir a qualidade da IA
+
+`python -m app.devtools.tutor_eval` (na pasta `backend`, com o Ollama ligado)
+julga 24 falas de referência — temas simples e avançados, certas, parciais, com
+equívoco e fora do ponto — e mostra acerto exato, acerto tolerante, tabela de
+confusão e tempo médio. Use `--modelo qwen2.5:14b` para comparar modelos.
+
+**Conferência dupla:** se a IA disser “correto” mas a fala não tiver nenhum
+termo do ponto da missão, o resultado vira “parcial” (equívocos nunca são
+suavizados).
+
+**Nas telas:** o `/public` mostra a avaliação da IA (“Explicou o ponto”, “Explicou
+em parte”, “Há um equívoco para rever”, “Ainda não falou deste ponto”), sempre
+com o aviso de que não é nota. O `/presenter` mostra **Revisar hoje** com os
+pontos que ainda não ficaram corretos.
+
 ## Limites
 
 A IA pode errar em física avançada: trate pergunta e comparação como estímulo

@@ -9,8 +9,9 @@ desenvolver e gerar mídias (relatórios e capturas da pipeline).
    Confira também o selo do CI no README (Windows e macOS).
 2. `bash scripts/test_auto.sh --repeticoes 10 --sem-placa` — taxa de sucesso
    para citar na banca (o relatório HTML mostra aprovadas/total por etapa).
-3. `bash scripts/baixar_modelo_asr.sh` e `bash scripts/setup_voice_mac.sh`
-   (com internet). Depois disso tudo funciona **offline**.
+3. `bash scripts/preparar_mac.sh` (com internet, uma vez): Python 3.12, voz
+   Kokoro, Ollama + tutor `qwen2.5:7b`, transcrição e checklist. Depois disso
+   tudo funciona **offline**.
 4. Ensaio completo: `bash scripts/apresentar.sh` e o roteiro abaixo, duas vezes.
 5. Grave o **vídeo reserva** (seção “Vídeo”) para o caso de o hardware falhar.
 

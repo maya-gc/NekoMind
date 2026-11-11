@@ -71,6 +71,14 @@ class Followup(StrictModel):
     source_point: str = Field(default="", max_length=500)
     first_excerpt: str = Field(default="", max_length=240)
     second_excerpt: str = Field(default="", max_length=240)
+    assessment: Literal["", "correto", "parcial", "equivoco", "nao_mencionou"] = ""
+    tutor: Literal["", "ia_local", "regras"] = ""
+
+
+class ReviewItem(StrictModel):
+    content_id: StrictInt | None = None
+    point: str = Field(min_length=1, max_length=500)
+    status: str = Field(min_length=1, max_length=32)
 
 
 class BridgeUpdate(StrictModel):
@@ -82,6 +90,7 @@ class BridgeUpdate(StrictModel):
     content: ContentPulse | None = None
     missions: list[str] = Field(default_factory=list, max_length=30)
     followup: Followup | None = None
+    review: list[ReviewItem] = Field(default_factory=list, max_length=10)
     calibration: dict | None = None
     error_code: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{0,63}$")
 
@@ -295,6 +304,7 @@ def publish_bridge(payload: BridgeUpdate, db: Session = Depends(get_db)):
         content=content,
         missions=payload.missions if payload.state == "ready" else [],
         followup=payload.followup.model_dump() if payload.followup else None,
+        review=[item.model_dump() for item in payload.review],
     )
     _schedule_fair_reset(db, state)
     _save(db, record, state)
@@ -429,6 +439,7 @@ def _snapshot(db, *, private=False):
         "followup": state.get("followup")
         if effective in {"completed", "recording", "paused", "processing"}
         else None,
+        "review": state.get("review", []) if private else [],
         "result": result,
         "error": error,
         "recovery": effective == "recovery",

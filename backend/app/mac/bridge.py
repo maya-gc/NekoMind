@@ -24,6 +24,12 @@ from app.services.content_matching import match_point, reference_synonyms
 logger = logging.getLogger(__name__)
 
 
+def tutor_reconcile(assessment, lexical_status):
+    from app.services.tutor_ai import reconcile
+
+    return reconcile(assessment, lexical_status)
+
+
 class _Rows:
     """Rows already fetched while the journal lock was held."""
 
@@ -216,6 +222,14 @@ class MacBridge:
 
     def _followup_public(self):
         followup = self._followup_wire()
+        if followup is not None:
+            item = self.interaction
+            key = "second_assessment" if followup["stage"] == "done" else "first_assessment"
+            assessment = item.get(key, "")
+            followup["assessment"] = assessment if assessment in {
+                "correto", "parcial", "equivoco", "nao_mencionou"} else ""
+            followup["tutor"] = item.get("tutor", "") if item.get("tutor") in {
+                "ia_local", "regras"} else ""
         if followup is not None and followup["stage"] == "done":
             followup.update(
                 source_point=self.interaction.get("focus_point", ""),
@@ -280,6 +294,13 @@ class MacBridge:
             self.db.commit()
         except Exception:  # noqa: BLE001 - memoria e opcional
             logger.warning("Memoria de estudo indisponivel.")
+
+    def _review_safe(self):
+        try:
+            return [{**r, "point": r["point"][:500], "status": str(r["status"])[:32]}
+                    for r in self.review_queue()]
+        except Exception:  # noqa: BLE001
+            return []
 
     def review_queue(self, limit=5):
         """Points whose last result was not 'correto', oldest first (spaced review)."""
@@ -350,7 +371,8 @@ class MacBridge:
                 hints=tutor.get("hints", []) if tutor else [],
                 hint_level=0,
                 tutor="ia_local" if tutor else "regras",
-                first_assessment=tutor.get("assessment", "") if tutor else "",
+                first_assessment=tutor_reconcile(tutor.get("assessment", ""), first_match.status)
+                if tutor else "",
                 misconception=tutor.get("misconception", "") if tutor else "",
                 first_transcript=(row.get("transcription", "") or "")[:2000],
                 hint_shown=False,
@@ -371,7 +393,8 @@ class MacBridge:
                     item.get("first_evidence", ""), second_match.evidence or "",
                 ),
             )
-            item["second_assessment"] = (tutor or {}).get("assessment", "")
+            item["second_assessment"] = tutor_reconcile(
+                (tutor or {}).get("assessment", ""), second_match.status) if tutor else ""
             self._remember_point(item["focus_point"],
                                  item["second_assessment"] or second_match.status)
             self._save_interaction()
@@ -425,6 +448,7 @@ class MacBridge:
             "error_code": self.code,
             "missions": list(self.missions) if self.state == "ready" else [],
             "followup": self._followup_public(),
+            "review": self._review_safe(),
             "content": dict(self.live_summary)
             if self.state == "recording" and self.live_summary
             else None,

@@ -1,0 +1,122 @@
+[
+ {
+  "ponto": "O vapor sobe, esfria e forma as nuvens",
+  "fala": "O vapor de água sobe, fica mais frio lá em cima e vira nuvem.",
+  "esperado": "correto"
+ },
+ {
+  "ponto": "O vapor sobe, esfria e forma as nuvens",
+  "fala": "A água evaporada sobe para o céu.",
+  "esperado": "parcial"
+ },
+ {
+  "ponto": "O vapor sobe, esfria e forma as nuvens",
+  "fala": "As nuvens são feitas de fumaça das fábricas.",
+  "esperado": "equivoco"
+ },
+ {
+  "ponto": "O vapor sobe, esfria e forma as nuvens",
+  "fala": "A chuva cai e volta para o rio.",
+  "esperado": "nao_mencionou"
+ },
+ {
+  "ponto": "A clorofila transforma luz em energia química",
+  "fala": "A clorofila pega a luz do sol e transforma em energia que a planta usa.",
+  "esperado": "correto"
+ },
+ {
+  "ponto": "A clorofila transforma luz em energia química",
+  "fala": "A planta precisa de luz para viver.",
+  "esperado": "parcial"
+ },
+ {
+  "ponto": "A clorofila transforma luz em energia química",
+  "fala": "A clorofila serve para a planta respirar oxigênio à noite.",
+  "esperado": "equivoco"
+ },
+ {
+  "ponto": "A clorofila transforma luz em energia química",
+  "fala": "As raízes puxam água do solo.",
+  "esperado": "nao_mencionou"
+ },
+ {
+  "ponto": "O denominador diz em quantas partes o todo foi dividido",
+  "fala": "O número de baixo mostra em quantos pedaços iguais o inteiro foi cortado.",
+  "esperado": "correto"
+ },
+ {
+  "ponto": "O denominador diz em quantas partes o todo foi dividido",
+  "fala": "O denominador fica embaixo da fração.",
+  "esperado": "parcial"
+ },
+ {
+  "ponto": "O denominador diz em quantas partes o todo foi dividido",
+  "fala": "O denominador diz quantas partes eu peguei.",
+  "esperado": "equivoco"
+ },
+ {
+  "ponto": "O denominador diz em quantas partes o todo foi dividido",
+  "fala": "Frações equivalentes valem a mesma coisa.",
+  "esperado": "nao_mencionou"
+ },
+ {
+  "ponto": "A Hamiltoniana é o operador da energia total do sistema",
+  "fala": "A Hamiltoniana é o operador que representa a energia total, cinética mais potencial.",
+  "esperado": "correto"
+ },
+ {
+  "ponto": "A Hamiltoniana é o operador da energia total do sistema",
+  "fala": "A Hamiltoniana tem a ver com energia.",
+  "esperado": "parcial"
+ },
+ {
+  "ponto": "A Hamiltoniana é o operador da energia total do sistema",
+  "fala": "A Hamiltoniana é um número que mede a velocidade da partícula.",
+  "esperado": "equivoco"
+ },
+ {
+  "ponto": "A Hamiltoniana é o operador da energia total do sistema",
+  "fala": "Os autovetores são estados estacionários.",
+  "esperado": "nao_mencionou"
+ },
+ {
+  "ponto": "A Hamiltoniana gera a evolução temporal pela equação de Schrödinger",
+  "fala": "Na equação de Schrödinger a Hamiltoniana diz como o estado quântico muda com o tempo.",
+  "esperado": "correto"
+ },
+ {
+  "ponto": "A Hamiltoniana gera a evolução temporal pela equação de Schrödinger",
+  "fala": "A equação de Schrödinger descreve sistemas quânticos.",
+  "esperado": "parcial"
+ },
+ {
+  "ponto": "A Hamiltoniana gera a evolução temporal pela equação de Schrödinger",
+  "fala": "A Hamiltoniana congela o sistema e impede que ele mude no tempo.",
+  "esperado": "equivoco"
+ },
+ {
+  "ponto": "A Hamiltoniana gera a evolução temporal pela equação de Schrödinger",
+  "fala": "A Hamiltoniana representa a energia total do sistema.",
+  "esperado": "nao_mencionou"
+ },
+ {
+  "ponto": "Um qubit pode estar em superposição dos estados zero e um",
+  "fala": "Antes de medir, o qubit fica numa combinação de zero e um ao mesmo tempo.",
+  "esperado": "correto"
+ },
+ {
+  "ponto": "Um qubit pode estar em superposição dos estados zero e um",
+  "fala": "O qubit é a unidade da computação quântica.",
+  "esperado": "parcial"
+ },
+ {
+  "ponto": "Um qubit pode estar em superposição dos estados zero e um",
+  "fala": "O qubit é um bit que é sempre zero e um ao mesmo tempo, mesmo depois de medir.",
+  "esperado": "equivoco"
+ },
+ {
+  "ponto": "Um qubit pode estar em superposição dos estados zero e um",
+  "fala": "Portas quânticas são reversíveis.",
+  "esperado": "nao_mencionou"
+ }
+]

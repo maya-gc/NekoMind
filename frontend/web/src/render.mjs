@@ -71,12 +71,33 @@ export function renderPublic(snapshot) {
       ${snapshot.followup && snapshot.followup.stage !== "done" ? `<section class="public-followup" aria-label="Pergunta do gatinho">
         <h2>${escapeHtml(snapshot.followup.stage === "answering" ? "Respondendo" : "Pergunta do gatinho")}</h2>
         <p>${escapeHtml(snapshot.followup.question)}</p>
+        ${assessmentBadge(snapshot.followup)}
         ${snapshot.followup.hint ? `<small>${escapeHtml(snapshot.followup.hint)}</small>` : ""}
       </section>` : ""}
       <section class="public-result" aria-label="Resultado público">
         ${renderPublicResult(snapshot)}
       </section>
     </section>`;
+}
+
+const ASSESSMENT_LABELS = {
+  correto: "Explicou o ponto",
+  parcial: "Explicou em parte",
+  equivoco: "Há um equívoco para rever",
+  nao_mencionou: "Ainda não falou deste ponto",
+};
+
+export function assessmentBadge(followup) {
+  const label = ASSESSMENT_LABELS[followup?.assessment];
+  if (!label) return "";
+  return `<p class="assessment-badge assessment-${escapeAttr(followup.assessment)}">${escapeHtml(label)} <small>· avaliação da IA local, não é nota</small></p>`;
+}
+
+export function renderReview(review) {
+  if (!Array.isArray(review) || !review.length) return "";
+  return `<section class="presenter-review" aria-label="Revisar hoje"><h2>Revisar hoje</h2><ul>${review
+    .map((item) => `<li><strong>${escapeHtml(ASSESSMENT_LABELS[item.status] || item.status)}:</strong> ${escapeHtml(item.point)}</li>`)
+    .join("")}</ul></section>`;
 }
 
 export function renderPresenter(snapshot, options = {}) {
@@ -98,6 +119,7 @@ export function renderPresenter(snapshot, options = {}) {
     </section>`;
   return `
     <section class="presenter-console presenter-simple state-${escapeAttr(snapshot.state)}" data-view="presenter">
+      ${renderReview(snapshot.review)}
       <header class="presenter-header">
         <div>
           <span class="presenter-eyebrow">NEKOMIND · PAINEL DO MAC</span>
@@ -292,6 +314,7 @@ function renderPublicResult(snapshot) {
     ${snapshot.followup?.stage === "done" ? `<section class="guided-report public-comparison">
       <h3>O que mudou na fala</h3>
       <p>${escapeHtml(snapshot.followup.comparison)}</p>
+      ${assessmentBadge(snapshot.followup)}
       ${snapshot.followup.source_point ? `<p><strong>Ponto do material:</strong> ${escapeHtml(snapshot.followup.source_point)}</p>` : ""}
       ${snapshot.followup.source_point ? `<ul>
         <li><strong>Primeira tentativa:</strong> ${escapeHtml(snapshot.followup.first_excerpt || "Não foi reconhecido um trecho ligado a esse ponto.")}</li>
