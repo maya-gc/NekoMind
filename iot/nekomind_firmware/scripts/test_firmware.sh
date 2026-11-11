@@ -14,3 +14,7 @@ cc -std=c11 -Wall -Wextra -Werror \
   -o "$test_binary"
 
 "$test_binary"
+
+cc -std=c11 -O2 -Wall -Wextra -Werror \
+  tests/test_avatar3d.c main/neko_avatar3d.c -lm -o "$test_binary"
+"$test_binary"
