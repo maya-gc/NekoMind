@@ -122,6 +122,20 @@ def warm_up(model: str) -> bool:
         return False
 
 
+RUBRIC = (
+    "Critérios (avalie pelo SIGNIFICADO; palavras diferentes valem):\n"
+    "- correto: explica a ideia central do ponto, mesmo com outras palavras.\n"
+    "- parcial: está no assunto do ponto, mas incompleto ou vago. Incompleto NÃO é erro.\n"
+    "- equivoco: afirma algo FALSO sobre o ponto. Use só se houver uma afirmação errada.\n"
+    "- nao_mencionou: fala de outra coisa (até de outro ponto do mesmo material).\n"
+    "Exemplo (ponto: 'A gravidade atrai os objetos para o centro da Terra'):\n"
+    "  'tudo cai porque a Terra puxa as coisas para o meio dela' -> correto\n"
+    "  'a gravidade é uma força' -> parcial\n"
+    "  'a gravidade empurra os objetos para cima' -> equivoco\n"
+    "  'a Lua gira em volta da Terra' -> nao_mencionou\n"
+)
+
+
 def first_turn(point: str, transcript: str, model: str, *, material: str = "",
                level: str = "enem", history: str = "", timeout: float = 40.0) -> dict:
     """Judge the explanation by meaning and return question + three graded hints.
@@ -137,10 +151,9 @@ def first_turn(point: str, transcript: str, model: str, *, material: str = "",
         f"O que o estudante explicou (transcrição automática, pode ter erros de "
         f"grafia): {transcript[:1500] or '(nada)'}\n"
         f"{('Histórico: ' + history) if history else ''}\n\n"
-        "1) Avalie pelo SIGNIFICADO (paráfrases valem) se a fala explica ESTE "
-        "ponto da missão (não outro ponto do material): assessment = correto, "
-        "parcial, equivoco (disse algo errado) ou nao_mencionou.\n"
-        "2) Se houver equívoco, descreva-o em misconception (senão, string vazia).\n"
+        f"{RUBRIC}"
+        "1) Classifique a fala em relação a ESTE ponto da missão (assessment).\n"
+        "2) Só se for equivoco, descreva o erro em misconception; senão, string vazia.\n"
         "3) Escreva UMA pergunta curta: se houve equívoco, leve o estudante a "
         "perceber o erro; senão, pergunte sobre o que faltou; se estava correto, "
         "aprofunde (por quê? exemplo? consequência?).\n"
@@ -156,9 +169,13 @@ def first_turn(point: str, transcript: str, model: str, *, material: str = "",
         value = data.get(key)
         if isinstance(value, str) and value.strip():
             hints.append(_short(value, LIMITS["hint"]))
+    assessment = _assessment(data)
+    misconception = _short(data.get("misconception") or "", 160)
+    if assessment == "equivoco" and len(misconception) < 8:
+        assessment = "parcial"  # sem dizer qual é o erro, não chame de equívoco
     return {
-        "assessment": _assessment(data),
-        "misconception": _short(data.get("misconception") or "", 160),
+        "assessment": assessment,
+        "misconception": misconception if assessment == "equivoco" else "",
         "question": _text(data, "question", LIMITS["question"]),
         "hint": hints[0],
         "hints": hints,
@@ -173,8 +190,8 @@ def second_turn(point: str, question: str, first: str, second: str, model: str, 
         f"Ponto da missão: {point}\nPergunta feita: {question}\n"
         f"1ª explicação: {first[:1200] or '(nada)'}\n"
         f"2ª explicação: {second[:1200] or '(nada)'}\n\n"
-        "Avalie a 2ª explicação pelo SIGNIFICADO: assessment = correto, parcial, "
-        "equivoco ou nao_mencionou. Em UMA frase curta diga o que melhorou e, se "
+        f"{RUBRIC}"
+        "Classifique a 2ª explicação (assessment). Em UMA frase curta diga o que melhorou e, se "
         "houver, o que ainda falta ou está errado, em NO MÁXIMO 85 caracteres. "
         "Seja específica ao conteúdo (evite 'explicação clara'); não dê nota.\n"
         'JSON: {"assessment": "...", "comparison": "<até 90 caracteres>"}'
