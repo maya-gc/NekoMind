@@ -51,6 +51,19 @@ julga 24 falas de referência — temas simples e avançados, certas, parciais, 
 equívoco e fora do ponto — e mostra acerto exato, acerto tolerante, tabela de
 confusão e tempo médio. Use `--modelo qwen2.5:14b` para comparar modelos.
 
+**Resultado com `qwen2.5:7b` (10/11/2026, Windows, GPU NVIDIA):**
+
+| Versão | Exato | Tolerante | Observação |
+|---|---|---|---|
+| Pedido inicial | 10/24 | 16/24 | Chamava respostas incompletas de “equívoco” |
+| Rubrica com exemplos + conferência dupla | **13/24** | **22/24** | Equívocos 5/6; incompleto não vira mais erro |
+| Mesma rubrica, sem conferência dupla | 11/24 | 18/24 | Aceita fala de outro ponto como “correta” |
+
+O ponto fraco que resta é separar “parcial” de “não falou deste ponto” (5
+casos). Uma regra por palavras resolveria alguns, mas passaria a dizer “você
+não falou disso” para quem respondeu em parte — por isso não foi adotada.
+Próximo passo natural: comparar com um modelo maior (`--modelo qwen2.5:14b`).
+
 **Conferência dupla:** se a IA disser “correto” mas a fala não tiver nenhum
 termo do ponto da missão, o resultado vira “parcial” (equívocos nunca são
 suavizados).

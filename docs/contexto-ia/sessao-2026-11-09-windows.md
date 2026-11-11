@@ -117,3 +117,19 @@ e comparação eram cortadas no LCD), comparação deve ser específica e a
 avaliação deve considerar o ponto da missão (a 1ª fala sobre “energia total”
 foi julgada “correta” para o ponto “evolução temporal”: o modelo 7b ainda erra
 esse julgamento às vezes).
+
+---
+
+# Terceira rodada (10/11/2026, 23h) — qualidade da IA, telas, Mac, manutenção
+
+- **Avaliação do tutor** (`app.devtools.tutor_eval`, 24 falas): `qwen2.5:7b`
+  foi de 10/24 para 13/24 exatos (22/24 tolerantes) com rubrica + exemplos +
+  conferência dupla; ~2 s por julgamento. Ver `docs/tutor-ia.md`.
+- **Telas:** `/public` mostra a avaliação da IA (sem ser nota); `/presenter`
+  mostra “Revisar hoje”.
+- **Mac:** `scripts/preparar_mac.sh` (Homebrew, Python 3.12, eSpeak, Kokoro,
+  Ollama, modelos, checklist). Ainda não executado num Mac.
+- **Manutenção:** `backend/constraints.txt` com as versões verificadas; PR #1
+  fechado; branches antigas apagadas pelo Git da Maya (restam `main` e
+  `consolidado`). Proteção da `main` precisa ser ligada pela Maya no GitHub
+  (Settings → Branches), pois o acesso daqui não permite.
