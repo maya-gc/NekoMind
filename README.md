@@ -5,6 +5,9 @@
 ![macOS](https://img.shields.io/badge/macOS-apresenta%C3%A7%C3%A3o-555555)
 ![ESP32-S3](https://img.shields.io/badge/ESP32--S3-LCD%20touch-E7352C)
 
+[Prévia visual da gatinha em 3D](output/concepts/nekomind-3d/README.md):
+personagem, tela conceitual e dois GIFs de movimento para avaliação.
+
 A pessoa escolhe um ponto do material no **display touch da gatinha**, explica em
 voz alta, recebe uma **pergunta** e uma **dica**, responde de novo e vê uma
 **comparação** entre as duas respostas. Tudo roda **localmente**: ESP32-S3 com LCD
