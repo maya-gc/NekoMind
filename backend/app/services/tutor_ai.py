@@ -125,14 +125,16 @@ def first_turn(point: str, transcript: str, model: str, *, material: str = "",
         f"O que o estudante explicou (transcrição automática, pode ter erros de "
         f"grafia): {transcript[:1500] or '(nada)'}\n"
         f"{('Histórico: ' + history) if history else ''}\n\n"
-        "1) Avalie pelo SIGNIFICADO (paráfrases valem): assessment = correto, "
+        "1) Avalie pelo SIGNIFICADO (paráfrases valem) se a fala explica ESTE "
+        "ponto da missão (não outro ponto do material): assessment = correto, "
         "parcial, equivoco (disse algo errado) ou nao_mencionou.\n"
         "2) Se houver equívoco, descreva-o em misconception (senão, string vazia).\n"
         "3) Escreva UMA pergunta curta: se houve equívoco, leve o estudante a "
         "perceber o erro; senão, pergunte sobre o que faltou; se estava correto, "
         "aprofunde (por quê? exemplo? consequência?).\n"
-        "4) Escreva três dicas graduais, sem entregar a resposta: hint1 = pista "
-        "leve; hint2 = analogia; hint3 = começo de um exemplo.\n"
+        "4) Escreva três dicas graduais, sem entregar a resposta, CADA UMA com no "
+        "máximo 100 caracteres: hint1 = pista leve; hint2 = analogia curta; "
+        "hint3 = começo de um exemplo.\n"
         'JSON: {"assessment": "...", "misconception": "...", "question": "<até 120 '
         'caracteres>", "hint1": "Dica: ...", "hint2": "Dica: ...", "hint3": "Dica: ..."}'
     )
@@ -161,7 +163,8 @@ def second_turn(point: str, question: str, first: str, second: str, model: str, 
         f"2ª explicação: {second[:1200] or '(nada)'}\n\n"
         "Avalie a 2ª explicação pelo SIGNIFICADO: assessment = correto, parcial, "
         "equivoco ou nao_mencionou. Em UMA frase curta diga o que melhorou e, se "
-        "houver, o que ainda falta ou está errado. Seja específica; não dê nota.\n"
+        "houver, o que ainda falta ou está errado, em NO MÁXIMO 85 caracteres. "
+        "Seja específica ao conteúdo (evite 'explicação clara'); não dê nota.\n"
         'JSON: {"assessment": "...", "comparison": "<até 90 caracteres>"}'
     )
     data = _ask(model, prompt, timeout)

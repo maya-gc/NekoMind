@@ -93,3 +93,27 @@ no **Mac**; desenvolvimento e mídias no **Windows**.
   `--asr whisper` (transcrição de verdade).
 - A captura por arquivo aparece na jornada como `mac_microphone`; é a voz do
   sistema, não uma pessoa. Não usar essas telas como prova de uso real.
+
+---
+
+# Teste físico (10/11/2026, noite) — tutor IA real na placa
+
+Windows da Maya, placa em COM3, `qwen2.5:7b` no Ollama, faster-whisper `small`,
+commit `8e18fdc` na `consolidado`.
+
+- Checklist: **PRONTO PARA APRESENTAR** — placa, microfone fifine,
+  transcrição, VAD, **voz Kokoro carregada** e **tutor IA local** OK.
+- Placa: 6 heartbeats, 6 telas desenhadas sem erro.
+- Fluxo com toques dentro do firmware + ASR real + tutor IA: **PLACA
+  APROVADA**; material curto virou 3 missões (uma por frase).
+- Cenário Hamiltoniana (nível faculdade): pergunta da IA “Por que a
+  Hamiltoniana é fundamental na equação de Schrödinger?”; dicas graduais
+  diferentes (pista → analogia do “motor”); comparação específica
+  (“Melhorou ao incluir autovalores, mas ainda falta…”). Ciclo da água com
+  pergunta adaptada (“Por que a água do mar não forma nuvens diretamente?”).
+
+Ajustes depois do teste: limites de tamanho explícitos no pedido à IA (2ª dica
+e comparação eram cortadas no LCD), comparação deve ser específica e a
+avaliação deve considerar o ponto da missão (a 1ª fala sobre “energia total”
+foi julgada “correta” para o ponto “evolução temporal”: o modelo 7b ainda erra
+esse julgamento às vezes).
