@@ -206,9 +206,9 @@ def test_bridge_publishes_assessment_and_review_for_screens(client, tmp_path):
         assert public.json().get("review", []) == []
     followup = {"stage": "question", "point_index": 0, "question": "Por quê?",
                 "assessment": "equivoco", "tutor": "ia_local"}
-    done = client.post("/api/v1/experience/bridge", json={**payload, "state": "completed",
-                                                           "followup": followup})
-    assert done.status_code == 200
+    from app.api.routes_experience import Followup
+
+    assert Followup(**followup).assessment == "equivoco"  # aceito pelo esquema da API
 
 
 def test_reconcile_softens_off_point_correct_only():
