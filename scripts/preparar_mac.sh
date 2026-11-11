@@ -18,7 +18,7 @@ if [ -x "$PY" ] && [ "$("$PY" -c 'import sys;print(sys.version_info[:2]==(3,12))
 fi
 [ -x "$PY" ] || "$PY312" -m venv "$VENV"
 "$PY" -m pip install -q --upgrade pip
-"$PY" -m pip install -q -r "$BACKEND/requirements-dev.txt" -r "$BACKEND/requirements-real.txt"
+"$PY" -m pip install -q -c "$BACKEND/constraints.txt" -r "$BACKEND/requirements-dev.txt" -r "$BACKEND/requirements-real.txt"
 
 passo "Voz Kokoro pt-BR"
 "$PY" -m pip install -q -r "$BACKEND/requirements-voice-mac.txt"

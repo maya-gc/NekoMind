@@ -31,7 +31,7 @@ jobs:
       - name: Dependências
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r backend/requirements-test.txt ziglang
+          python -m pip install -c backend/constraints.txt -r backend/requirements-test.txt ziglang
       - name: Backend (pytest)
         working-directory: backend
         run: python -m pytest -q -rfEs -p no:cacheprovider

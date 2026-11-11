@@ -26,7 +26,7 @@ if (-not (Test-Path $Py)) {
   & $cmd @a -m venv (Join-Path $Backend ".venv")
 }
 Write-Host ">> Conferindo dependencias..."
-& $Py -m pip install -q -r (Join-Path $Backend "requirements-dev.txt") *> (Join-Path $Out "01_pip.txt")
+& $Py -m pip install -q -c (Join-Path $Backend "constraints.txt") -r (Join-Path $Backend "requirements-dev.txt") *> (Join-Path $Out "01_pip.txt")
 
 Push-Location $Backend
 & $Py -m pytest -q -rfEs -p no:cacheprovider *> (Join-Path $Out "02_pytest.txt"); $ok = $LASTEXITCODE -eq 0

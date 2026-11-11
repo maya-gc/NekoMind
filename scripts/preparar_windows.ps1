@@ -21,7 +21,7 @@ if ($ver -ne "3.12") {
   & py -3.12 -m venv $Venv
 }
 & $Py -m pip install -q --upgrade pip
-& $Py -m pip install -q -r (Join-Path $Backend "requirements-dev.txt") -r (Join-Path $Backend "requirements-real.txt")
+& $Py -m pip install -q -c (Join-Path $Backend "constraints.txt") -r (Join-Path $Backend "requirements-dev.txt") -r (Join-Path $Backend "requirements-real.txt")
 
 Passo "eSpeak NG (fonemas da voz) - aceite a janela de permissao se aparecer"
 if (-not (Test-Path "$env:ProgramFiles\eSpeak NG\libespeak-ng.dll")) { Instalar "eSpeak-NG.eSpeak-NG" }

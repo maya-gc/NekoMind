@@ -27,7 +27,7 @@ if [ ! -x "$PY" ]; then
   echo ">> Criando ambiente Python do backend..."
   "${PYTHON_BIN:-python3}" -m venv "$BACKEND/.venv"
 fi
-"$PY" -m pip install -q -r "$BACKEND/requirements-dev.txt" >"$OUT/01_pip.txt" 2>&1
+"$PY" -m pip install -q -c "$BACKEND/constraints.txt" -r "$BACKEND/requirements-dev.txt" >"$OUT/01_pip.txt" 2>&1
 (cd "$BACKEND" && "$PY" -m pytest -q -rfEs -p no:cacheprovider) >"$OUT/02_pytest.txt" 2>&1 \
   && res "Backend (pytest)" OK "$(tail -1 "$OUT/02_pytest.txt")" \
   || res "Backend (pytest)" FALHA "$(tail -1 "$OUT/02_pytest.txt")"

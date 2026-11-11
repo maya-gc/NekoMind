@@ -1,0 +1,29 @@
+# Versoes verificadas juntas em 10/11/2026 (Windows 11, Python 3.12, placa real,
+# faster-whisper + Kokoro + tutor IA). Usado com: pip install -c constraints.txt ...
+# Evita que uma atualizacao silenciosa quebre a demo (ex.: PyAV x faster-whisper).
+av==19.0.2
+ctranslate2==4.8.5
+fastapi==0.162.2
+faster-whisper==1.2.1
+httpx==0.28.1
+huggingface_hub==0.36.2
+kokoro==0.9.4
+misaki==0.9.4
+numpy==2.5.4
+onnxruntime==1.31.1
+playwright==1.64.1
+pydantic==2.14.3
+pydantic-settings==2.16.2
+pypdf==6.21.4
+pyserial==3.5
+pytest==9.2.0
+python-multipart==0.0.33
+sounddevice==0.5.3
+soundfile==0.14.0
+SQLAlchemy==2.1.8
+starlette==1.10.0
+tokenizers==0.22.2
+transformers==4.57.6
+uvicorn==0.54.0
+websockets==17.4
+ziglang==0.17.1
