@@ -149,7 +149,8 @@ direto sem estado `processing` intermediario.
 ## Gatinha 3D calculada em tempo real
 
 `main/neko_avatar3d.c` calcula a cada quadro as intersecoes dos raios da camera
-com volumes 3D (cabeca, olhos, nariz e laco) e superficies conicas das orelhas.
+com volumes 3D (cabeca, olhos, nariz e laco). As orelhas sao volumes afunilados
+posicionados atras da cabeca, com pontas arredondadas.
 Profundidade, luz, rotacao, respiracao e piscada sao calculadas no ESP32-S3;
 nenhum GIF, sprite ou quadro de foto e armazenado no firmware. A task de sessao
 solicita um quadro a cada 125 ms, e o display atualiza somente as faixas da
@@ -161,8 +162,10 @@ cadencia observada. A pre-visualizacao
 foi gerada pelo mesmo renderizador C no Mac; serve para inspecionar geometria
 e movimento, nao para comprovar FPS no LCD. A vista
 [`renderer-compact.png`](../../output/prototypes/realtime-3d/renderer-compact.png)
-mostra a proporcao usada quando o rosto tem 96 pixels de altura. O teste host
-valida cores, estados,
+mostra a proporcao usada quando o rosto tem 96 pixels de altura. O recorte
+[`orelha-detalhe.png`](../../output/prototypes/realtime-3d/orelha-detalhe.png)
+amplia a juncao entre orelha e cabeca para revisao visual. O teste host valida
+cores, estados,
 mudanca entre quadros e recorte por faixa. A placa fisica ainda precisa ser
 gravada e medida com touch e bridge em uso.
 

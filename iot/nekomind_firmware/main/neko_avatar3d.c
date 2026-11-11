@@ -22,46 +22,19 @@ static uint16_t rgb565(int r, int g, int b)
 
 static float minf(float a, float b) { return a < b ? a : b; }
 
-/* Orelha larga, arredondada na ponta e parcialmente embutida na cabeca. */
-static bool ear_surface(float u, float v, float cosine, float sine,
-                        int side, float bob,
-                        float *depth, float *light)
-{
-    float tip = -0.86f;
-    float base = -0.30f;
-    float t = (v - bob - tip) / (base - tip);
-    if (t <= 0.f || t >= 1.f) return false;
-    float local_x = side * (0.45f + 0.02f * (1.f - t));
-    float local_z = -0.07f;
-    float center_x = cosine * local_x + sine * local_z;
-    float radius;
-    if (t < 0.12f) {
-        float cap = (t - 0.12f) / 0.12f;
-        radius = 0.11f * sqrtf(1.f - cap * cap);
-    } else {
-        radius = 0.11f + 0.20f * (t - 0.12f) / 0.88f;
-    }
-    if (radius <= 0.f) return false;
-    float across = (u - center_x) / radius;
-    if (across < -1.f || across > 1.f) return false;
-    *depth = -sine * local_x + cosine * local_z
-             + 0.17f * t * sqrtf(1.f - across * across);
-    float edge = across * across;
-    edge *= edge;
-    edge *= edge;
-    *light = 0.97f - 0.13f * edge;
-    return true;
-}
-
-/* Raio ortografico contra um elipsoide girado em Y; devolve profundidade e normal. */
+/* Raio ortografico contra um volume girado em Y. O afunilamento deixa a
+ * orelha arredondada no topo e larga na base, sem uma aresta triangular. */
 static bool intersect(float u, float v, float cosine, float sine,
-                      const ellipsoid_t *shape, float *depth, float *light)
+                      const ellipsoid_t *shape, bool tapered,
+                      float *depth, float *light)
 {
     float center_x = cosine * shape->x + sine * shape->z;
     float center_z = -sine * shape->x + cosine * shape->z;
     float dy = v - shape->y;
+    if (fabsf(dy) >= shape->ry) return false;
     float dx = u - center_x - shape->skew * dy;
-    float irx = 1.f / (shape->rx * shape->rx);
+    float rx = shape->rx * (tapered ? 1.f + 0.4f * dy / shape->ry : 1.f);
+    float irx = 1.f / (rx * rx);
     float iry = 1.f / (shape->ry * shape->ry);
     float irz = 1.f / (shape->rz * shape->rz);
     float a = sine * sine * irx + cosine * cosine * irz;
@@ -110,8 +83,11 @@ static bool head_surface(float u, float v, float cosine, float sine,
     float camera_z = -sine * nx + cosine * nz;
     float inv_len = 1.f / sqrtf(camera_x * camera_x + ny * ny + camera_z * camera_z);
     *depth = z_screen;
-    *light = minf(1.f, 0.76f + 0.25f * fmaxf(0.f,
-        (-0.32f * camera_x - 0.43f * ny + 0.84f * camera_z) * inv_len));
+    float top = minf(1.f, fmaxf(0.f, (-v - 0.30f) / 0.35f));
+    float diffuse = fmaxf(0.f,
+        (-0.32f * camera_x - 0.43f * ny + 0.84f * camera_z) * inv_len);
+    *light = minf(1.f, 0.76f + 0.12f * top
+                       + (0.25f - 0.13f * top) * diffuse);
     return true;
 }
 
@@ -156,6 +132,8 @@ void neko_avatar3d_render(int x, int y, int width, int height,
     float eye_y = thinking ? -0.10f : -0.035f;
     float red = worried ? 250.f : 239.f;
     ellipsoid_t parts[] = {
+        {-0.48f, -0.57f + bob, -0.28f, 0.25f, 0.32f, 0.16f, 255, 251, 249, -0.12f},
+        { 0.48f, -0.57f + bob, -0.28f, 0.25f, 0.32f, 0.16f, 255, 251, 249,  0.12f},
         { 0.f, bob, 0.f, 0.76f, 0.69f, 0.48f, 255, 251, 249, 0.f},
         {-0.30f, eye_y + bob, 0.49f, 0.066f, eye_h, 0.054f, 46, 35, 40, 0.f},
         { 0.30f, eye_y + bob, 0.49f, 0.066f, eye_h, 0.054f, 46, 35, 40, 0.f},
@@ -177,19 +155,12 @@ void neko_avatar3d_render(int x, int y, int width, int height,
             float u = ((float)xx + 0.5f - mid_x) / scale_x;
             float nearest = -10.f;
             uint16_t color = background;
-            for (int side = -1; side <= 1; side += 2) {
-                float depth, light;
-                if (!ear_surface(u, v, cosine, sine, side, bob, &depth, &light)
-                    || depth <= nearest) continue;
-                nearest = depth;
-                color = rgb565((int)(255 * light), (int)(251 * light),
-                               (int)(249 * light));
-            }
             for (size_t i = 0; i < sizeof(parts) / sizeof(parts[0]); ++i) {
                 float depth, light;
-                bool hit = i == 0
+                bool hit = i == 2
                     ? head_surface(u, v, cosine, sine, &parts[i], &depth, &light)
-                    : intersect(u, v, cosine, sine, &parts[i], &depth, &light);
+                    : intersect(u, v, cosine, sine, &parts[i], i < 2,
+                                &depth, &light);
                 if (!hit
                     || depth <= nearest) continue;
                 nearest = depth;
