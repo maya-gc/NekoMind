@@ -159,7 +159,10 @@ O log serial informa, a cada 32 quadros, o tempo medio de renderizacao e a
 cadencia observada. A pre-visualizacao
 [`renderer-software.gif`](../../output/prototypes/realtime-3d/renderer-software.gif)
 foi gerada pelo mesmo renderizador C no Mac; serve para inspecionar geometria
-e movimento, nao para comprovar FPS no LCD. O teste host valida cores, estados,
+e movimento, nao para comprovar FPS no LCD. A vista
+[`renderer-compact.png`](../../output/prototypes/realtime-3d/renderer-compact.png)
+mostra a proporcao usada quando o rosto tem 96 pixels de altura. O teste host
+valida cores, estados,
 mudanca entre quadros e recorte por faixa. A placa fisica ainda precisa ser
 gravada e medida com touch e bridge em uso.
 

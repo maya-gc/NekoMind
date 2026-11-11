@@ -9,6 +9,7 @@
 typedef struct {
     float x, y, z, rx, ry, rz;
     uint8_t r, g, b;
+    float skew;
 } ellipsoid_t;
 
 static uint16_t rgb565(int r, int g, int b)
@@ -21,24 +22,34 @@ static uint16_t rgb565(int r, int g, int b)
 
 static float minf(float a, float b) { return a < b ? a : b; }
 
-/* Superficie de uma orelha conica, com ponta e profundidade reais. */
+/* Orelha larga, arredondada na ponta e parcialmente embutida na cabeca. */
 static bool ear_surface(float u, float v, float cosine, float sine,
-                        int side, bool inner, float bob,
+                        int side, float bob,
                         float *depth, float *light)
 {
-    float tip = inner ? -0.84f : -0.94f;
-    float base = inner ? -0.43f : -0.39f;
+    float tip = -0.86f;
+    float base = -0.30f;
     float t = (v - bob - tip) / (base - tip);
     if (t <= 0.f || t >= 1.f) return false;
-    float local_x = side * (0.56f + 0.07f * (1.f - t));
-    float local_z = inner ? 0.09f : -0.05f;
+    float local_x = side * (0.45f + 0.02f * (1.f - t));
+    float local_z = -0.07f;
     float center_x = cosine * local_x + sine * local_z;
-    float radius = (inner ? 0.12f : 0.22f) * t;
+    float radius;
+    if (t < 0.12f) {
+        float cap = (t - 0.12f) / 0.12f;
+        radius = 0.11f * sqrtf(1.f - cap * cap);
+    } else {
+        radius = 0.11f + 0.20f * (t - 0.12f) / 0.88f;
+    }
+    if (radius <= 0.f) return false;
     float across = (u - center_x) / radius;
     if (across < -1.f || across > 1.f) return false;
     *depth = -sine * local_x + cosine * local_z
-             + (inner ? 0.06f : 0.15f) * t * sqrtf(1.f - across * across);
-    *light = 0.77f + 0.18f * (1.f - fabsf(across));
+             + 0.17f * t * sqrtf(1.f - across * across);
+    float edge = across * across;
+    edge *= edge;
+    edge *= edge;
+    *light = 0.97f - 0.13f * edge;
     return true;
 }
 
@@ -48,7 +59,8 @@ static bool intersect(float u, float v, float cosine, float sine,
 {
     float center_x = cosine * shape->x + sine * shape->z;
     float center_z = -sine * shape->x + cosine * shape->z;
-    float dx = u - center_x, dy = v - shape->y;
+    float dy = v - shape->y;
+    float dx = u - center_x - shape->skew * dy;
     float irx = 1.f / (shape->rx * shape->rx);
     float iry = 1.f / (shape->ry * shape->ry);
     float irz = 1.f / (shape->rz * shape->rz);
@@ -62,12 +74,44 @@ static bool intersect(float u, float v, float cosine, float sine,
     float local_x = cosine * dx - sine * z;
     float local_z = sine * dx + cosine * z;
     float nx = cosine * local_x * irx + sine * local_z * irz;
-    float ny = dy * iry;
+    float ny = dy * iry - shape->skew * nx;
     float nz = -sine * local_x * irx + cosine * local_z * irz;
     float inv_len = 1.f / sqrtf(nx * nx + ny * ny + nz * nz);
     *depth = center_z + z;
-    *light = minf(1.f, 0.60f + 0.42f * fmaxf(0.f,
+    *light = minf(1.f, 0.76f + 0.25f * fmaxf(0.f,
         (-0.32f * nx - 0.43f * ny + 0.84f * nz) * inv_len));
+    return true;
+}
+
+/* Cabeca como superelipsoide: topo e bochechas mais cheios que uma esfera. */
+static bool head_surface(float u, float v, float cosine, float sine,
+                         const ellipsoid_t *head, float *depth, float *light)
+{
+    float yy = (v - head->y) / head->ry;
+    float ay = fabsf(yy);
+    float y_profile = ay * ay * (0.5f + 0.5f * ay);
+    float z_screen = head->rz;
+    float local_x = 0.f, local_z = 0.f;
+    for (int i = 0; i < 3; ++i) {
+        local_x = cosine * u - sine * z_screen;
+        float ax = fabsf(local_x / head->rx);
+        float q = ax * ax * (0.5f + 0.5f * ax) + y_profile;
+        if (q >= 1.f) return false;
+        local_z = head->rz * sqrtf(1.f - q);
+        z_screen = -sine * local_x + cosine * local_z;
+    }
+    float ax = fabsf(local_x / head->rx);
+    float nx = (local_x >= 0.f ? 1.f : -1.f)
+               * (ax + 1.5f * ax * ax) / head->rx;
+    float ny = (yy >= 0.f ? 1.f : -1.f)
+               * (ay + 1.5f * ay * ay) / head->ry;
+    float nz = 2.f * local_z / (head->rz * head->rz);
+    float camera_x = cosine * nx + sine * nz;
+    float camera_z = -sine * nx + cosine * nz;
+    float inv_len = 1.f / sqrtf(camera_x * camera_x + ny * ny + camera_z * camera_z);
+    *depth = z_screen;
+    *light = minf(1.f, 0.76f + 0.25f * fmaxf(0.f,
+        (-0.32f * camera_x - 0.43f * ny + 0.84f * camera_z) * inv_len));
     return true;
 }
 
@@ -112,17 +156,17 @@ void neko_avatar3d_render(int x, int y, int width, int height,
     float eye_y = thinking ? -0.10f : -0.035f;
     float red = worried ? 250.f : 239.f;
     ellipsoid_t parts[] = {
-        { 0.f, bob, 0.f, 0.79f, 0.61f, 0.48f, 255, 251, 249},
-        {-0.30f, eye_y + bob, 0.49f, 0.066f, eye_h, 0.054f, 46, 35, 40},
-        { 0.30f, eye_y + bob, 0.49f, 0.066f, eye_h, 0.054f, 46, 35, 40},
-        { 0.f, 0.17f + bob, 0.51f, 0.075f, 0.052f, 0.060f, 249, 200, 66},
-        { 0.43f, -0.51f + bob, 0.46f, 0.19f, 0.16f, 0.12f, (uint8_t)red, 45, 70},
-        { 0.75f, -0.48f + bob, 0.42f, 0.18f, 0.15f, 0.12f, (uint8_t)red, 45, 70},
-        { 0.60f, -0.49f + bob, 0.60f, 0.085f, 0.075f, 0.075f, 225, 32, 55},
+        { 0.f, bob, 0.f, 0.76f, 0.69f, 0.48f, 255, 251, 249, 0.f},
+        {-0.30f, eye_y + bob, 0.49f, 0.066f, eye_h, 0.054f, 46, 35, 40, 0.f},
+        { 0.30f, eye_y + bob, 0.49f, 0.066f, eye_h, 0.054f, 46, 35, 40, 0.f},
+        { 0.f, 0.17f + bob, 0.51f, 0.075f, 0.052f, 0.060f, 249, 200, 66, 0.f},
+        { 0.34f, -0.59f + bob, 0.48f, 0.18f, 0.30f, 0.11f, (uint8_t)red, 45, 70, -0.27f},
+        { 0.69f, -0.44f + bob, 0.45f, 0.21f, 0.19f, 0.11f, (uint8_t)red, 45, 70, 0.18f},
+        { 0.54f, -0.51f + bob, 0.64f, 0.095f, 0.095f, 0.075f, 225, 32, 55, 0.f},
     };
-    /* A camera usa pixels retangulares para preservar o rosto largo no LCD. */
-    float scale_x = (float)width / 1.85f;
+    /* Projecao ajustada ao retangulo reservado para o rosto no LCD. */
     float scale_y = (float)height / 1.79f;
+    float scale_x = minf((float)width / 1.85f, scale_y * 1.30f);
     float mid_x = (float)x + (float)width * 0.5f;
     float mid_y = (float)y + (float)height * 0.53f;
     int first_y = clip_y0 > y ? clip_y0 : y;
@@ -134,20 +178,19 @@ void neko_avatar3d_render(int x, int y, int width, int height,
             float nearest = -10.f;
             uint16_t color = background;
             for (int side = -1; side <= 1; side += 2) {
-                for (int inner = 0; inner <= 1; ++inner) {
-                    float depth, light;
-                    if (!ear_surface(u, v, cosine, sine, side, inner != 0,
-                                     bob, &depth, &light) || depth <= nearest) continue;
-                    nearest = depth;
-                    color = inner ? rgb565((int)(250 * light), (int)(200 * light),
-                                           (int)(214 * light))
-                                  : rgb565((int)(255 * light), (int)(251 * light),
-                                           (int)(249 * light));
-                }
+                float depth, light;
+                if (!ear_surface(u, v, cosine, sine, side, bob, &depth, &light)
+                    || depth <= nearest) continue;
+                nearest = depth;
+                color = rgb565((int)(255 * light), (int)(251 * light),
+                               (int)(249 * light));
             }
             for (size_t i = 0; i < sizeof(parts) / sizeof(parts[0]); ++i) {
                 float depth, light;
-                if (!intersect(u, v, cosine, sine, &parts[i], &depth, &light)
+                bool hit = i == 0
+                    ? head_surface(u, v, cosine, sine, &parts[i], &depth, &light)
+                    : intersect(u, v, cosine, sine, &parts[i], &depth, &light);
+                if (!hit
                     || depth <= nearest) continue;
                 nearest = depth;
                 color = rgb565((int)(parts[i].r * light),
@@ -161,8 +204,8 @@ void neko_avatar3d_render(int x, int y, int width, int height,
     uint16_t ink = rgb565(60, 46, 51);
     for (int side = -1; side <= 1; side += 2) {
         for (int i = -1; i <= 1; ++i) {
-            float ax = cosine * (side * 0.56f) + sine * 0.33f;
-            float bx = cosine * (side * 0.83f) + sine * 0.30f;
+            float ax = cosine * (side * 0.52f) + sine * 0.33f;
+            float bx = cosine * (side * 0.74f) + sine * 0.30f;
             float ay = 0.17f + bob + i * 0.085f;
             float by = ay + i * 0.04f;
             int x0 = (int)(mid_x + scale_x * ax), x1 = (int)(mid_x + scale_x * bx);
