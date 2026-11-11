@@ -8,6 +8,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "esp_err.h"
 
@@ -42,6 +43,8 @@ esp_err_t display_ui_render_view(const char *status_line,
                                  int voice_level,
                                  bool voice_clipping);
 esp_err_t display_ui_draw_scene(const neko_scene_t *scene);
+/** Atualiza a geometria 3D do rosto sem reconstruir a sessao. */
+esp_err_t display_ui_animate_face(uint32_t now_ms);
 esp_err_t display_ui_calibration_step(int step);
 
 /** Mostra telemetria curta (ex.: RMS do microfone, heap livre). */

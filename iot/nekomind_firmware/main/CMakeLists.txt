@@ -5,6 +5,7 @@ idf_component_register(
         "audio_transport.c"
         "board_touch.c"
         "display_ui.c"
+        "neko_avatar3d.c"
         "avatar_state.c"
         "neko_controller.c"
         "neko_layout.c"

@@ -278,11 +278,17 @@ static void poll_serial(uint32_t t_ms)
 static void session_task(void *arg)
 {
     (void)arg;
+    uint32_t last_avatar_ms = 0;
     while (true) {
         uint32_t t_ms = now_ms();
         poll_touch(t_ms);
         poll_serial(t_ms);
         neko_controller_tick(&s_controller, t_ms);
+        if ((uint32_t)(t_ms - last_avatar_ms) >= 125U) {
+            esp_err_t err = display_ui_animate_face(t_ms);
+            if (err != ESP_OK) ESP_LOGW(TAG, "falha na animacao 3D: %s", esp_err_to_name(err));
+            last_avatar_ms = t_ms;
+        }
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
