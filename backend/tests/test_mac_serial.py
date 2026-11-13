@@ -298,3 +298,35 @@ def test_result_rejects_deleted_or_deletion_pending_session():
     }
     with pytest.raises(ValueError):
         validate_result(row, 1)
+
+
+def test_serial_write_timeout_does_not_kill_the_loop(monkeypatch):
+    from app.mac import serial_loop
+
+    class SerialTimeoutException(Exception):
+        pass
+
+    class Port:
+        def __init__(self, fails):
+            self.fails, self.sent = fails, []
+
+        def write(self, data):
+            if self.fails:
+                self.fails -= 1
+                raise SerialTimeoutException("Write timeout")
+            self.sent.append(data)
+
+    monkeypatch.setattr(serial_loop, "sleep", lambda s: None)
+    busy = Port(fails=1)
+    assert serial_loop._send(busy, b"x\n") and busy.sent == [b"x\n"]
+    stuck = Port(fails=10)
+    assert serial_loop._send(stuck, b"y\n") is False and stuck.sent == []
+
+    class Broken:
+        def write(self, data):
+            raise OSError("cabo desconectado")
+
+    import pytest
+
+    with pytest.raises(OSError):
+        serial_loop._send(Broken(), b"z\n")

@@ -151,3 +151,18 @@ esse julgamento às vezes).
 
 Pendente na máquina da Maya: gravar o firmware novo, rodar a resistência de
 60 min e comparar `qwen2.5:14b` com `tutor_eval --modelo qwen2.5:14b`.
+
+## Resultados na máquina da Maya (13/11/2026, tarde)
+
+- **Voz real** (`voz_real`, faster-whisper): APROVADO; a transcrição da voz
+  dela saiu exata (“A água do mar evapora com o calor do Sol.”).
+- **`qwen2.5:14b`** no `tutor_eval`: 16/24 exatos (7b: 13/24), 24/24
+  tolerantes, 3,1 s por julgamento (7b: ~2 s). Erro restante: tende a
+  “parcial” onde o esperado é “correto” ou “não mencionou”.
+- **Resistência** reprovou na 1ª rodada: na 2ª gravação o computador recebeu
+  `Write timeout` e o laço serial morreu. Causa: o firmware lia só uma linha
+  (no máximo 256 bytes) por volta de 50 ms + desenho, e o buffer USB enchia.
+  Correção: o firmware esvazia até 16 linhas por volta e lê a linha inteira de
+  uma vez; o computador tenta de novo e descarta o quadro em vez de derrubar o
+  laço (no bridge real isso abortava a gravação e reconectava); o teste para
+  na hora se o laço cair.

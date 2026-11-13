@@ -253,18 +253,18 @@ static void simulate_tap(const char *arg, uint32_t t_ms)
     else neko_controller_touch(&s_controller, event, t_ms);
 }
 
-static void poll_serial(uint32_t t_ms)
+static esp_err_t poll_serial_line(uint32_t t_ms)
 {
     esp_err_t err = audio_transport_poll_rx(s_rx_line, sizeof(s_rx_line), 0);
     if (err == ESP_OK) {
         if (strncmp(s_rx_line, "!tap ", 5) == 0) {
             simulate_tap(s_rx_line + 5, t_ms);
-            return;
+            return ESP_OK;
         }
         if (strcmp(s_rx_line, "!touch-calibrate") == 0) {
             esp_err_t cal = board_touch_calibrate();
             ESP_LOGI(TAG, "calibracao touch: %s", esp_err_to_name(cal));
-            return;
+            return ESP_OK;
         }
         neko_controller_status_t status =
             neko_controller_receive(&s_controller, s_rx_line, t_ms);
@@ -273,6 +273,20 @@ static void poll_serial(uint32_t t_ms)
         }
     } else if (err != ESP_ERR_TIMEOUT && err != ESP_ERR_NOT_SUPPORTED) {
         ESP_LOGW(TAG, "falha no RX serial: %s", esp_err_to_name(err));
+    }
+    return err;
+}
+
+/* Esvazia a fila do USB a cada volta: ler so uma linha (ou 256 bytes) por
+ * volta de 50 ms + desenho deixava o buffer encher durante a gravacao e o
+ * computador recebia "Write timeout" (teste de resistencia, 13/11/2026). */
+static void poll_serial(uint32_t t_ms)
+{
+    for (int i = 0; i < 16; i++) {
+        esp_err_t err = poll_serial_line(t_ms);
+        if (err == ESP_ERR_TIMEOUT || err == ESP_ERR_NOT_SUPPORTED || err == ESP_FAIL) {
+            break;
+        }
     }
 }
 

@@ -85,7 +85,9 @@ esp_err_t audio_transport_poll_rx(char *out_line, size_t max_len,
     if (out_line == NULL || max_len == 0) {
         return ESP_ERR_INVALID_ARG;
     }
-    for (read_count = 0; read_count < 256; read_count++) {
+    /* Le uma linha inteira por chamada (antes: 256 bytes, o que fazia
+     * quadros longos levarem varias voltas do laco de 50 ms). */
+    for (read_count = 0; read_count < (int)sizeof(s_input_line) + 2; read_count++) {
         ssize_t n = read(s_serial_fd, &ch, 1);
         if (n < 0) {
             return errno == EAGAIN || errno == EWOULDBLOCK

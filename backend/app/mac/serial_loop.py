@@ -2,11 +2,32 @@
 
 import logging
 import os
-from time import monotonic
+from time import monotonic, sleep
 
 from app.mac.protocol import MAX_LINE, decode_display_ack, decode_line, encode_line
 
 logger = logging.getLogger(__name__)
+
+
+def _send(port, frame, *, retries=2):
+    """Write one frame; a full USB buffer must not kill the serial loop.
+
+    If the board is momentarily not reading (busy drawing), pyserial raises
+    ``SerialTimeoutException``. The frame is retried and then dropped: every
+    state frame is a full snapshot and the next heartbeat repeats it.
+    """
+    for attempt in range(retries + 1):
+        try:
+            port.write(frame)
+            return True
+        except Exception as exc:  # noqa: BLE001 - only write timeouts are tolerated
+            if type(exc).__name__ != "SerialTimeoutException" and not isinstance(
+                    exc, TimeoutError):
+                raise
+            logger.warning("Serial ocupada (escrita %d/%d expirou).", attempt + 1, retries + 1)
+            sleep(0.2)
+    logger.warning("Quadro serial descartado (%d bytes); o próximo estado o repõe.", len(frame))
+    return False
 
 
 def run_serial(port, bridge, stop, *, heartbeat_timeout=8.0):
@@ -62,7 +83,7 @@ def run_serial(port, bridge, stop, *, heartbeat_timeout=8.0):
                     marker()
                 handle_started = monotonic()
                 response = bridge.handle(message)
-                port.write(encode_line(response))
+                _send(port, encode_line(response))
                 # Captura/permissao/HTTP podem demorar. A janela de desconexao
                 # comeca depois da resposta, nao antes do trabalho bloqueante.
                 last_seen = monotonic()
@@ -77,7 +98,7 @@ def run_serial(port, bridge, stop, *, heartbeat_timeout=8.0):
             if tick is not None:
                 tick()
             for response in bridge.drain_events():
-                port.write(encode_line(response))
+                _send(port, encode_line(response))
             if monotonic() - last_seen > heartbeat_timeout and not disconnected:
                 if trace:
                     logger.warning("Serial sem comando valido por %.2fs", monotonic() - last_seen)

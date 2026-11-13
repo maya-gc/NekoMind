@@ -161,6 +161,10 @@ def run(port_name: str, out: Path, asr: str, timeout: float, minutes: float = 0.
             return report.step(scenario, name, ok, detail, t)
 
         def one_round(n):
+            if not loop.is_alive():
+                report.step(scenario, "Laço serial do computador", False,
+                            "parou (veja o erro acima); encerrando o teste")
+                return False
             report.round = n
             recorder.used = 0
             transcripts[:] = [pipeline.SPEECH["resposta1"], pipeline.SPEECH["resposta2"]]
@@ -200,7 +204,8 @@ def run(port_name: str, out: Path, asr: str, timeout: float, minutes: float = 0.
             rounds = 0
             while True:
                 rounds += 1
-                one_round(rounds)
+                if not one_round(rounds) and not loop.is_alive():
+                    break
                 if minutes <= 0 or time.monotonic() >= deadline:
                     break
             report.info["rodadas"] = rounds
