@@ -252,19 +252,21 @@ def test_bridge_split_keeps_public_surface():
 
 def test_supervisor_backup_and_log_rotation(tmp_path, monkeypatch):
     import sqlite3
+    from contextlib import closing
 
     from app.devtools import supervisor
 
     db = tmp_path / "n.db"
-    with sqlite3.connect(db) as conn:
+    with closing(sqlite3.connect(db)) as conn:
         conn.execute("CREATE TABLE t(x)")
         conn.execute("INSERT INTO t VALUES (42)")
+        conn.commit()
     monkeypatch.setattr(supervisor, "database_path", lambda: db)
     monkeypatch.setattr(supervisor, "BACKUPS", tmp_path / "b")
     for i in range(3):
         monkeypatch.setattr(supervisor.time, "strftime", lambda f, i=i: f"2026-{i}")
         copy = supervisor.backup_database("teste", keep=2)
-    with sqlite3.connect(copy) as conn:
+    with closing(sqlite3.connect(copy)) as conn:
         assert conn.execute("SELECT x FROM t").fetchone() == (42,)
     assert len(list((tmp_path / "b").glob("*.db"))) == 2
     log = tmp_path / "bridge.log"

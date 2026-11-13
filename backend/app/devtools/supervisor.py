@@ -22,6 +22,7 @@ import subprocess
 import sys
 import time
 import webbrowser
+from contextlib import closing
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -73,7 +74,9 @@ def backup_database(reason: str, keep: int = 10) -> Path | None:
         return None
     BACKUPS.mkdir(parents=True, exist_ok=True)
     target = BACKUPS / f"nekomind-{time.strftime('%Y%m%d-%H%M%S')}-{reason}.db"
-    with sqlite3.connect(source) as src, sqlite3.connect(target) as dst:
+    # closing(): "with sqlite3.connect()" only commits; on Windows an open
+    # handle would keep the file locked and block deleting old backups.
+    with closing(sqlite3.connect(source)) as src, closing(sqlite3.connect(target)) as dst:
         src.backup(dst)
     for old in sorted(BACKUPS.glob("nekomind-*.db"))[:-keep]:
         old.unlink(missing_ok=True)
