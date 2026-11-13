@@ -52,7 +52,8 @@ def run_firmware_tests(workdir: Path) -> subprocess.CompletedProcess:
         return first
     # Renderizador 3D da gatinha (Leandro, 11/11/2026): mesmo teste do test_firmware.sh.
     avatar = exe(workdir / "nekomind_avatar3d_test")
-    libm = [] if os.name == "nt" else ["-lm"]
+    # Windows: o compilador pode marcar fopen do teste como "inseguro" (CRT da MS).
+    libm = ["-D_CRT_SECURE_NO_WARNINGS"] if os.name == "nt" else ["-lm"]
     subprocess.run(
         [*compiler, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror",
          str(FIRMWARE / "tests" / "test_avatar3d.c"), str(main / "neko_avatar3d.c"),
@@ -73,6 +74,7 @@ def main() -> int:
         try:
             result = run_firmware_tests(Path(tmp))
         except subprocess.CalledProcessError as exc:
+            print("Comando:", " ".join(str(a) for a in exc.cmd))
             print(exc.stdout, exc.stderr)
             print("RESULTADO: FALHA NA COMPILACAO")
             return 1

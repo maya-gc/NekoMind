@@ -15,6 +15,14 @@ if (Test-Path $envJson) {
 $Idf = $cands | Where-Object { $_ -and (Test-Path (Join-Path $_ "export.ps1")) } | Select-Object -First 1
 if (-not $Idf) { Write-Error "ESP-IDF nao encontrado. Rode scripts\setup_espidf_portable.ps1 ou informe -IdfPath."; exit 1 }
 Write-Host ">> ESP-IDF: $Idf"
+# Usa o ambiente Python que o ESP-IDF ja instalou (ex.: idf5.3_py3.13_env), mesmo
+# que outro Python (ex.: 3.12 do preparar_windows) esteja primeiro no PATH.
+if (-not $env:IDF_PYTHON_ENV_PATH) {
+  $pyenvs = Get-ChildItem (Join-Path $env:USERPROFILE ".espressif\python_env") -Directory -Filter "idf*_env" -ErrorAction SilentlyContinue |
+    Where-Object { Test-Path (Join-Path $_.FullName "Scripts\python.exe") } | Sort-Object Name -Descending
+  if ($pyenvs) { $env:IDF_PYTHON_ENV_PATH = $pyenvs[0].FullName; Write-Host ">> Python do ESP-IDF: $($pyenvs[0].Name)" }
+  else { Write-Warning "Nenhum ambiente Python do ESP-IDF encontrado. Rode: python $Idf\tools\idf_tools.py install-python-env" }
+}
 $env:IDF_PATH = $Idf
 . (Join-Path $Idf "export.ps1") | Out-Null
 Push-Location $Fw
