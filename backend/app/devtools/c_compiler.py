@@ -35,7 +35,7 @@ def exe(path: Path) -> Path:
 
 
 def run_firmware_tests(workdir: Path) -> subprocess.CompletedProcess:
-    """Compile and run iot/nekomind_firmware/tests/test_neko_controller.c."""
+    """Compile and run the firmware host tests (controller and 3D avatar renderer)."""
     compiler = find_c_compiler()
     if compiler is None:
         raise RuntimeError("Nenhum compilador C: instale gcc/clang ou `pip install ziglang`")
@@ -47,7 +47,21 @@ def run_firmware_tests(workdir: Path) -> subprocess.CompletedProcess:
          str(main / "neko_layout.c"), str(main / "neko_protocol.c"), "-o", str(binary)],
         check=True, capture_output=True, text=True,
     )
-    return subprocess.run([str(binary)], capture_output=True, text=True, timeout=120)
+    first = subprocess.run([str(binary)], capture_output=True, text=True, timeout=120)
+    if first.returncode != 0 or not (FIRMWARE / "tests" / "test_avatar3d.c").is_file():
+        return first
+    # Renderizador 3D da gatinha (Leandro, 11/11/2026): mesmo teste do test_firmware.sh.
+    avatar = exe(workdir / "nekomind_avatar3d_test")
+    libm = [] if os.name == "nt" else ["-lm"]
+    subprocess.run(
+        [*compiler, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror",
+         str(FIRMWARE / "tests" / "test_avatar3d.c"), str(main / "neko_avatar3d.c"),
+         *libm, "-o", str(avatar)],
+        check=True, capture_output=True, text=True,
+    )
+    second = subprocess.run([str(avatar)], capture_output=True, text=True, timeout=120)
+    return subprocess.CompletedProcess(
+        second.args, second.returncode, first.stdout + second.stdout, first.stderr + second.stderr)
 
 
 def main() -> int:
