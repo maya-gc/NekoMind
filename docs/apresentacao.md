@@ -15,6 +15,15 @@ desenvolver e gerar mídias (relatórios e capturas da pipeline).
 4. Ensaio completo: `bash scripts/apresentar.sh` e o roteiro abaixo, duas vezes.
 5. Grave o **vídeo reserva** (seção “Vídeo”) para o caso de o hardware falhar.
 
+## Supervisor (dia inteiro no ar)
+
+`scripts/apresentar.sh` / `scripts\apresentar.ps1` agora sobem tudo pelo
+supervisor (`python -m app.devtools.supervisor`): Ollama, backend e bridge
+são reiniciados sozinhos se caírem ou pararem de responder; os logs ficam em
+`backend/storage/logs/` (girados a cada 5 MB) e o banco recebe backup no início
+e no fim em `backend/storage/backups/` (últimos 10). Ctrl+C encerra tudo.
+O checklist avisa se o computador estiver na bateria.
+
 ## Antes de subir ao palco (5 minutos)
 
 ```bash

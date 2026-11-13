@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from collections import deque
 from queue import Empty, Full, Queue
 from threading import Event, Thread
 from time import monotonic
+
+from app.errors import log_swallowed
+
+logger = logging.getLogger(__name__)
 
 BYTES_PER_SECOND = 16000 * 2
 
@@ -79,7 +84,8 @@ class PartialTranscriber:
             last = monotonic()
             try:
                 text = self.adapter.transcribe_pcm(data)
-            except Exception:  # noqa: BLE001 - native ASR boundary; degrade feedback
+            except Exception as exc:  # noqa: BLE001 - native ASR boundary; degrade feedback
+                log_swallowed(logger, "partials._run", exc)
                 if not self.stop_event.is_set():
                     self.callback(None, None)
                 continue

@@ -8,11 +8,16 @@ weaker no-op wherever one exists.
 
 from __future__ import annotations
 
+import logging
 import os
 import stat
 import subprocess
 import sys
 from pathlib import Path
+
+from app.errors import log_swallowed
+
+logger = logging.getLogger(__name__)
 
 IS_WINDOWS = os.name == "nt"
 IS_MACOS = sys.platform == "darwin"
@@ -83,7 +88,8 @@ def keep_awake():
     if IS_WINDOWS:
         try:
             return _WindowsAwake()
-        except Exception:  # noqa: BLE001 - optional comfort, never blocks capture
+        except Exception as exc:  # noqa: BLE001 - optional comfort, never blocks capture
+            log_swallowed(logger, "platform_support.keep_awake", exc)
             return None
     return None
 

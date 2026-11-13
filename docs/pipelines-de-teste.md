@@ -77,6 +77,31 @@ executa o toque: mesmo hit test de um dedo, só em botões visíveis e habilitad
 Cada etapa espera o `display_ack` da tela desenhada. O resto da cadeia é real.
 `!tap 120 260` também aceita coordenadas.
 
+### Teste de resistência (1 hora na placa)
+
+```powershell
+cd backend
+.venv\Scripts\python.exe -m app.devtools.esp_tap_flow --port COM3 --minutos 60
+```
+
+Repete o fluxo guiado até completar o tempo e lê a linha `saude:` que o
+firmware imprime a cada 30 s. Reprova se algum quadro do avatar 3D passar de
+**60 ms** ou se a pilha livre da tarefa cair abaixo de **2048 bytes**. O
+firmware também ajusta sozinho o ritmo do avatar (125 → 250 → 500 ms) quando
+o desenho fica lento, para o toque e a serial nunca ficarem esperando, e tem
+*watchdog* de 5 s (se a tarefa travar, a placa reinicia em vez de congelar).
+
+### Sua própria voz
+
+```powershell
+.venv\Scripts\python.exe -m app.devtools.gravar_voz          # grava 4 respostas suas
+.venv\Scripts\python.exe -m app.devtools.pipeline --asr whisper --cenario voz_real
+```
+
+Os WAVs ficam em `backend/storage/voz_real/` (fora do Git). Grave uma vez em
+silêncio e outra com barulho (renomeie a pasta entre as rodadas) para comparar
+a transcrição.
+
 ### ASR real
 
 `scripts\baixar_modelo_asr.ps1` (ou `.sh`) uma vez, depois
@@ -84,6 +109,11 @@ Cada etapa espera o `display_ack` da tela desenhada. O resto da cadeia é real.
 pelo faster-whisper de verdade; o orçamento de tempo é ampliado.
 
 ### CI
+
+Todo arquivo `iot/nekomind_firmware/tests/test_*.c` novo entra sozinho no
+`python -m app.devtools.c_compiler` (Windows e macOS). Um job separado compila
+o firmware inteiro com o ESP-IDF v5.3 (esp32s3) a cada push.
+
 
 `.github/workflows/testes.yml` roda em `windows-latest` e `macos-latest` a cada
 push na `main` e em PRs. O relatório da pipeline fica nos artefatos do run.

@@ -6,6 +6,7 @@
 #include "esp_log.h"
 #include "esp_random.h"
 #include "esp_system.h"
+#include "esp_task_wdt.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -279,16 +280,35 @@ static void session_task(void *arg)
 {
     (void)arg;
     uint32_t last_avatar_ms = 0;
+    uint32_t avatar_interval_ms = 125U;
+    uint32_t last_health_ms = 0;
+    uint32_t worst_frame_ms = 0;
+    /* Watchdog: se esta tarefa travar (desenho, SPI, serial), o chip reinicia
+     * sozinho em vez de ficar congelado na frente do publico. */
+    bool wdt = esp_task_wdt_add(NULL) == ESP_OK;
     while (true) {
         uint32_t t_ms = now_ms();
         poll_touch(t_ms);
         poll_serial(t_ms);
         neko_controller_tick(&s_controller, t_ms);
-        if ((uint32_t)(t_ms - last_avatar_ms) >= 125U) {
+        if ((uint32_t)(t_ms - last_avatar_ms) >= avatar_interval_ms) {
+            int64_t started_us = esp_timer_get_time();
             esp_err_t err = display_ui_animate_face(t_ms);
+            uint32_t frame_ms = (uint32_t)((esp_timer_get_time() - started_us) / 1000);
             if (err != ESP_OK) ESP_LOGW(TAG, "falha na animacao 3D: %s", esp_err_to_name(err));
+            if (frame_ms > worst_frame_ms) worst_frame_ms = frame_ms;
+            /* Cadencia adaptativa: quadro lento nunca atrasa toque e serial. */
+            avatar_interval_ms = frame_ms > 60U ? 500U : (frame_ms > 30U ? 250U : 125U);
             last_avatar_ms = t_ms;
         }
+        if ((uint32_t)(t_ms - last_health_ms) >= 30000U) {
+            ESP_LOGI(TAG, "saude: pilha livre %u bytes, pior quadro %lu ms, intervalo %lu ms",
+                     (unsigned)uxTaskGetStackHighWaterMark(NULL),
+                     (unsigned long)worst_frame_ms, (unsigned long)avatar_interval_ms);
+            worst_frame_ms = 0;
+            last_health_ms = t_ms;
+        }
+        if (wdt) esp_task_wdt_reset();
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 }

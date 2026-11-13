@@ -74,7 +74,7 @@ SPEECH = {
 }
 
 ALL_SCENARIOS = ["demo", "guiado", "longo", "errada", "silencio", "ruido", "queda_usb",
-                 "complexo"]
+                 "complexo", "voz_real"]
 
 # Orçamento de tempo por etapa (ms). Com --asr whisper o dobro + 20 s.
 BUDGET_MS = {
@@ -622,6 +622,44 @@ def scenario_complex(ctx):
     return s.speaker.spoken
 
 
+def scenario_real_voice(ctx):
+    """Guided flow with the user's own recorded voice (app.devtools.gravar_voz)."""
+    from app.devtools.gravar_voz import FOLDER
+
+    report, scenario = ctx["report"], "voz_real"
+    files = [FOLDER / "agua_1.wav", FOLDER / "agua_2.wav"]
+    if not all(f.is_file() for f in files):
+        report.step(scenario, "Pulado", True, "grave antes: python -m app.devtools.gravar_voz")
+        return []
+    if ctx.get("asr") != "whisper":
+        report.step(scenario, "Pulado", True, "use --asr whisper (transcrição real da sua voz)")
+        return []
+    _select_content(ctx["client"], report, scenario, CONTENT_TITLE, CONTENT_TEXT)
+    s = Session(ctx["client"], ctx["out"], scenario, files, demo=False, screens=ctx["screens"])
+    try:
+        _ready(s, report, scenario)
+        sid = _start(s, report, scenario, mission=1)
+        t = time.monotonic()
+        s.touch.tap("Finalizar", sid)
+        first = s.touch.poll(sid, _until_result, timeout=ctx["timeout"])
+        _check(report, scenario, "Sua 1ª resposta -> pergunta", first.get("type") == "result",
+               f"tipo={first.get('type')} code={first.get('code')} "
+               f"pergunta={(first.get('followup') or {}).get('question')!r}", t)
+        row = ctx["client"].get(f"/api/v1/sessions/{sid}").json()
+        report.step(scenario, "Transcrição da sua voz", bool(row.get("transcription")),
+                    f"{(row.get('transcription') or '')[:160]!r}")
+        second = s.touch.tap("Responder", sid)
+        sid2 = second.get("session_id")
+        t = time.monotonic()
+        s.touch.tap("Finalizar", sid2)
+        done = s.touch.poll(sid2, _until_result, timeout=ctx["timeout"])
+        _check(report, scenario, "Sua 2ª resposta -> comparação", done.get("type") == "result",
+               f"comparacao={(done.get('followup') or {}).get('comparison')!r}", t)
+    finally:
+        s.close()
+    return s.speaker.spoken
+
+
 SCENARIOS = {
     "demo": (scenario_demo, "demo"),
     "guiado": (scenario_guided, "real"),
@@ -631,6 +669,7 @@ SCENARIOS = {
     "ruido": (scenario_noise, "real"),
     "queda_usb": (scenario_usb_drop, "real"),
     "complexo": (scenario_complex, "real"),
+    "voz_real": (scenario_real_voice, "real"),
 }
 
 
@@ -820,7 +859,7 @@ def run(out: Path, scenarios: list[str], asr: str, timeout: float = 120.0, clien
                 screens = _NoScreens()
         ctx = {"client": client, "out": out, "audio": audio_dir, "report": report,
                "timeout": timeout, "transcripts": transcripts, "screens": screens,
-               "vad_patched": vad_patched}
+               "vad_patched": vad_patched, "asr": asr}
         with patches:
             try:
                 for current in range(1, rounds + 1):

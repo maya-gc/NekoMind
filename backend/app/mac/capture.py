@@ -1,6 +1,7 @@
 """Bounded PCM capture. PortAudio callback never blocks on disk or controller locks."""
 
 import json
+import logging
 import os
 import time
 import wave
@@ -9,7 +10,10 @@ from pathlib import Path
 from queue import Full, Queue
 from threading import Thread
 
+from app.errors import log_swallowed
 from app.services.audio_quality import assess_audio_quality
+
+logger = logging.getLogger(__name__)
 
 MAX_BYTES = 16000 * 2 * 1800
 CONFIRMED_CHUNK_BYTES = 512 * 1024
@@ -166,7 +170,8 @@ class MacRecorder:
             return
         try:
             device_id = self._device_id(self._query_device())
-        except Exception:  # noqa: BLE001 - capture start will surface device failures
+        except Exception as exc:  # noqa: BLE001 - capture start will surface device failures
+            log_swallowed(logger, "capture._invalidate_calibration_if_device_changed", exc)
             return
         if self.calibration.get("device_id") != device_id:
             payload = {**self.calibration, "status": "error", "valid": False}
@@ -431,7 +436,8 @@ class MacRecorder:
     def abort(self):
         try:
             self._close_stream()
-        except Exception:  # noqa: BLE001 - always close PortAudio and propagate failure
+        except Exception as exc:  # noqa: BLE001 - always close PortAudio and propagate failure
+            log_swallowed(logger, "capture.abort", exc)
             self.error = "capture_close_failed"
         finally:
             self._close_writer()
@@ -449,7 +455,8 @@ class MacRecorder:
                     "message": str(info.get("name") or "Input device available"),
                 }
             )
-        except Exception:  # noqa: BLE001 - diagnostic result must be serializable
+        except Exception as exc:  # noqa: BLE001 - diagnostic result must be serializable
+            log_swallowed(logger, "capture.probe", exc)
             components.append(
                 {
                     "component": "microphone",
@@ -466,7 +473,8 @@ class MacRecorder:
                     "message": "Input settings accepted",
                 }
             )
-        except Exception:  # noqa: BLE001 - privacy/permission details are platform-specific
+        except Exception as exc:  # noqa: BLE001 - privacy/permission details are platform-specific
+            log_swallowed(logger, "capture.probe", exc)
             components.append(
                 {
                     "component": "permission",
@@ -503,7 +511,8 @@ class MacRecorder:
                     else "Short input probe captured no audio",
                 }
             )
-        except Exception:  # noqa: BLE001 - diagnostic result must not crash bridge
+        except Exception as exc:  # noqa: BLE001 - diagnostic result must not crash bridge
+            log_swallowed(logger, "capture.callback", exc)
             components.append(
                 {
                     "component": "capture",
@@ -593,7 +602,8 @@ class MacRecorder:
             }
             self._save_calibration(result)
             return result
-        except Exception:  # noqa: BLE001 - calibration returns an operator-facing status
+        except Exception as exc:  # noqa: BLE001 - calibration returns an operator-facing status
+            log_swallowed(logger, "capture.callback", exc)
             result = {
                 "status": "error",
                 "device_id": device_id,

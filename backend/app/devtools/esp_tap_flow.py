@@ -33,6 +33,7 @@ class AckSpy:
         self.lock = threading.Lock()
         self.acks: list[dict] = []
         self.logs: list[str] = []
+        self.health: list[str] = []
         self._buffer = b""
 
     def read(self, size):
@@ -49,6 +50,8 @@ class AckSpy:
                             self.acks.append(json.loads(text[start:]))
                 elif "sim_tap" in text:
                     self.logs.append(text)
+                elif "saude:" in text or "avatar 3D:" in text:
+                    self.health.append(text)
         return data
 
     def write(self, data):
@@ -74,7 +77,19 @@ class AckSpy:
         return None
 
 
-def run(port_name: str, out: Path, asr: str, timeout: float) -> int:
+def health_summary(lines: list[str]) -> dict:
+    """Numbers the firmware prints every ~30 s (render time, stack, cadence)."""
+    import re
+
+    worst = [int(m) for line in lines for m in re.findall(r"pior quadro (\d+) ms", line)]
+    stack = [int(m) for line in lines for m in re.findall(r"pilha livre (\d+) bytes", line)]
+    render = [int(m) for line in lines for m in re.findall(r"render medio (\d+) ms", line)]
+    return {"pior_quadro_ms": max(worst) if worst else None,
+            "pilha_livre_min": min(stack) if stack else None,
+            "render_medio_ms": max(render) if render else None, "amostras": len(lines)}
+
+
+def run(port_name: str, out: Path, asr: str, timeout: float, minutes: float = 0.0) -> int:
     import serial
 
     from app.devtools import pipeline
@@ -88,11 +103,11 @@ def run(port_name: str, out: Path, asr: str, timeout: float) -> int:
     scenario = "placa"
     from fastapi.testclient import TestClient
 
-    from app.main import app
     from app.mac.backend import LocalBackend
     from app.mac.bridge import MacBridge
     from app.mac.file_capture import FileRecorder
     from app.mac.speaker import SilentSpeaker
+    from app.main import app
     from app.security import operator_token
     from app.services import transcription
 
@@ -145,7 +160,10 @@ def run(port_name: str, out: Path, asr: str, timeout: float) -> int:
                 detail += " (firmware sem !tap? grave o firmware novo)"
             return report.step(scenario, name, ok, detail, t)
 
-        try:
+        def one_round(n):
+            report.round = n
+            recorder.used = 0
+            transcripts[:] = [pipeline.SPEECH["resposta1"], pipeline.SPEECH["resposta2"]]
             ok = step("Placa conectada (heartbeat)", None, {"IDLE", "READY", "SUCCESS", "ERROR"},
                       wait=15)
             if ok and spy.state() != "IDLE":
@@ -175,6 +193,31 @@ def run(port_name: str, out: Path, asr: str, timeout: float) -> int:
                             f"comparacao={follow.get('comparison')!r}")
             spy.tap("reset")
             time.sleep(1)
+            return ok
+
+        try:
+            deadline = time.monotonic() + minutes * 60
+            rounds = 0
+            while True:
+                rounds += 1
+                one_round(rounds)
+                if minutes <= 0 or time.monotonic() >= deadline:
+                    break
+            report.info["rodadas"] = rounds
+            time.sleep(1)
+            health = health_summary(spy.health)
+            report.info["saude do firmware"] = health
+            if health["amostras"] == 0:
+                report.step(scenario, "Saúde do firmware", True,
+                            "sem dados (firmware sem registro de saúde ou teste curto)")
+            else:
+                worst = health["pior_quadro_ms"]
+                stack = health["pilha_livre_min"]
+                ok_frame = worst is None or worst <= 60
+                ok_stack = stack is None or stack >= 2048
+                report.step(scenario, "Saúde do firmware", ok_frame and ok_stack,
+                            f"pior quadro={worst} ms (limite 60), pilha livre mínima={stack} "
+                            f"bytes (mínimo 2048), render médio={health['render_medio_ms']} ms")
         finally:
             stop.set()
             loop.join(timeout=5)
@@ -197,6 +240,8 @@ def main(argv=None):
     parser.add_argument("--asr", choices=("roteiro", "whisper"), default="roteiro")
     parser.add_argument("--timeout", type=float, default=90)
     parser.add_argument("--out", type=Path, default=None)
+    parser.add_argument("--minutos", type=float, default=0,
+                        help="Teste de resistência: repete o fluxo até completar N minutos")
     args = parser.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -218,7 +263,7 @@ def main(argv=None):
         "NEKOMIND_STORAGE_DIR": str(work / "audio"),
         "NEKOMIND_MAC_DATA_DIR": str(work / "mac"),
     })
-    code = run(port, out, args.asr, args.timeout)
+    code = run(port, out, args.asr, args.timeout, args.minutos)
     print(f"\nRelatório: {out / 'relatorio.html'}")
     print("RESULTADO:", "PLACA APROVADA" if code == 0 else "PLACA REPROVADA")
     return code

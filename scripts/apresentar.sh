@@ -26,18 +26,9 @@ if ! "$PY" -m app.devtools.preflight "${PF[@]}"; then
 fi
 PORTA="${PORTA:-$("$PY" -c 'import json;print(json.load(open("storage/preflight.json"))["porta"] or "")')}"
 [ -n "$PORTA" ] || { echo "Placa nao encontrada." >&2; exit 1; }
-if [ "$PLANO_B" = 1 ]; then
-  export NEKOMIND_MODE=demo NEKOMIND_ASR_PROVIDER=mock NEKOMIND_LLM_PROVIDER=mock
-  BRIDGE_EXTRA=(--simulate)
-else
-  export NEKOMIND_MODE=real NEKOMIND_ASR_PROVIDER=faster_whisper NEKOMIND_LLM_PROVIDER=local_keywords
-  export NEKOMIND_ASR_MODEL_SIZE="$MODELO"
-  BRIDGE_EXTRA=()
-fi
-"$PY" -m uvicorn app.main:app --host 127.0.0.1 --port 8000 >"$BACKEND/storage/backend-apresentacao.log" 2>&1 &
-SRV=$!; trap 'kill $SRV 2>/dev/null' EXIT
-for _ in $(seq 1 30); do curl -sf http://127.0.0.1:8000/health >/dev/null && break; sleep 0.5; done
-open "http://127.0.0.1:8000/presenter" 2>/dev/null; open "http://127.0.0.1:8000/public" 2>/dev/null
+# Supervisor: sobe Ollama/backend/bridge, reinicia o que cair, logs em backend/storage/logs
+SUP=(-m app.devtools.supervisor --porta "$PORTA" --voz "$VOZ" --modelo-tutor "${NEKOMIND_TUTOR_MODEL:-qwen2.5:7b}" --abrir)
+[ "$PLANO_B" = 1 ] && SUP+=(--plano-b)
 echo "Operador: http://127.0.0.1:8000/presenter  |  Plateia: http://127.0.0.1:8000/public"
-echo "Placa: $PORTA  |  Ctrl+C encerra tudo."
-"$PY" -m app.mac --port "$PORTA" --voice "$VOZ" ${BRIDGE_EXTRA[@]+"${BRIDGE_EXTRA[@]}"}
+echo "Placa: $PORTA  |  Ctrl+C encerra tudo (backup do banco ao sair)."
+"$PY" "${SUP[@]}"

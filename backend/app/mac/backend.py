@@ -1,9 +1,14 @@
 """Loopback-only API client; audio never leaves this Mac."""
 
+import logging
 from pathlib import Path
 from urllib.parse import quote, urlsplit
 
 import httpx
+
+from app.errors import log_swallowed
+
+logger = logging.getLogger(__name__)
 
 try:
     from app.security import operator_token
@@ -77,7 +82,8 @@ class LocalBackend:
                 f"/api/v1/history/subjects/{subject}",
                 params={"method_version": method_version},
             )
-        except Exception:  # noqa: BLE001 - trend is operator context, not capture state
+        except Exception as exc:  # noqa: BLE001 - trend is operator context, not capture state
+            log_swallowed(logger, "backend._with_trend", exc)
             return row
         trend = history.get("trend") if isinstance(history, dict) else None
         if not isinstance(trend, dict):

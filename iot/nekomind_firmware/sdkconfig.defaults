@@ -6,3 +6,8 @@ CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
 CONFIG_VFS_SUPPORT_IO=y
 # A cena 240x320 e montada na inicializacao e exige mais que o default da main.
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=12288
+# Watchdog de tarefas: reinicia o chip se a tarefa da sessao travar por 5 s.
+CONFIG_ESP_TASK_WDT_EN=y
+CONFIG_ESP_TASK_WDT_INIT=y
+CONFIG_ESP_TASK_WDT_TIMEOUT_S=5
+CONFIG_ESP_TASK_WDT_PANIC=y

@@ -22,12 +22,10 @@ if (-not $Porta) { $Porta = $pfj.porta }
 $vozItem = $pfj.itens | Where-Object { $_.item -eq "Voz da gatinha" }
 if ($Voz -eq "kokoro" -and $vozItem.status -ne "ok") { Write-Warning "Voz Kokoro indisponivel; seguindo sem som (rode scripts\preparar_windows.ps1)."; $Voz = "silent" }
 if (-not $Porta) { Write-Error "Placa nao encontrada."; Pop-Location; exit 1 }
-if ($PlanoB) { $env:NEKOMIND_MODE="demo"; $env:NEKOMIND_ASR_PROVIDER="mock"; $env:NEKOMIND_LLM_PROVIDER="mock"; $extra=@("--simulate") }
-else { $env:NEKOMIND_MODE="real"; $env:NEKOMIND_ASR_PROVIDER="faster_whisper"; $env:NEKOMIND_LLM_PROVIDER="local_keywords"; $env:NEKOMIND_ASR_MODEL_SIZE=$Modelo; $extra=@() }
-$srv = Start-Process -FilePath $Py -ArgumentList "-m","uvicorn","app.main:app","--host","127.0.0.1","--port","8000" -WorkingDirectory $Backend -PassThru -WindowStyle Minimized
-for ($i = 0; $i -lt 30; $i++) { try { Invoke-WebRequest "http://127.0.0.1:8000/health" -UseBasicParsing -TimeoutSec 1 | Out-Null; break } catch { Start-Sleep -Milliseconds 500 } }
-Start-Process "http://127.0.0.1:8000/presenter"; Start-Process "http://127.0.0.1:8000/public"
+# Supervisor: sobe Ollama/backend/bridge, reinicia o que cair, logs em backend\storage\logs
+$sup = @("-m","app.devtools.supervisor","--porta",$Porta,"--voz",$Voz,"--modelo-tutor",$env:NEKOMIND_TUTOR_MODEL,"--abrir")
+if (-not $env:NEKOMIND_TUTOR_MODEL) { $sup[7] = "qwen2.5:7b" }
+if ($PlanoB) { $sup += "--plano-b" }
 Write-Host "Operador: http://127.0.0.1:8000/presenter  |  Plateia: http://127.0.0.1:8000/public"
-Write-Host "Placa: $Porta  |  Ctrl+C encerra tudo."
-try { & $Py -m app.mac --port $Porta --voice $Voz @extra }
-finally { Stop-Process -Id $srv.Id -Force -ErrorAction SilentlyContinue; Pop-Location }
+Write-Host "Placa: $Porta  |  Ctrl+C encerra tudo (backup do banco ao sair)."
+try { & $Py @sup } finally { Pop-Location }

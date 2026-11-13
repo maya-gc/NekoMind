@@ -162,6 +162,45 @@ def check_tutor(c):
               f"Instale o Ollama e rode: ollama pull {settings.tutor_model}")
 
 
+def on_ac_power() -> bool | None:
+    """True on the charger, False on battery, None when unknown (desktop/Linux)."""
+    import subprocess
+
+    from app import platform_support
+
+    try:
+        if platform_support.IS_WINDOWS:
+            import ctypes
+
+            class _Status(ctypes.Structure):
+                _fields_ = [("ac", ctypes.c_byte), ("flag", ctypes.c_byte),
+                            ("percent", ctypes.c_byte), ("reserved", ctypes.c_byte),
+                            ("life", ctypes.c_ulong), ("full", ctypes.c_ulong)]
+
+            status = _Status()
+            if not ctypes.windll.kernel32.GetSystemPowerStatus(ctypes.byref(status)):
+                return None
+            return {0: False, 1: True}.get(status.ac)
+        if platform_support.IS_MACOS:
+            out = subprocess.run(["pmset", "-g", "batt"], capture_output=True, text=True,
+                                 timeout=3, check=False).stdout
+            return "AC Power" in out if out else None
+    except (OSError, subprocess.SubprocessError, AttributeError) as exc:
+        print(f"  (energia: não consegui ler: {type(exc).__name__})")
+    return None
+
+
+def check_power(c):
+    ac = on_ac_power()
+    note = "o bridge impede a suspensão enquanto roda"
+    if ac is False:
+        c.add("Energia / suspensão", "aviso", f"na bateria; {note}",
+              "Ligue o carregador: na bateria o sistema pode reduzir CPU/USB e atrasar a IA")
+    else:
+        c.add("Energia / suspensão", "ok", f"{'no carregador; ' if ac else ''}{note}",
+              "Desligue também o protetor de tela e as notificações durante a apresentação")
+
+
 def check_disk(c):
     free = shutil.disk_usage(ROOT).free / 1e9
     c.add("Espaço em disco", "ok" if free > 2 else "aviso", f"{free:.1f} GB livres")
@@ -189,6 +228,7 @@ def main(argv=None):
     check_voice(c, args.voz)
     check_ollama(c)
     check_tutor(c)
+    check_power(c)
     check_disk(c)
     if args.json:
         args.json.write_text(json.dumps({"porta": port, "itens": c.items}, ensure_ascii=False,

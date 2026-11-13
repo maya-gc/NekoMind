@@ -18,6 +18,8 @@ import time
 
 import httpx
 
+from app.errors import log_swallowed
+
 logger = logging.getLogger(__name__)
 
 OLLAMA = "http://127.0.0.1:11434"
@@ -52,7 +54,8 @@ def available(model: str, *, ttl: float = 60.0) -> bool:
             tags = client.get(f"{OLLAMA}/api/tags").json().get("models", [])
         names = {t.get("name", "") for t in tags}
         ok = model in names or f"{model}:latest" in names
-    except Exception:  # noqa: BLE001 - Ollama off is a normal state
+    except Exception as exc:  # noqa: BLE001 - Ollama off is a normal state
+        log_swallowed(logger, "tutor_ai.available", exc)
         ok = False
     _available_cache[model] = (now, ok)
     return ok
@@ -118,7 +121,8 @@ def warm_up(model: str) -> bool:
             client.post(f"{OLLAMA}/api/generate",
                         json={"model": model, "prompt": "", "keep_alive": "30m"})
         return True
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        log_swallowed(logger, "tutor_ai.warm_up", exc)
         return False
 
 

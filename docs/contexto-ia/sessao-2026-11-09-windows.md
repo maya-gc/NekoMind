@@ -133,3 +133,21 @@ esse julgamento às vezes).
   fechado; branches antigas apagadas pelo Git da Maya (restam `main` e
   `consolidado`). Proteção da `main` precisa ser ligada pela Maya no GitHub
   (Settings → Branches), pois o acesso daqui não permite.
+
+---
+
+# Quarta rodada (13/11/2026) — robustez (prioridades alta e média)
+
+| Item | Entrega |
+|---|---|
+| Avatar 3D x toque/serial | `session_task` mede cada quadro; acima de 30 ms passa a 250 ms, acima de 60 ms a 500 ms. Linha `saude:` a cada 30 s (pilha livre, pior quadro, intervalo). |
+| Watchdog | Tarefa de sessão registrada no *task watchdog* (5 s, pânico → reinício). |
+| Supervisor | `app.devtools.supervisor`: Ollama, backend e bridge com reinício e *backoff*, verificação de saúde, logs com rotação, backup do SQLite. Usado por `apresentar.ps1/.sh`. |
+| Checklist | Item “Energia / suspensão” (aviso na bateria). |
+| Resistência | `esp_tap_flow --minutos 60` + checagem de saúde do firmware. |
+| Voz real | `app.devtools.gravar_voz` + cenário `voz_real` (pula com aviso se não houver gravações). |
+| Código | `bridge.py` dividido: `journal.py` (diário SQLite), `study_memory.py` (memória e revisão), `tutor_flow.py` (pergunta, dicas, comparação, tutor IA). `except Exception` que engolem erro agora registram onde e o tipo (`app/errors.py`, nunca a mensagem, que pode conter transcrição). |
+| CI | Testes C do firmware descobertos automaticamente; novo job compila o firmware com ESP-IDF v5.3. |
+
+Pendente na máquina da Maya: gravar o firmware novo, rodar a resistência de
+60 min e comparar `qwen2.5:14b` com `tutor_eval --modelo qwen2.5:14b`.

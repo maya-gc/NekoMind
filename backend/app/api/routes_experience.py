@@ -1,6 +1,7 @@
 """One durable experience for the touch, public screen and local operator."""
 
 import json
+import logging
 import math
 import time
 from typing import Literal
@@ -22,7 +23,10 @@ from app.config import get_settings
 from app.database.connection import get_db
 from app.database.models import ReferenceContent, StudySession
 from app.database.operations import Experience, OperatorCommand
+from app.errors import log_swallowed
 from app.security import require_operator
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/experience", tags=["experience"])
 State = Literal[
@@ -760,7 +764,8 @@ def providers():
             components.append(
                 {"component": "asr", "status": "ready", "message": "Modelo local carregado."}
             )
-        except Exception:  # noqa: BLE001 - native model boundary, sanitize paths and payload
+        except Exception as exc:  # noqa: BLE001 - native model boundary, sanitize paths and payload
+            log_swallowed(logger, "routes_experience.providers", exc)
             components.append(
                 {
                     "component": "asr",
@@ -779,7 +784,8 @@ def providers():
                 "message": f"Extrator: {output.provider}.",
             }
         )
-    except Exception:  # noqa: BLE001 - adapter boundary, never disclose transcript/payload
+    except Exception as exc:  # noqa: BLE001 - adapter boundary, never disclose transcript/payload
+        log_swallowed(logger, "routes_experience.providers", exc)
         components.append(
             {"component": "topics", "status": "error", "message": "Confira o extrator configurado."}
         )

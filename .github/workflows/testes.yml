@@ -57,3 +57,15 @@ jobs:
           name: relatorio-${{ matrix.os }}
           path: relatorio-pipeline
           if-no-files-found: ignore
+
+  firmware-esp-idf:
+    name: firmware ESP-IDF (build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compilar com ESP-IDF v5.3 (esp32s3)
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.3.1
+          target: esp32s3
+          path: iot/nekomind_firmware

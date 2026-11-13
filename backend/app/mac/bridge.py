@@ -7,67 +7,22 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from queue import Empty, SimpleQueue
 from threading import RLock
-from time import monotonic, time
+from time import monotonic
 
 from app.config import get_settings
+from app.errors import log_swallowed
 from app.mac.dialogue import (
-    choose_focus,
-    comparison_for,
-    hint_for,
     mission_previews,
-    question_for,
 )
+from app.mac.journal import _JournalConnection, _Rows  # noqa: F401 - re-exported
 from app.mac.partials import PartialTranscriber
 from app.mac.protocol import Command, validate_result
+from app.mac.study_memory import StudyMemoryMixin
+from app.mac.tutor_flow import TutorFlowMixin, tutor_reconcile  # noqa: F401
 from app.services.content_matching import match_point, reference_synonyms
 
 logger = logging.getLogger(__name__)
 
-
-def tutor_reconcile(assessment, lexical_status):
-    from app.services.tutor_ai import reconcile
-
-    return reconcile(assessment, lexical_status)
-
-
-class _Rows:
-    """Rows already fetched while the journal lock was held."""
-
-    def __init__(self, rows):
-        self._rows = rows
-
-    def fetchone(self):
-        return self._rows[0] if self._rows else None
-
-    def fetchall(self):
-        return list(self._rows)
-
-
-class _JournalConnection:
-    """Serialize every use of the shared SQLite journal connection.
-
-    The bridge touches the journal from the serial thread, the analysis pool
-    and the ops pool. ``check_same_thread=False`` allows that but does not make
-    concurrent use safe; interleaved calls raised ``OperationalError: not an
-    error`` intermittently (seen on Windows on 09/11/2026). Results are fetched
-    under the lock, so callers keep using ``execute(...).fetchone()``.
-    """
-
-    def __init__(self, connection):
-        self._connection = connection
-        self._lock = RLock()
-
-    def execute(self, sql, params=()):
-        with self._lock:
-            return _Rows(self._connection.execute(sql, params).fetchall())
-
-    def commit(self):
-        with self._lock:
-            self._connection.commit()
-
-    def close(self):
-        with self._lock:
-            self._connection.close()
 
 MESSAGES = {
     "capture_failed": "Confira permissao e dispositivo do microfone; tente novamente.",
@@ -83,7 +38,7 @@ MESSAGES = {
 }
 
 
-class MacBridge:
+class MacBridge(TutorFlowMixin, StudyMemoryMixin):
     def __init__(self, backend, recorder, journal_path: Path, *, speaker=None):
         self.backend, self.recorder, self.speaker = backend, recorder, speaker
         self.lock = RLock()
@@ -201,205 +156,15 @@ class MacBridge:
         self.mission_points = points
         self.missions = previews
 
-    def _followup_wire(self):
-        item = self.interaction
-        if (
-            self.state in {"idle", "checking", "ready"}
-            or not item
-            or self.sid not in {item.get("first_sid"), item.get("second_sid")}
-        ):
-            return None
-        stage = item.get("stage")
-        if stage not in {"question", "hint", "answering", "done"}:
-            return None
-        return {
-            "stage": stage,
-            "point_index": item["focus_index"],
-            "question": item["question"],
-            "hint": item.get("hint", "") if item.get("hint_shown") else "",
-            "comparison": item.get("comparison", "") if stage == "done" else "",
-        }
-
-    def _followup_public(self):
-        followup = self._followup_wire()
-        if followup is not None:
-            item = self.interaction
-            key = "second_assessment" if followup["stage"] == "done" else "first_assessment"
-            assessment = item.get(key, "")
-            followup["assessment"] = assessment if assessment in {
-                "correto", "parcial", "equivoco", "nao_mencionou"} else ""
-            followup["tutor"] = item.get("tutor", "") if item.get("tutor") in {
-                "ia_local", "regras"} else ""
-        if followup is not None and followup["stage"] == "done":
-            followup.update(
-                source_point=self.interaction.get("focus_point", ""),
-                first_excerpt=self.interaction.get("first_evidence", ""),
-                second_excerpt=self.interaction.get("second_evidence", ""),
-            )
-        return followup
-
     def _fail(self, code):
         self.state, self.code = "error", code
         self._save_active()
         if self.sid is not None:
             try:
                 self.backend.capture_state(self.sid, "error", code)
-            except Exception:  # noqa: BLE001
-                logger.warning("Falha registrada no diario local; backend indisponivel.")
-
-    def _say(self, text):
-        if self.speaker is None:
-            return
-        try:
-            self.speaker.speak(text)
-        except Exception:  # noqa: BLE001 - voz opcional nao altera a captura
-            logger.warning("Voz local indisponivel; mantendo o fluxo de captura.")
-
-    def _silence(self):
-        if self.speaker is None:
-            return
-        try:
-            self.speaker.stop()
-        except Exception:  # noqa: BLE001 - captura tem prioridade sobre voz
-            logger.warning("Falha ao interromper a voz local.")
-
-    def _result_speech(self, row):
-        if self.demo:
-            return "A demonstração terminou. Em uma sessão real, vou ouvir sua explicação."
-        report = row.get("content_report")
-        if isinstance(report, dict):
-            coverage = report.get("coverage_percent")
-            if isinstance(coverage, (int, float)) and coverage < 50:
-                return "Obrigada por explicar! Quer tentar de novo e falar de outro ponto do material?"
-            return "Obrigada por explicar! Quer tentar de novo e ligar duas ideias com um exemplo?"
-        return "Obrigada por explicar! Quer tentar de novo e incluir um exemplo?"
-
-    def _memory_note(self, point):
-        """What happened the last time this point was studied (local journal)."""
-        try:
-            row = self.db.execute(
-                "SELECT status, ts FROM memory WHERE content_id IS ? AND point=? "
-                "ORDER BY ts DESC LIMIT 1", (self.mission_content_id, point)).fetchone()
-        except Exception:  # noqa: BLE001
-            return ""
-        if not row:
-            return ""
-        days = max(0, int((time() - row[1]) // 86400))
-        return f"há {days} dia(s) este ponto ficou como '{row[0]}'."
-
-    def _remember_point(self, point, status):
-        try:
-            self.db.execute("INSERT INTO memory VALUES(?,?,?,?)",
-                            (self.mission_content_id, point, str(status), time()))
-            self.db.commit()
-        except Exception:  # noqa: BLE001 - memoria e opcional
-            logger.warning("Memoria de estudo indisponivel.")
-
-    def _review_safe(self):
-        try:
-            return [{**r, "point": r["point"][:500], "status": str(r["status"])[:32]}
-                    for r in self.review_queue()]
-        except Exception:  # noqa: BLE001
-            return []
-
-    def review_queue(self, limit=5):
-        """Points whose last result was not 'correto', oldest first (spaced review)."""
-        rows = self.db.execute(
-            "SELECT content_id, point, status, MAX(ts) FROM memory GROUP BY content_id, point"
-        ).fetchall()
-        due = [r for r in rows if r[2] not in {"correto", "covered"}]
-        return [{"content_id": r[0], "point": r[1], "status": r[2]}
-                for r in sorted(due, key=lambda r: r[3])[:limit]]
-
-    def _prefetch_tutor(self, sid, row):
-        """Ask the local AI tutor before publishing the result (never under the lock)."""
-        try:
-            if row.get("status") != "completed" or self.demo:
-                return
-            settings = get_settings()
-            provider = getattr(settings, "tutor_provider", "regras")
-            model = getattr(settings, "tutor_model", "")
-            if provider == "regras":
-                return
-            from app.services import tutor_ai
-
-            if provider == "auto" and not tutor_ai.available(model):
-                return
-            with self.lock:
-                item = dict(self.interaction)
-            transcript = row.get("transcription", "") or ""
-            if sid == item.get("first_sid") and item.get("stage") == "explaining":
-                focus = choose_focus(row.get("content_report"), item.get("mission_index", 0))
-                if focus is None:
-                    return
-                level = getattr(settings, "tutor_level", "enem")
-                result = tutor_ai.first_turn(
-                    focus[1], transcript, model, level=level,
-                    history=self._memory_note(focus[1]),
-                )
-                self.tutor_cache[("first", sid)] = {**result, "point": focus[1]}
-            elif sid == item.get("second_sid") and item.get("stage") == "answering":
-                result = tutor_ai.second_turn(
-                    item.get("focus_point", ""), item.get("question", ""),
-                    item.get("first_transcript", ""), transcript, model,
-                    level=getattr(settings, "tutor_level", "enem"),
-                )
-                self.tutor_cache[("second", sid)] = result
-        except Exception as exc:  # noqa: BLE001 - tutor IA e opcional; regras locais assumem
-            logger.warning("Tutor IA indisponivel (%s); usando regras locais.",
-                           type(exc).__name__)
-
-    def _prepare_interaction_result(self, row):
-        item = self.interaction
-        if self.demo or not item:
-            return None
-        if self.sid == item.get("first_sid") and item.get("stage") == "explaining":
-            focus = choose_focus(row.get("content_report"), item.get("mission_index", 0))
-            if focus is None:
-                return None
-            index, point = focus
-            first_match = match_point(point, row.get("transcription", ""))
-            tutor = self.tutor_cache.pop(("first", self.sid), None)
-            if tutor and tutor.get("point") != point:
-                tutor = None
-            item.update(
-                stage="question",
-                focus_index=index,
-                focus_point=point,
-                question=tutor["question"] if tutor else question_for(point),
-                hint=tutor["hint"] if tutor else hint_for(point),
-                hints=tutor.get("hints", []) if tutor else [],
-                hint_level=0,
-                tutor="ia_local" if tutor else "regras",
-                first_assessment=tutor_reconcile(tutor.get("assessment", ""), first_match.status)
-                if tutor else "",
-                misconception=tutor.get("misconception", "") if tutor else "",
-                first_transcript=(row.get("transcription", "") or "")[:2000],
-                hint_shown=False,
-                first_status=first_match.status,
-                first_evidence=first_match.evidence or "",
-            )
-            self._save_interaction()
-            return item["question"]
-        if self.sid == item.get("second_sid") and item.get("stage") == "answering":
-            second_match = match_point(item["focus_point"], row.get("transcription", ""))
-            tutor = self.tutor_cache.pop(("second", self.sid), None)
-            item.update(
-                stage="done",
-                second_status=second_match.status,
-                second_evidence=second_match.evidence or "",
-                comparison=tutor["comparison"] if tutor else comparison_for(
-                    item["focus_point"], item["first_status"], second_match.status,
-                    item.get("first_evidence", ""), second_match.evidence or "",
-                ),
-            )
-            item["second_assessment"] = tutor_reconcile(
-                (tutor or {}).get("assessment", ""), second_match.status) if tutor else ""
-            self._remember_point(item["focus_point"],
-                                 item["second_assessment"] or second_match.status)
-            self._save_interaction()
-            return item["comparison"]
-        return None
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Falha registrada no diario local; backend indisponivel. (%s)",
+                               type(exc).__name__)
 
     def _base(self, rid, kind="state"):
         message = {
@@ -467,7 +232,8 @@ class MacBridge:
             return None
         try:
             return getter()
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            log_swallowed(logger, "bridge._voice", exc)
             return {"level": 0, "clipping": False, "quality": "unknown"}
 
     def _error(self, rid, code):
@@ -511,7 +277,8 @@ class MacBridge:
             except ValueError:
                 self._fail("invalid_result")
                 return self._error(rid, "invalid_result")
-            except Exception:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
+                log_swallowed(logger, "bridge._snapshot", exc)
                 return self._error(rid, "backend_unavailable")
         return self._base(rid)
 
@@ -521,8 +288,9 @@ class MacBridge:
         self._save_active()
         try:
             spoken = self._prepare_interaction_result(row)
-        except Exception:  # noqa: BLE001 - optional dialogue must not hide a valid result
-            logger.warning("Pergunta local indisponivel; resultado preservado.")
+        except Exception as exc:  # noqa: BLE001 - optional dialogue must not hide a valid result
+            logger.warning("Pergunta local indisponivel; resultado preservado. (%s)",
+                           type(exc).__name__)
             spoken = None
         if self._spoken_result_sid != self.sid:
             self._spoken_result_sid = self.sid
@@ -720,7 +488,8 @@ class MacBridge:
                 return self._remember(rid, self._error(rid, "invalid_state"))
             self._save_active()
             return self._remember(rid, self._base(rid))
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            log_swallowed(logger, "bridge._handle_new", exc)
             self.recorder.abort()
             self._fail("capture_failed")
             return self._remember(rid, self._error(rid, "capture_failed"))
@@ -777,7 +546,8 @@ class MacBridge:
                     mission_index = cmd.mission_index
             else:
                 content_id = self.selected_content_id
-        except Exception:  # noqa: BLE001 - never start from an unverified mission list
+        except Exception as exc:  # noqa: BLE001 - never start from an unverified mission list
+            log_swallowed(logger, "bridge._handle_start_or_retry", exc)
             return self._remember(rid, self._error(rid, "backend_unavailable"))
         # Diagnose can follow an interrupted capture. Starting a new attempt is
         # an explicit choice; close the old backend session before creating it.
@@ -787,7 +557,8 @@ class MacBridge:
                 previous = self.backend.get(self.sid)
                 if previous.get("status") not in {"completed", "error", "cancelled"}:
                     self.backend.cancel(self.sid, confirmed=True)
-            except Exception:  # noqa: BLE001 - do not start two active sessions
+            except Exception as exc:  # noqa: BLE001 - do not start two active sessions
+                log_swallowed(logger, "bridge._handle_start_or_retry", exc)
                 return self._remember(rid, self._error(rid, "backend_unavailable"))
         try:
             self.selected_content_id = content_id
@@ -806,7 +577,8 @@ class MacBridge:
                 if content_id is not None:
                     raise
                 row = self.backend.create(rid)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            log_swallowed(logger, "bridge._handle_start_or_retry", exc)
             return self._remember(rid, self._error(rid, "backend_unavailable"))
         if (
             not isinstance(row, dict)
@@ -847,14 +619,16 @@ class MacBridge:
             if row.get("reference_content_id") and not self.demo:
                 try:
                     self.guided_snapshot = self.backend.reference(self.sid)
-                except Exception:  # noqa: BLE001 - optional feedback must not block capture
+                except Exception as exc:  # noqa: BLE001 - optional feedback must not block capture
+                    log_swallowed(logger, "bridge._handle_start_or_retry", exc)
                     self.guided_snapshot = None
                 if self.guided_snapshot is None:
                     self._set_content_unavailable()
                 else:
                     self._start_partials()
             self._save_active()
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            log_swallowed(logger, "bridge._handle_start_or_retry", exc)
             self.recorder.abort()
             self._fail("capture_failed")
             return self._remember(rid, self._error(rid, "capture_failed"))
@@ -896,26 +670,13 @@ class MacBridge:
         )
         return self._base(rid)
 
-    def _warm_tutor(self):
-        """Load the tutor model while the student reads the missions (best effort)."""
-        try:
-            settings = get_settings()
-            if self.demo or getattr(settings, "tutor_provider", "regras") == "regras":
-                return
-            from threading import Thread
-
-            from app.services import tutor_ai
-
-            Thread(target=tutor_ai.warm_up, args=(settings.tutor_model,), daemon=True).start()
-        except Exception:  # noqa: BLE001
-            pass
-
     def _run_diagnostics(self, rid, calibrate, epoch):
         self._warm_tutor()
         components = []
         try:
             components.extend(self.backend.readiness().get("components", []))
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            log_swallowed(logger, "bridge._run_diagnostics", exc)
             components.append(
                 {"component": "backend", "status": "error", "message": "Backend indisponivel"}
             )
@@ -923,7 +684,8 @@ class MacBridge:
         if probe is not None:
             try:
                 components.extend(probe())
-            except Exception:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001
+                log_swallowed(logger, "bridge._run_diagnostics", exc)
                 components.append(
                     {"component": "microphone", "status": "error", "message": "Falha no probe"}
                 )
@@ -959,7 +721,8 @@ class MacBridge:
         mission_content_id, mission_points = None, []
         try:
             mission_content_id, mission_points = self._fetch_missions()
-        except Exception:  # noqa: BLE001 - a selected mission must be verified before capture
+        except Exception as exc:  # noqa: BLE001 - a selected mission must be verified before capture
+            log_swallowed(logger, "bridge._run_diagnostics", exc)
             components.append(
                 {"component": "briefing", "status": "error", "message": "Missoes indisponiveis"}
             )
@@ -1010,7 +773,8 @@ class MacBridge:
             }
         try:
             return runner()
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            log_swallowed(logger, "bridge._run_calibration", exc)
             return {
                 "status": "error",
                 "device_id": getattr(self.recorder, "device", None),
@@ -1027,7 +791,8 @@ class MacBridge:
             return None
         try:
             return getter(sid)
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            log_swallowed(logger, "bridge._recovery_manifest", exc)
             return None
 
     def _manifest_chunks(self, manifest):
@@ -1135,7 +900,8 @@ class MacBridge:
                     return
                 self._fail("invalid_result")
                 self.events.put(self._remember(rid, self._error(rid, "invalid_result")))
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            log_swallowed(logger, "bridge._analyze", exc)
             with self.lock:
                 if epoch != self.epoch or sid != self.sid:
                     return
@@ -1155,7 +921,8 @@ class MacBridge:
                     self._fail("invalid_result")
                     response = self._error(rid, "invalid_result")
                 self.events.put(self._remember(rid, response))
-        except Exception:  # noqa: BLE001 - worker boundary must return a safe operational error
+        except Exception as exc:  # noqa: BLE001 - worker boundary must return a safe operational error
+            log_swallowed(logger, "bridge._recover_analysis", exc)
             with self.lock:
                 if epoch == self.epoch and sid == self.sid:
                     self._fail("backend_unavailable")
@@ -1166,7 +933,8 @@ class MacBridge:
             if self.state in {"recording", "paused"}:
                 try:
                     self.recorder.check()
-                except Exception:  # noqa: BLE001
+                except Exception as exc:  # noqa: BLE001
+                    log_swallowed(logger, "bridge.check_capture", exc)
                     self._stop_partials()
                     self.recorder.abort()
                     self._fail("capture_failed")
@@ -1186,8 +954,9 @@ class MacBridge:
             return
         try:
             self.backend.capture_state(self.sid, "error", code)
-        except Exception:  # noqa: BLE001 - local journal remains recoverable
-            logger.warning("Captura interrompida no diario local; backend indisponivel.")
+        except Exception as exc:  # noqa: BLE001 - local journal remains recoverable
+            logger.warning("Captura interrompida no diario local; backend indisponivel. (%s)",
+                           type(exc).__name__)
 
     def drain_events(self):
         while True:
@@ -1240,7 +1009,8 @@ class MacBridge:
                     if state == "ready" and selected != self.mission_content_id:
                         try:
                             content_id, points = self._fetch_missions()
-                        except Exception:  # noqa: BLE001 - start revalidates the selection
+                        except Exception as exc:  # noqa: BLE001 - start revalidates the selection
+                            log_swallowed(logger, "bridge._ops_tick_worker", exc)
                             content_id, points = None, []
                         with self.lock:
                             if self.state == "ready":
@@ -1267,8 +1037,9 @@ class MacBridge:
                 response = self.handle(command)
                 if isinstance(rid, str):
                     self.backend.ack_command(rid, response)
-        except Exception:  # noqa: BLE001
-            logger.warning("Operacoes do bridge indisponiveis; mantendo captura local.")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Operacoes do bridge indisponiveis; mantendo captura local. (%s)",
+                           type(exc).__name__)
 
     def close(self):
         self._stop_partials()
@@ -1310,7 +1081,8 @@ class MacBridge:
             self.partial = worker
             self.recorder.partial_sink = worker
             worker.start()
-        except Exception:  # noqa: BLE001 - optional feedback must not stop recording
+        except Exception as exc:  # noqa: BLE001 - optional feedback must not stop recording
+            log_swallowed(logger, "bridge._start_partials", exc)
             self._stop_partials()
             self._set_content_unavailable()
 
@@ -1343,7 +1115,8 @@ class MacBridge:
                 points = self.guided_snapshot.get("points", [])
                 synonyms = reference_synonyms(self.guided_snapshot.get("text", ""))
                 fresh = [match_point(point, text, synonyms=synonyms) for point in points]
-            except Exception:  # noqa: BLE001 - optional matcher must degrade safely
+            except Exception as exc:  # noqa: BLE001 - optional matcher must degrade safely
+                log_swallowed(logger, "bridge._on_partial", exc)
                 self._set_content_unavailable()
                 return
             if not self.live_matches:

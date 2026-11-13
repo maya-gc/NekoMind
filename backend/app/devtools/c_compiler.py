@@ -34,35 +34,38 @@ def exe(path: Path) -> Path:
     return path.with_suffix(".exe") if os.name == "nt" else path
 
 
+PORTABLE = ("neko_controller.c", "neko_layout.c", "neko_protocol.c", "neko_avatar3d.c")
+
+
 def run_firmware_tests(workdir: Path) -> subprocess.CompletedProcess:
-    """Compile and run the firmware host tests (controller and 3D avatar renderer)."""
+    """Compile and run EVERY tests/test_*.c with the portable firmware sources.
+
+    New firmware tests are picked up automatically (no runner to update).
+    """
     compiler = find_c_compiler()
     if compiler is None:
         raise RuntimeError("Nenhum compilador C: instale gcc/clang ou `pip install ziglang`")
     main = FIRMWARE / "main"
-    binary = exe(workdir / "nekomind_firmware_test")
-    subprocess.run(
-        [*compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", f"-I{main}",
-         str(FIRMWARE / "tests" / "test_neko_controller.c"), str(main / "neko_controller.c"),
-         str(main / "neko_layout.c"), str(main / "neko_protocol.c"), "-o", str(binary)],
-        check=True, capture_output=True, text=True,
-    )
-    first = subprocess.run([str(binary)], capture_output=True, text=True, timeout=120)
-    if first.returncode != 0 or not (FIRMWARE / "tests" / "test_avatar3d.c").is_file():
-        return first
-    # Renderizador 3D da gatinha (Leandro, 11/11/2026): mesmo teste do test_firmware.sh.
-    avatar = exe(workdir / "nekomind_avatar3d_test")
-    # Windows: o compilador pode marcar fopen do teste como "inseguro" (CRT da MS).
-    libm = ["-D_CRT_SECURE_NO_WARNINGS"] if os.name == "nt" else ["-lm"]
-    subprocess.run(
-        [*compiler, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror",
-         str(FIRMWARE / "tests" / "test_avatar3d.c"), str(main / "neko_avatar3d.c"),
-         *libm, "-o", str(avatar)],
-        check=True, capture_output=True, text=True,
-    )
-    second = subprocess.run([str(avatar)], capture_output=True, text=True, timeout=120)
-    return subprocess.CompletedProcess(
-        second.args, second.returncode, first.stdout + second.stdout, first.stderr + second.stderr)
+    sources = [str(main / name) for name in PORTABLE if (main / name).is_file()]
+    # Windows: o compilador pode marcar fopen como "inseguro" (CRT da MS).
+    extra = ["-D_CRT_SECURE_NO_WARNINGS"] if os.name == "nt" else ["-lm"]
+    out, err, code, args = "", "", 0, []
+    for test in sorted((FIRMWARE / "tests").glob("test_*.c")):
+        binary = exe(workdir / test.stem)
+        subprocess.run(
+            [*compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", f"-I{main}",
+             str(test), *sources, *extra, "-o", str(binary)],
+            check=True, capture_output=True, text=True,
+        )
+        result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=120,
+                                check=False)
+        out += f"[{test.name}] " + result.stdout
+        err += result.stderr
+        args = result.args
+        if result.returncode != 0:
+            code = result.returncode
+            break
+    return subprocess.CompletedProcess(args, code, out, err)
 
 
 def main() -> int:

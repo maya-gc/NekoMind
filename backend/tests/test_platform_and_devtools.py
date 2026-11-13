@@ -228,3 +228,70 @@ def test_tutor_eval_set_is_balanced():
     items = json.loads(DATA.read_text(encoding="utf-8"))
     assert Counter(i["esperado"] for i in items) == {
         "correto": 6, "parcial": 6, "equivoco": 6, "nao_mencionou": 6}
+
+
+def test_swallowed_errors_log_type_but_not_message(caplog):
+    import logging
+
+    from app.errors import log_swallowed
+
+    with caplog.at_level(logging.WARNING):
+        log_swallowed(logging.getLogger("t"), "bridge._say", ValueError("transcrição secreta"))
+    assert "bridge._say" in caplog.text and "ValueError" in caplog.text
+    assert "secreta" not in caplog.text
+
+
+def test_bridge_split_keeps_public_surface():
+    from app.mac.bridge import MacBridge, _JournalConnection, tutor_reconcile
+
+    for name in ("review_queue", "_prefetch_tutor", "_followup_public", "_memory_note",
+                 "handle", "tick", "drain_events"):
+        assert callable(getattr(MacBridge, name))
+    assert _JournalConnection and tutor_reconcile("correto", "covered") == "correto"
+
+
+def test_supervisor_backup_and_log_rotation(tmp_path, monkeypatch):
+    import sqlite3
+
+    from app.devtools import supervisor
+
+    db = tmp_path / "n.db"
+    with sqlite3.connect(db) as conn:
+        conn.execute("CREATE TABLE t(x)")
+        conn.execute("INSERT INTO t VALUES (42)")
+    monkeypatch.setattr(supervisor, "database_path", lambda: db)
+    monkeypatch.setattr(supervisor, "BACKUPS", tmp_path / "b")
+    for i in range(3):
+        monkeypatch.setattr(supervisor.time, "strftime", lambda f, i=i: f"2026-{i}")
+        copy = supervisor.backup_database("teste", keep=2)
+    with sqlite3.connect(copy) as conn:
+        assert conn.execute("SELECT x FROM t").fetchone() == (42,)
+    assert len(list((tmp_path / "b").glob("*.db"))) == 2
+    log = tmp_path / "bridge.log"
+    log.write_bytes(b"x" * (supervisor.MAX_LOG + 1))
+    supervisor.rotate(log)
+    assert not log.exists() and (tmp_path / "bridge.log.1").is_file()
+
+
+def test_firmware_health_summary_reads_board_lines():
+    from app.devtools.esp_tap_flow import health_summary
+
+    lines = ["I (1) session: saude: pilha livre 3100 bytes, pior quadro 41 ms, intervalo 250 ms",
+             "I (2) session: saude: pilha livre 2900 bytes, pior quadro 22 ms, intervalo 125 ms"]
+    assert health_summary(lines) == {"pior_quadro_ms": 41, "pilha_livre_min": 2900,
+                                     "render_medio_ms": None, "amostras": 2}
+
+
+def test_real_voice_scenario_skips_without_recordings(client, tmp_path, monkeypatch):
+    from app.devtools import gravar_voz, os_voice, pipeline
+
+    def fake_voice(text, out, **kwargs):
+        out.parent.mkdir(parents=True, exist_ok=True)
+        write_wav(out, seconds=1.0, rate=16000, channels=1)
+        return {"engine": "teste", "detail": "voz=teste", "is_speech": True, "path": str(out)}
+
+    monkeypatch.setattr(os_voice, "synthesize", fake_voice)
+    monkeypatch.setattr(gravar_voz, "FOLDER", tmp_path / "vazio")
+    report = pipeline.run(tmp_path / "out", ["voz_real"], "roteiro", timeout=5, client=client)
+    assert report.ok
+    assert any("gravar_voz" in s["detalhe"] for s in report.steps)
