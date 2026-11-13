@@ -38,13 +38,13 @@ esp_err_t audio_transport_init(neko_transport_mode_t mode)
         /* O console de logs usa USB Serial/JTAG, mas fd 0 nao e necessariamente
          * associado ao VFS. Abrir o dispositivo registrado pelo IDF garante
          * que read() receba os bytes do Mac. */
-        if (!usb_serial_jtag_is_driver_installed()) {
+        {
             usb_serial_jtag_driver_config_t cfg = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
             cfg.rx_buffer_size = 4096;
             cfg.tx_buffer_size = 4096;
-            s_usb_driver = usb_serial_jtag_driver_install(&cfg) == ESP_OK;
-        } else {
-            s_usb_driver = true;
+            esp_err_t inst = usb_serial_jtag_driver_install(&cfg);
+            /* ESP_ERR_INVALID_STATE: driver ja instalado (ex.: pelo console). */
+            s_usb_driver = inst == ESP_OK || inst == ESP_ERR_INVALID_STATE;
         }
         if (s_usb_driver) {
             NEKO_USB_VFS_USE_DRIVER();
