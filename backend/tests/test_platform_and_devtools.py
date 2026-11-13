@@ -297,3 +297,26 @@ def test_real_voice_scenario_skips_without_recordings(client, tmp_path, monkeypa
     report = pipeline.run(tmp_path / "out", ["voz_real"], "roteiro", timeout=5, client=client)
     assert report.ok
     assert any("gravar_voz" in s["detalhe"] for s in report.steps)
+
+
+def test_tap_flow_burst_counts_timeouts():
+    from app.devtools.esp_tap_flow import AckSpy
+
+    class SerialTimeoutException(Exception):
+        pass
+
+    class Port:
+        def __init__(self):
+            self.n = 0
+
+        def write(self, data):
+            self.n += 1
+            if self.n == 3:
+                raise SerialTimeoutException()
+            return len(data)
+
+    spy = AckSpy(Port())
+    assert spy.burst(5) is None  # nada enviado ainda pelo bridge
+    spy.write(b'{"v":1,"type":"state","x":1}\n')
+    result = spy.burst(5)
+    assert result["quadros"] == 5 and result["timeouts"] == 1

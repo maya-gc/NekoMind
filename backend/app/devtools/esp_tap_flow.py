@@ -34,6 +34,7 @@ class AckSpy:
         self.acks: list[dict] = []
         self.logs: list[str] = []
         self.health: list[str] = []
+        self.last_frame = b""
         self._buffer = b""
 
     def read(self, size):
@@ -56,7 +57,25 @@ class AckSpy:
 
     def write(self, data):
         with self.lock:
+            if data.startswith(b'{"v":1,"type":"state"'):
+                self.last_frame = bytes(data)
             return self.port.write(data)
+
+    def burst(self, count):
+        """Send the last state frame ``count`` times back to back (USB stress)."""
+        frame = self.last_frame
+        if not frame:
+            return None
+        started, timeouts = time.monotonic(), 0
+        for _ in range(count):
+            try:
+                self.write(frame)
+            except Exception as exc:  # noqa: BLE001 - only timeouts are counted
+                if type(exc).__name__ != "SerialTimeoutException":
+                    raise
+                timeouts += 1
+        return {"quadros": count, "bytes": count * len(frame), "timeouts": timeouts,
+                "segundos": round(time.monotonic() - started, 2)}
 
     def tap(self, name):
         self.write(f"!tap {name}\n".encode())
@@ -89,7 +108,8 @@ def health_summary(lines: list[str]) -> dict:
             "render_medio_ms": max(render) if render else None, "amostras": len(lines)}
 
 
-def run(port_name: str, out: Path, asr: str, timeout: float, minutes: float = 0.0) -> int:
+def run(port_name: str, out: Path, asr: str, timeout: float, minutes: float = 0.0,
+        rounds_max: int = 0, burst: int = 0) -> int:
     import serial
 
     from app.devtools import pipeline
@@ -211,9 +231,22 @@ def run(port_name: str, out: Path, asr: str, timeout: float, minutes: float = 0.
                 rounds += 1
                 if not one_round(rounds) and not loop.is_alive():
                     break
-                if minutes <= 0 or time.monotonic() >= deadline:
+                if rounds_max and rounds >= rounds_max:
+                    break
+                if not rounds_max and (minutes <= 0 or time.monotonic() >= deadline):
                     break
             report.info["rodadas"] = rounds
+            if burst:
+                t = time.monotonic()
+                result = spy.burst(burst)
+                report.info["rajada USB"] = result
+                mark = len(spy.acks)
+                spy.tap("reset")
+                alive = spy.wait({"IDLE"}, timeout=10, after=mark) or (
+                    spy.state() == "IDLE" and {"state": "IDLE"})
+                ok = bool(result) and result["timeouts"] == 0 and bool(alive)
+                report.step(scenario, "Rajada USB + placa responde", ok,
+                            f"{result} ; depois: tela={spy.state()}", t)
             time.sleep(1)
             health = health_summary(spy.health)
             report.info["saude do firmware"] = health
@@ -252,6 +285,10 @@ def main(argv=None):
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument("--minutos", type=float, default=0,
                         help="Teste de resistência: repete o fluxo até completar N minutos")
+    parser.add_argument("--rodadas", type=int, default=0,
+                        help="Repete o fluxo N vezes (ignora --minutos)")
+    parser.add_argument("--rapido", action="store_true",
+                        help="~3 min: 8 rodadas + rajada de 300 quadros no USB + saúde")
     args = parser.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -273,7 +310,10 @@ def main(argv=None):
         "NEKOMIND_STORAGE_DIR": str(work / "audio"),
         "NEKOMIND_MAC_DATA_DIR": str(work / "mac"),
     })
-    code = run(port, out, args.asr, args.timeout, args.minutos)
+    rounds, burst = args.rodadas, 0
+    if args.rapido:
+        rounds, burst = rounds or 8, 300
+    code = run(port, out, args.asr, args.timeout, args.minutos, rounds, burst)
     print(f"\nRelatório: {out / 'relatorio.html'}")
     print("RESULTADO:", "PLACA APROVADA" if code == 0 else "PLACA REPROVADA")
     return code

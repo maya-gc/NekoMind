@@ -77,6 +77,16 @@ executa o toque: mesmo hit test de um dedo, só em botões visíveis e habilitad
 Cada etapa espera o `display_ack` da tela desenhada. O resto da cadeia é real.
 `!tap 120 260` também aceita coordenadas.
 
+### Teste rápido da placa (~3 min) e resistência
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\resistencia.ps1              # rápido: pull + grava + 8 fluxos + rajada USB
+powershell -ExecutionPolicy Bypass -File scripts\resistencia.ps1 -Minutos 60  # longo (véspera)
+```
+
+O rápido envia ainda 300 quadros seguidos pelo USB e confirma que a placa
+continua respondendo (pega de volta o defeito do “Write timeout”).
+
 ### Teste de resistência (1 hora na placa)
 
 ```powershell

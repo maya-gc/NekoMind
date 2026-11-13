@@ -166,3 +166,14 @@ Pendente na máquina da Maya: gravar o firmware novo, rodar a resistência de
   uma vez; o computador tenta de novo e descarta o quadro em vez de derrubar o
   laço (no bridge real isso abortava a gravação e reconectava); o teste para
   na hora se o laço cair.
+
+## Placa depois das correções (13/11/2026, tarde)
+
+- Firmware com avatar em fatias + driver USB (commit `cb60a7c`): 10 min com
+  21 fluxos completos e **1 hora com 125 fluxos completos, nenhuma tela de
+  erro**, pilha livre estável (~8,8 KB), toques respondendo em 0,3–0,5 s
+  (antes ~3 s). As reprovações restantes eram do próprio teste (passo
+  “Placa conectada” esperava uma tela nova) e da fatia de 16 linhas (74 ms);
+  corrigidas em `f88b5a2` (fatias de 8 linhas).
+- Novo padrão do `scripts/resistencia.ps1`: teste rápido (~3 min) com 8
+  fluxos + rajada de 300 quadros no USB; `-Minutos 60` para a véspera.

@@ -1,8 +1,10 @@
-# Atualiza, grava o firmware e roda o teste de resistencia na placa.
-# Funciona de qualquer pasta:
+# Atualiza, grava o firmware e testa a placa. Funciona de qualquer pasta:
 #   powershell -ExecutionPolicy Bypass -File C:\...\NekoMind\scripts\resistencia.ps1
-#   ...\resistencia.ps1 -Minutos 10 -Porta COM3 -SemGravar
-param([int]$Minutos = 60, [string]$Porta = "COM3", [switch]$SemGravar, [switch]$SemPull)
+#     padrao: teste RAPIDO (~3 min): 8 fluxos completos + rajada de 300
+#     quadros no USB + saude do firmware (quadro do avatar e pilha)
+#   ...\resistencia.ps1 -Minutos 60      # resistencia longa (vespera)
+#   ...\resistencia.ps1 -SemGravar       # so testa (firmware ja gravado)
+param([int]$Minutos = 0, [string]$Porta = "COM3", [switch]$SemGravar, [switch]$SemPull)
 $ErrorActionPreference = "Stop"
 $raiz = Split-Path -Parent $PSScriptRoot
 Set-Location $raiz
@@ -18,6 +20,11 @@ if (-not $SemGravar) {
   Start-Sleep -Seconds 4   # placa reiniciando
 }
 Set-Location (Join-Path $raiz "backend")
-Write-Host ">> Teste de resistencia: $Minutos min" -ForegroundColor Cyan
-& .\.venv\Scripts\python.exe -m app.devtools.esp_tap_flow --port $Porta --minutos $Minutos
+if ($Minutos -gt 0) {
+  Write-Host ">> Teste de resistencia: $Minutos min" -ForegroundColor Cyan
+  & .\.venv\Scripts\python.exe -m app.devtools.esp_tap_flow --port $Porta --minutos $Minutos
+} else {
+  Write-Host ">> Teste rapido (~3 min)" -ForegroundColor Cyan
+  & .\.venv\Scripts\python.exe -m app.devtools.esp_tap_flow --port $Porta --rapido
+}
 exit $LASTEXITCODE
