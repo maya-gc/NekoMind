@@ -21,6 +21,9 @@
 static const char *TAG = "display_ui";
 static spi_device_handle_t s_lcd;
 static uint8_t s_tile[LCD_W * TILE_H * 2];
+/* Linhas validas na faixa atual: TILE_H na tela inteira, FACE_ROWS no rosto. */
+#define FACE_ROWS 8
+static int s_tile_rows = TILE_H;
 static neko_scene_t s_last_scene;
 static neko_scene_t s_pre_calibration_scene;
 static bool s_have_scene;
@@ -30,7 +33,7 @@ static uint32_t s_avatar_ms;
 static uint32_t s_avatar_frames;
 static uint32_t s_avatar_window_ms;
 static uint64_t s_avatar_render_us;
-/* Avatar 3D desenhado em fatias (uma faixa de TILE_H linhas por chamada):
+/* Avatar 3D desenhado em fatias (uma faixa de FACE_ROWS linhas por chamada):
  * o quadro inteiro leva ~400 ms no ESP32-S3 e, de uma vez so, travava toque
  * e serial. Entre fatias o laco da sessao volta a ler USB e touch. */
 static int s_face_next_y = -1;
@@ -142,7 +145,7 @@ static esp_err_t lcd_window(int y0, int y1)
 
 static void pixel(int x, int y, uint16_t color)
 {
-    if (x < 0 || x >= LCD_W || y < s_tile_y || y >= s_tile_y + TILE_H || y >= LCD_H)
+    if (x < 0 || x >= LCD_W || y < s_tile_y || y >= s_tile_y + s_tile_rows || y >= LCD_H)
         return;
     size_t offset = (size_t)((y - s_tile_y) * LCD_W + x) * 2U;
     s_tile[offset] = (uint8_t)(color >> 8);
@@ -153,7 +156,7 @@ static void rect(int x, int y, int w, int h, uint16_t color)
 {
     int x0 = x < 0 ? 0 : x, x1 = x + w > LCD_W ? LCD_W : x + w;
     int y0 = y < s_tile_y ? s_tile_y : y;
-    int y1 = y + h > s_tile_y + TILE_H ? s_tile_y + TILE_H : y + h;
+    int y1 = y + h > s_tile_y + s_tile_rows ? s_tile_y + s_tile_rows : y + h;
     for (int yy = y0; yy < y1; yy++)
         for (int xx = x0; xx < x1; xx++) pixel(xx, yy, color);
 }
@@ -161,7 +164,7 @@ static void rect(int x, int y, int w, int h, uint16_t color)
 static void oval(int x, int y, int w, int h, uint16_t color)
 {
     if (w < 2 || h < 2) return;
-    int y0 = y < s_tile_y ? s_tile_y : y, y1 = y + h > s_tile_y + TILE_H ? s_tile_y + TILE_H : y + h;
+    int y0 = y < s_tile_y ? s_tile_y : y, y1 = y + h > s_tile_y + s_tile_rows ? s_tile_y + s_tile_rows : y + h;
     int x0 = x < 0 ? 0 : x, x1 = x + w > LCD_W ? LCD_W : x + w;
     int64_t ww = (int64_t)w * w, hh = (int64_t)h * h;
     for (int yy = y0; yy < y1; yy++) {
@@ -220,7 +223,7 @@ static void draw_op(const neko_scene_op_t *op)
     case NEKO_SCENE_OP_FACE:
         if (s_skip_face) break; /* desenhado depois, em fatias */
         neko_avatar3d_render(r->x, r->y, r->width, r->height,
-                             s_tile_y, s_tile_y + TILE_H,
+                             s_tile_y, s_tile_y + s_tile_rows,
                              op->text, s_avatar_ms, s_palette->bg, pixel);
         break;
     case NEKO_SCENE_OP_POLYGON:
@@ -346,16 +349,19 @@ esp_err_t display_ui_animate_face(uint32_t now_ms, bool *frame_done)
     }
     int64_t started_us = esp_timer_get_time();
     s_tile_y = s_face_next_y;
-    for (size_t i = 0; i < sizeof(s_tile); i += 2) {
+    s_tile_rows = FACE_ROWS; /* meia faixa: ~metade do tempo por volta do laco */
+    size_t bytes = (size_t)LCD_W * FACE_ROWS * 2U;
+    for (size_t i = 0; i < bytes; i += 2) {
         s_tile[i] = (uint8_t)(s_palette->bg >> 8);
         s_tile[i + 1] = (uint8_t)s_palette->bg;
     }
     for (size_t i = 0; i < s_last_scene.op_count; ++i)
         draw_op(&s_last_scene.ops[i]);
-    esp_err_t err = lcd_window(s_tile_y, s_tile_y + TILE_H - 1);
-    if (err == ESP_OK) err = lcd_tx(true, s_tile, sizeof(s_tile));
+    s_tile_rows = TILE_H;
+    esp_err_t err = lcd_window(s_tile_y, s_tile_y + FACE_ROWS - 1);
+    if (err == ESP_OK) err = lcd_tx(true, s_tile, bytes);
     s_face_frame_us += (uint64_t)(esp_timer_get_time() - started_us);
-    s_face_next_y += TILE_H;
+    s_face_next_y += FACE_ROWS;
     if (err != ESP_OK) {
         s_face_next_y = -1;
         return err;

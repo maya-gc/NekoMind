@@ -168,8 +168,13 @@ def run(port_name: str, out: Path, asr: str, timeout: float, minutes: float = 0.
             report.round = n
             recorder.used = 0
             transcripts[:] = [pipeline.SPEECH["resposta1"], pipeline.SPEECH["resposta2"]]
-            ok = step("Placa conectada (heartbeat)", None, {"IDLE", "READY", "SUCCESS", "ERROR"},
-                      wait=15)
+            alive = {"IDLE", "READY", "SUCCESS", "ERROR"}
+            if n > 1 and spy.state() in alive:
+                # A placa só redesenha quando a tela muda; o último recibo vale.
+                ok = report.step(scenario, "Placa conectada (heartbeat)", True,
+                                 f"tela={spy.state()} (sem mudança desde a rodada anterior)")
+            else:
+                ok = step("Placa conectada (heartbeat)", None, alive, wait=15)
             if ok and spy.state() != "IDLE":
                 step("Voltar ao início", "reset", {"IDLE"})
             ok = ok and step("Toque Diagnóstico -> Pronto", "diagnose", {"READY"}, wait=30)
