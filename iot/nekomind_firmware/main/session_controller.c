@@ -297,6 +297,7 @@ static void session_task(void *arg)
     uint32_t avatar_interval_ms = 125U;
     uint32_t last_health_ms = 0;
     uint32_t worst_frame_ms = 0;
+    bool frame_open = false;
     /* Watchdog: se esta tarefa travar (desenho, SPI, serial), o chip reinicia
      * sozinho em vez de ficar congelado na frente do publico. */
     bool wdt = esp_task_wdt_add(NULL) == ESP_OK;
@@ -305,15 +306,21 @@ static void session_task(void *arg)
         poll_touch(t_ms);
         poll_serial(t_ms);
         neko_controller_tick(&s_controller, t_ms);
-        if ((uint32_t)(t_ms - last_avatar_ms) >= avatar_interval_ms) {
+        if (frame_open || (uint32_t)(t_ms - last_avatar_ms) >= avatar_interval_ms) {
+            /* Uma fatia por volta; "pior quadro" = fatia mais lenta, que e o
+             * tempo maximo em que toque e serial ficam sem atencao. */
             int64_t started_us = esp_timer_get_time();
-            esp_err_t err = display_ui_animate_face(t_ms);
+            bool done = true;
+            esp_err_t err = display_ui_animate_face(t_ms, &done);
             uint32_t frame_ms = (uint32_t)((esp_timer_get_time() - started_us) / 1000);
             if (err != ESP_OK) ESP_LOGW(TAG, "falha na animacao 3D: %s", esp_err_to_name(err));
             if (frame_ms > worst_frame_ms) worst_frame_ms = frame_ms;
-            /* Cadencia adaptativa: quadro lento nunca atrasa toque e serial. */
-            avatar_interval_ms = frame_ms > 60U ? 500U : (frame_ms > 30U ? 250U : 125U);
-            last_avatar_ms = t_ms;
+            frame_open = !done && err == ESP_OK;
+            if (!frame_open) {
+                avatar_interval_ms = worst_frame_ms > 60U ? 500U
+                    : (worst_frame_ms > 30U ? 250U : 125U);
+                last_avatar_ms = t_ms;
+            }
         }
         if ((uint32_t)(t_ms - last_health_ms) >= 30000U) {
             ESP_LOGI(TAG, "saude: pilha livre %u bytes, pior quadro %lu ms, intervalo %lu ms",
@@ -323,7 +330,9 @@ static void session_task(void *arg)
             last_health_ms = t_ms;
         }
         if (wdt) esp_task_wdt_reset();
-        vTaskDelay(pdMS_TO_TICKS(50));
+        /* Com quadro aberto, volta logo para a proxima fatia (ainda cedendo a
+         * CPU para o idle/watchdog); sem quadro, o ritmo normal de 50 ms. */
+        vTaskDelay(pdMS_TO_TICKS(frame_open ? 10 : 50));
     }
 }
 

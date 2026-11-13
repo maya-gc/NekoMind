@@ -8,6 +8,14 @@
 #include <unistd.h>
 
 #include "esp_log.h"
+#include "driver/usb_serial_jtag.h"
+#if __has_include("driver/usb_serial_jtag_vfs.h")
+#include "driver/usb_serial_jtag_vfs.h"
+#define NEKO_USB_VFS_USE_DRIVER() usb_serial_jtag_vfs_use_driver()
+#else
+#include "esp_vfs_usb_serial_jtag.h"
+#define NEKO_USB_VFS_USE_DRIVER() esp_vfs_usb_serial_jtag_use_driver()
+#endif
 
 static const char *TAG = "audio_transport";
 
@@ -17,6 +25,10 @@ static char s_input_line[NEKO_PROTOCOL_MAX_LINE_BYTES];
 static char s_output_line[NEKO_PROTOCOL_MAX_LINE_BYTES];
 static size_t s_input_used;
 static bool s_input_discard;
+/* Com o driver, os bytes do computador caem num buffer de 4 KB por
+ * interrupcao, mesmo enquanto o avatar desenha. Sem ele, so a FIFO de
+ * hardware (64 bytes) segurava a fila e o computador recebia Write timeout. */
+static bool s_usb_driver;
 
 esp_err_t audio_transport_init(neko_transport_mode_t mode)
 {
@@ -26,6 +38,19 @@ esp_err_t audio_transport_init(neko_transport_mode_t mode)
         /* O console de logs usa USB Serial/JTAG, mas fd 0 nao e necessariamente
          * associado ao VFS. Abrir o dispositivo registrado pelo IDF garante
          * que read() receba os bytes do Mac. */
+        if (!usb_serial_jtag_is_driver_installed()) {
+            usb_serial_jtag_driver_config_t cfg = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
+            cfg.rx_buffer_size = 4096;
+            cfg.tx_buffer_size = 4096;
+            s_usb_driver = usb_serial_jtag_driver_install(&cfg) == ESP_OK;
+        } else {
+            s_usb_driver = true;
+        }
+        if (s_usb_driver) {
+            NEKO_USB_VFS_USE_DRIVER();
+        } else {
+            ESP_LOGW(TAG, "driver USB Serial/JTAG indisponivel; lendo pela FIFO");
+        }
         s_serial_fd = open("/dev/usbserjtag", O_RDWR | O_NONBLOCK);
         if (s_serial_fd < 0) {
             ESP_LOGE(TAG, "falha ao abrir USB Serial/JTAG VFS: errno=%d", errno);
@@ -88,7 +113,9 @@ esp_err_t audio_transport_poll_rx(char *out_line, size_t max_len,
     /* Le uma linha inteira por chamada (antes: 256 bytes, o que fazia
      * quadros longos levarem varias voltas do laco de 50 ms). */
     for (read_count = 0; read_count < (int)sizeof(s_input_line) + 2; read_count++) {
-        ssize_t n = read(s_serial_fd, &ch, 1);
+        ssize_t n = s_usb_driver
+            ? (ssize_t)usb_serial_jtag_read_bytes(&ch, 1, 0)
+            : read(s_serial_fd, &ch, 1);
         if (n < 0) {
             return errno == EAGAIN || errno == EWOULDBLOCK
                 ? ESP_ERR_TIMEOUT : ESP_FAIL;

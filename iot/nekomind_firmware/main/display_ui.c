@@ -30,6 +30,12 @@ static uint32_t s_avatar_ms;
 static uint32_t s_avatar_frames;
 static uint32_t s_avatar_window_ms;
 static uint64_t s_avatar_render_us;
+/* Avatar 3D desenhado em fatias (uma faixa de TILE_H linhas por chamada):
+ * o quadro inteiro leva ~400 ms no ESP32-S3 e, de uma vez so, travava toque
+ * e serial. Entre fatias o laco da sessao volta a ler USB e touch. */
+static int s_face_next_y = -1;
+static uint64_t s_face_frame_us;
+static bool s_skip_face;
 
 typedef struct {
     uint16_t bg, panel, text, muted, accent, border, soft;
@@ -212,6 +218,7 @@ static void draw_op(const neko_scene_op_t *op)
     const neko_layout_rect_t *r = &op->rect;
     switch (op->kind) {
     case NEKO_SCENE_OP_FACE:
+        if (s_skip_face) break; /* desenhado depois, em fatias */
         neko_avatar3d_render(r->x, r->y, r->width, r->height,
                              s_tile_y, s_tile_y + TILE_H,
                              op->text, s_avatar_ms, s_palette->bg, pixel);
@@ -301,6 +308,7 @@ esp_err_t display_ui_draw_scene(const neko_scene_t *scene)
     if (s_have_scene && memcmp(scene, &s_last_scene, sizeof(*scene)) == 0)
         return ESP_OK;
     s_palette = scene->dark_theme ? &DARK : &LIGHT;
+    s_skip_face = true; /* troca de tela rapida; o rosto vem em fatias */
     for (s_tile_y = 0; s_tile_y < LCD_H; s_tile_y += TILE_H) {
         for (size_t i = 0; i < sizeof(s_tile); i += 2) {
             s_tile[i] = (uint8_t)(s_palette->bg >> 8);
@@ -310,13 +318,17 @@ esp_err_t display_ui_draw_scene(const neko_scene_t *scene)
         ESP_RETURN_ON_ERROR(lcd_window(s_tile_y, s_tile_y + TILE_H - 1), TAG, "janela");
         ESP_RETURN_ON_ERROR(lcd_tx(true, s_tile, sizeof(s_tile)), TAG, "quadro");
     }
+    s_skip_face = false;
     s_last_scene = *scene;
     s_have_scene = true;
+    s_face_next_y = -1; /* recomeca o rosto na tela nova */
     return ESP_OK;
 }
 
-esp_err_t display_ui_animate_face(uint32_t now_ms)
+esp_err_t display_ui_animate_face(uint32_t now_ms, bool *frame_done)
 {
+    if (frame_done != NULL) *frame_done = true;
+    s_skip_face = false;
     if (!s_have_scene || s_calibrating) return ESP_OK;
     const neko_layout_rect_t *face = NULL;
     for (size_t i = 0; i < s_last_scene.op_count; ++i) {
@@ -326,21 +338,34 @@ esp_err_t display_ui_animate_face(uint32_t now_ms)
         }
     }
     if (face == NULL) return ESP_OK;
-    int64_t started_us = esp_timer_get_time();
-    s_avatar_ms = now_ms;
-    for (s_tile_y = face->y; s_tile_y < face->y + face->height; s_tile_y += TILE_H) {
-        for (size_t i = 0; i < sizeof(s_tile); i += 2) {
-            s_tile[i] = (uint8_t)(s_palette->bg >> 8);
-            s_tile[i + 1] = (uint8_t)s_palette->bg;
-        }
-        for (size_t i = 0; i < s_last_scene.op_count; ++i)
-            draw_op(&s_last_scene.ops[i]);
-        ESP_RETURN_ON_ERROR(lcd_window(s_tile_y, s_tile_y + TILE_H - 1),
-                            TAG, "janela avatar 3D");
-        ESP_RETURN_ON_ERROR(lcd_tx(true, s_tile, sizeof(s_tile)),
-                            TAG, "quadro avatar 3D");
+    if (s_face_next_y < 0) {
+        /* Novo quadro: o tempo fica fixo ate a ultima fatia (sem "rasgo"). */
+        s_face_next_y = face->y;
+        s_avatar_ms = now_ms;
+        s_face_frame_us = 0;
     }
-    s_avatar_render_us += (uint64_t)(esp_timer_get_time() - started_us);
+    int64_t started_us = esp_timer_get_time();
+    s_tile_y = s_face_next_y;
+    for (size_t i = 0; i < sizeof(s_tile); i += 2) {
+        s_tile[i] = (uint8_t)(s_palette->bg >> 8);
+        s_tile[i + 1] = (uint8_t)s_palette->bg;
+    }
+    for (size_t i = 0; i < s_last_scene.op_count; ++i)
+        draw_op(&s_last_scene.ops[i]);
+    esp_err_t err = lcd_window(s_tile_y, s_tile_y + TILE_H - 1);
+    if (err == ESP_OK) err = lcd_tx(true, s_tile, sizeof(s_tile));
+    s_face_frame_us += (uint64_t)(esp_timer_get_time() - started_us);
+    s_face_next_y += TILE_H;
+    if (err != ESP_OK) {
+        s_face_next_y = -1;
+        return err;
+    }
+    if (s_face_next_y < face->y + face->height) {
+        if (frame_done != NULL) *frame_done = false;
+        return ESP_OK;
+    }
+    s_face_next_y = -1;
+    s_avatar_render_us += s_face_frame_us;
     s_avatar_frames++;
     if (s_avatar_frames == 32U) {
         uint32_t elapsed_ms = now_ms - s_avatar_window_ms;

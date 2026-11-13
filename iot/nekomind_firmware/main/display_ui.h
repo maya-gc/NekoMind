@@ -44,7 +44,9 @@ esp_err_t display_ui_render_view(const char *status_line,
                                  bool voice_clipping);
 esp_err_t display_ui_draw_scene(const neko_scene_t *scene);
 /** Atualiza a geometria 3D do rosto sem reconstruir a sessao. */
-esp_err_t display_ui_animate_face(uint32_t now_ms);
+/* Desenha UMA fatia (16 linhas) do avatar 3D por chamada; *frame_done fica
+ * true quando o quadro termina. Mantem toque e serial responsivos. */
+esp_err_t display_ui_animate_face(uint32_t now_ms, bool *frame_done);
 esp_err_t display_ui_calibration_step(int step);
 
 /** Mostra telemetria curta (ex.: RMS do microfone, heap livre). */
