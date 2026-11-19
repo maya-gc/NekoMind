@@ -163,13 +163,13 @@ test("touch mission choice and follow-up remain visible and bounded", async () =
   assert.doesNotMatch(renderPublic(question), /<img src=x/);
 
   const done = sanitizePublicSnapshot({ state: "completed", mode: "real", result: { topics: [] },
-    followup: { stage: "done", point_index: 0, question: "Q", comparison: "Na segunda, o ponto apareceu.",
+    followup: { stage: "done", point_index: 0, question: "Q", assessment: "correto", comparison: "O vapor se condensa <agora>.",
       source_point: "O vapor se condensa.", first_excerpt: "A água evapora.",
       second_excerpt: "O vapor se condensa <agora>." } });
-  assert.match(renderPublic(done), /O que mudou na fala/);
-  assert.match(renderPublic(done), /Primeira tentativa/);
+  assert.match(renderPublic(done), /Você acertou!/);
+  assert.doesNotMatch(renderPublic(done), /Primeira tentativa/);
   assert.match(renderPublic(done), /O vapor se condensa &lt;agora&gt;/);
-  assert.match(renderTouch(touchModelForSnapshot(done)), /Na segunda/);
+  assert.match(renderTouch(touchModelForSnapshot(done)), /Você acertou!/);
 });
 
 test("unauthenticated presenter does not claim there are no interrupted sessions", () => {
@@ -744,4 +744,51 @@ test("operator content library uses local authenticated APIs", async () => {
       contentNotice: "Conteúdo salvo <v2>. Clique em Aplicar seleção." });
   assert.match(saved, /Conteúdo salvo &lt;v2&gt;\. Clique em Aplicar seleção\./);
   assert.doesNotMatch(saved, /Conteúdo salvo <v2>/);
+});
+
+
+test("evaluated mission foregrounds the spoken reasoning without whole-material percentage", () => {
+  const snapshot = sanitizePublicSnapshot({
+    state: "completed", mode: "real", is_demo: false,
+    result: { topics: [], content_report: {
+      coverage_percent: 0, method_version: "lexical-pt-v1", points: [],
+    } },
+    followup: {
+      stage: "done", point_index: 2, question: "Como você contou?", assessment: "correto",
+      comparison: "Você mostrou a soma com cadeiras.",
+      source_point: "Quanto é 4 mais 1?",
+    },
+  });
+  const html = renderPublic(snapshot);
+  assert.match(html, /Você mostrou a soma com cadeiras/);
+  assert.doesNotMatch(html, /0% dos pontos/);
+});
+
+test("missão encerrada mostra o acerto e uma próxima ação em vez do relatório técnico", () => {
+  const snapshot = sanitizePublicSnapshot({
+    state: "completed", mode: "real", is_demo: false,
+    result: { topics: [{ name: "lápis" }], content_report: { coverage_percent: 0, points: [] } },
+    followup: {
+      stage: "done", question: "Como contou?", assessment: "correto",
+      comparison: "Você mostrou a soma com lápis.", source_point: "Quanto é 4 mais 1?",
+    },
+  });
+  const html = renderPublic(snapshot);
+  assert.match(html, /<h1[^>]*>Você acertou!<\/h1>/);
+  assert.match(html, /Você mostrou a soma com lápis/);
+  assert.doesNotMatch(html, /0%|Termos reconhecidos|O que mudou na fala|Primeira tentativa/);
+
+  const unsuccessful = renderPublic({
+    ...snapshot, followup: { ...snapshot.followup, assessment: "equivoco",
+      comparison: "", hint: "Separe os lápis em dois grupos e conte." },
+  });
+  assert.match(unsuccessful, /A resposta ficou incorreta/);
+  assert.match(unsuccessful, /Separe os lápis em dois grupos e conte/);
+  assert.match(unsuccessful, /Nova tentativa/);
+
+  const uncertain = renderPublic({
+    ...snapshot, followup: { ...snapshot.followup, assessment: "", comparison: "" },
+  });
+  assert.match(uncertain, /Vamos ouvir de novo/);
+  assert.doesNotMatch(uncertain, /A resposta ficou incorreta/);
 });

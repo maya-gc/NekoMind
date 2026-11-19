@@ -7,16 +7,68 @@ import logging
 
 from app.config import get_settings
 from app.errors import log_swallowed
-from app.mac.dialogue import choose_focus, comparison_for, hint_for, question_for
+from app.mac.dialogue import (
+    authored_hint_for,
+    choose_focus,
+    comparison_for,
+    fallback_dialogue,
+    lcd_line,
+)
+from app.mac.mission_exercises import (
+    addition_comparison,
+    addition_feedback,
+    addition_reference,
+    mission_feedback,
+    mission_first_assessment,
+    mission_verdict,
+)
 from app.services.content_matching import match_point
 
 logger = logging.getLogger("app.mac.bridge")
 
 
-def tutor_reconcile(assessment, lexical_status):
+def tutor_reconcile(assessment, lexical_status, evidence=""):
     from app.services.tutor_ai import reconcile
 
-    return reconcile(assessment, lexical_status)
+    return reconcile(assessment, lexical_status, evidence)
+
+
+def _selected_focus(row, item):
+    index = item.get("mission_index", 0)
+    if point := item.get("mission_point"):
+        return index, point
+    return choose_focus(row.get("content_report"), index)
+
+
+def _tutor_text(value, level):
+    if (
+        not isinstance(value, str) or not value.strip()
+        or "<" in value or ">" in value or "caracteres" in value.casefold()
+    ):
+        return None
+    return lcd_line(value) if level == "crianca" else value
+
+
+def _grounded_assessment(tutor):
+    assessment = tutor.get("assessment", "")
+    if assessment in {"correto", "equivoco"} and not tutor.get("evidence"):
+        return ""
+    return assessment
+
+
+def _compatible_assessment(assessment, feedback):
+    if not feedback:
+        return assessment
+    if assessment == "equivoco" and feedback.assessment != "equivoco":
+        return ""
+    if assessment == "correto" and feedback.assessment != "correto" and not feedback.mentions_expected:
+        return "parcial"
+    return assessment
+
+
+def _confirmed_message(tutor):
+    analogy = tutor.get("analogy", "")
+    return lcd_line(f"Você explicou usando {analogy}.") if analogy else None
 
 
 class TutorFlowMixin:
@@ -32,22 +84,31 @@ class TutorFlowMixin:
         ):
             return None
         stage = item.get("stage")
-        if stage not in {"question", "hint", "answering", "done"}:
+        if stage in {"question", "hint", "done"}:
+            if self.state != "completed":
+                return None
+        elif stage != "answering" or self.state not in {
+            "recording", "paused", "processing", "error", "recovery",
+        }:
             return None
         return {
             "stage": stage,
             "point_index": item["focus_index"],
             "question": item["question"],
-            "hint": item.get("hint", "") if item.get("hint_shown") else "",
-            "comparison": item.get("comparison", "") if stage == "done" else "",
+            "hint": item.get("hint", "") if item.get("hint_shown") or stage == "done" else "",
+            "comparison": mission_feedback(item) if stage == "done" else "",
         }
 
     def _followup_public(self):
         followup = self._followup_wire()
         if followup is not None:
             item = self.interaction
-            key = "second_assessment" if followup["stage"] == "done" else "first_assessment"
-            assessment = item.get(key, "")
+            first = mission_first_assessment(item)
+            assessment = (
+                mission_verdict(first, item.get("second_assessment", ""))
+                if followup["stage"] == "done" else first
+            )
+            followup["source_point"] = item.get("focus_point", "")
             followup["assessment"] = assessment if assessment in {
                 "correto", "parcial", "equivoco", "nao_mencionou"} else ""
             followup["tutor"] = item.get("tutor", "") if item.get("tutor") in {
@@ -96,30 +157,46 @@ class TutorFlowMixin:
             settings = get_settings()
             provider = getattr(settings, "tutor_provider", "regras")
             model = getattr(settings, "tutor_model", "")
-            if provider == "regras":
+            with self.lock:
+                item = dict(self.interaction)
+            transcript = row.get("transcription", "") or ""
+            first_turn = sid == item.get("first_sid") and item.get("stage") == "explaining"
+            second_turn = sid == item.get("second_sid") and item.get("stage") == "answering"
+            if first_turn:
+                focus = _selected_focus(row, item)
+                if focus is None:
+                    return
+                reference = self.backend.reference(sid) or {}
+                material = reference.get("text") or ""
+                rubric = addition_reference(focus[1])
+                self.tutor_cache[("first", sid)] = {
+                    "point": focus[1], "authored_hint": authored_hint_for(focus[1], material),
+                    "level": "crianca" if rubric or "educação infantil" in material.casefold() else settings.tutor_level,
+                }
+            if provider == "regras" or not (first_turn or second_turn):
                 return
             from app.services import tutor_ai
 
             if provider == "auto" and not tutor_ai.available(model):
-                return
-            with self.lock:
-                item = dict(self.interaction)
-            transcript = row.get("transcription", "") or ""
-            if sid == item.get("first_sid") and item.get("stage") == "explaining":
-                focus = choose_focus(row.get("content_report"), item.get("mission_index", 0))
-                if focus is None:
+                model = settings.briefing_model
+                if not tutor_ai.available(model):
                     return
-                level = getattr(settings, "tutor_level", "enem")
+            if first_turn:
                 result = tutor_ai.first_turn(
-                    focus[1], transcript, model, level=level,
+                    focus[1], transcript, model, material=f"{rubric}\n{material}".strip(),
+                    level=self.tutor_cache[("first", sid)]["level"],
                     history=self._memory_note(focus[1]),
                 )
-                self.tutor_cache[("first", sid)] = {**result, "point": focus[1]}
-            elif sid == item.get("second_sid") and item.get("stage") == "answering":
+                self.tutor_cache[("first", sid)].update(result)
+            elif second_turn:
+                reference = self.backend.reference(item["first_sid"]) or {}
+                point = item.get("focus_point", "")
+                material = reference.get("text") or ""
                 result = tutor_ai.second_turn(
                     item.get("focus_point", ""), item.get("question", ""),
                     item.get("first_transcript", ""), transcript, model,
-                    level=getattr(settings, "tutor_level", "enem"),
+                    level=item.get("tutor_level") or settings.tutor_level,
+                    reference=f"{addition_reference(point)}\n{material}".strip(),
                 )
                 self.tutor_cache[("second", sid)] = result
         except Exception as exc:  # noqa: BLE001 - tutor IA e opcional; regras locais assumem
@@ -131,51 +208,93 @@ class TutorFlowMixin:
         if self.demo or not item:
             return None
         if self.sid == item.get("first_sid") and item.get("stage") == "explaining":
-            focus = choose_focus(row.get("content_report"), item.get("mission_index", 0))
+            focus = _selected_focus(row, item)
             if focus is None:
                 return None
             index, point = focus
-            first_match = match_point(point, row.get("transcription", ""))
+            speech = row.get("transcription") or ""
+            first_match = match_point(point, speech)
+            feedback = addition_feedback(point, speech)
             tutor = self.tutor_cache.pop(("first", self.sid), None)
-            if tutor and tutor.get("point") != point:
-                tutor = None
+            if not tutor or tutor.get("point") != point:
+                tutor = {}
+            fallback_question, fallback_hint = fallback_dialogue(point)
+            level = tutor.get("level")
+            question = _tutor_text(tutor.get("question"), level) or fallback_question
+            hints = [hint for line in tutor.get("hints", []) if (hint := _tutor_text(line, level))]
+            authored_hint = tutor.get("authored_hint")
+            if authored_hint:
+                hints = [authored_hint, *(hint for hint in hints if hint != authored_hint)]
+            assessment = _compatible_assessment(_grounded_assessment(tutor), feedback)
+            if feedback and (
+                feedback.assessment in {"correto", "equivoco"}
+                or not assessment
+            ):
+                question = feedback.question
+                hints = [feedback.hint]
+                assessment = feedback.assessment
             item.update(
                 stage="question",
                 focus_index=index,
                 focus_point=point,
-                question=tutor["question"] if tutor else question_for(point),
-                hint=tutor["hint"] if tutor else hint_for(point),
-                hints=tutor.get("hints", []) if tutor else [],
+                question=question,
+                hint=hints[0] if hints else fallback_hint,
+                hints=hints,
                 hint_level=0,
-                tutor="ia_local" if tutor else "regras",
-                first_assessment=tutor_reconcile(tutor.get("assessment", ""), first_match.status)
-                if tutor else "",
-                misconception=tutor.get("misconception", "") if tutor else "",
+                tutor="ia_local" if "question" in tutor else "regras",
+                first_assessment=assessment,
+                tutor_level=tutor.get("level"),
+                misconception="" if feedback else tutor.get("misconception", ""),
                 first_transcript=(row.get("transcription", "") or "")[:2000],
                 hint_shown=False,
                 first_status=first_match.status,
-                first_evidence=first_match.evidence or "",
+                first_evidence=(
+                    tutor.get("evidence") or (speech[:240] if feedback and feedback.analogy else "")
+                    or first_match.evidence or ""
+                ),
             )
             self._save_interaction()
             return item["question"]
         if self.sid == item.get("second_sid") and item.get("stage") == "answering":
-            second_match = match_point(item["focus_point"], row.get("transcription", ""))
-            tutor = self.tutor_cache.pop(("second", self.sid), None)
+            speech = row.get("transcription") or ""
+            second_match = match_point(item["focus_point"], speech)
+            feedback = addition_feedback(item["focus_point"], speech)
+            comparison = addition_comparison(
+                item["focus_point"], item.get("first_transcript", ""), speech,
+            )
+            tutor = self.tutor_cache.pop(("second", self.sid), None) or {}
+            tutor_comparison = _tutor_text(tutor.get("comparison"), item.get("tutor_level"))
+            assessment = _compatible_assessment(_grounded_assessment(tutor), feedback)
+            if assessment == "correto" and not tutor_comparison:
+                tutor_comparison = _confirmed_message(tutor) or "Você explicou como chegou ao resultado."
+            if feedback and not comparison and not tutor_comparison:
+                comparison = (
+                    "Não entendi esse trecho. Pode dizer de novo?"
+                    if item.get("first_assessment") != "correto"
+                    else "A primeira soma ficou certa. Repita este trecho."
+                )
             item.update(
                 stage="done",
                 second_status=second_match.status,
-                second_evidence=second_match.evidence or "",
-                comparison=tutor["comparison"] if tutor else comparison_for(
+                second_evidence=(
+                    tutor.get("evidence") or (speech[:240] if feedback and feedback.analogy else "")
+                    or second_match.evidence or ""
+                ),
+                comparison=comparison or tutor_comparison or comparison_for(
                     item["focus_point"], item["first_status"], second_match.status,
                     item.get("first_evidence", ""), second_match.evidence or "",
                 ),
             )
-            item["second_assessment"] = tutor_reconcile(
-                (tutor or {}).get("assessment", ""), second_match.status) if tutor else ""
-            self._remember_point(item["focus_point"],
-                                 item["second_assessment"] or second_match.status)
+            if feedback and (
+                feedback.assessment in {"correto", "equivoco"}
+                or not assessment
+            ):
+                assessment = feedback.assessment
+            item["second_assessment"] = assessment
+            verdict = mission_verdict(mission_first_assessment(item), assessment)
+            self._remember_point(item["focus_point"], verdict or second_match.status)
             self._save_interaction()
-            return item["comparison"]
+            return mission_feedback(item)
         return None
 
     def _warm_tutor(self):

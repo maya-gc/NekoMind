@@ -320,3 +320,47 @@ def test_tap_flow_burst_counts_timeouts():
     spy.write(b'{"v":1,"type":"state","x":1}\n')
     result = spy.burst(5)
     assert result["quadros"] == 5 and result["timeouts"] == 1
+
+
+def test_tutor_rejects_placeholder_and_accepts_cited_paraphrase():
+    from app.mac.tutor_flow import _tutor_text
+    from app.services.tutor_ai import _evidence, reconcile
+
+    assert _tutor_text("<até 85 caracteres>", "crianca") is None
+    assert _tutor_text("Você mostrou a soma contando lápis.", "crianca")
+    speech = "Eu tinha um lápis e ganhei dois pares."
+    quoted = _evidence({"evidence": "ganhei dois pares"}, speech)
+    assert quoted and reconcile("correto", "not_mentioned", quoted) == "correto"
+    assert not _evidence({"evidence": "somou quatro objetos"}, speech)
+
+
+def test_semantic_verdict_survives_an_unusable_screen_message():
+    from app.mac.tutor_flow import TutorFlowMixin, _grounded_assessment
+
+    class Bridge(TutorFlowMixin):
+        demo = False
+        sid = 2
+        interaction = {
+            "second_sid": 2, "stage": "answering", "focus_point": "Como a roupa seca?",
+            "first_status": "not_mentioned", "tutor_level": "crianca",
+        }
+        tutor_cache = {
+            ("second", 2): {
+                "assessment": "correto", "comparison": "<até 48 caracteres>",
+                "evidence": "a água vai para o ar", "analogy": "poça",
+            },
+        }
+
+        def _remember_point(self, *args):
+            pass
+
+        def _save_interaction(self):
+            pass
+
+    bridge = Bridge()
+    result = bridge._prepare_interaction_result({
+        "transcription": "É igual a uma poça: a água vai para o ar.",
+    })
+    assert bridge.interaction["second_assessment"] == "correto"
+    assert result == "Você explicou usando poça."
+    assert _grounded_assessment({"assessment": "equivoco", "evidence": ""}) == ""

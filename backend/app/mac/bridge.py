@@ -12,9 +12,11 @@ from time import monotonic
 from app.config import get_settings
 from app.errors import log_swallowed
 from app.mac.dialogue import (
+    mission_points,
     mission_previews,
 )
 from app.mac.journal import _JournalConnection, _Rows  # noqa: F401 - re-exported
+from app.mac.mission_exercises import prepare_questions
 from app.mac.partials import PartialTranscriber
 from app.mac.protocol import Command, validate_result
 from app.mac.study_memory import StudyMemoryMixin
@@ -94,6 +96,7 @@ class MacBridge(TutorFlowMixin, StudyMemoryMixin):
         self.serial_connected = False
         self.selected_content_id = None
         self.mission_content_id = None
+        self.prepared_missions = None
         self.mission_points = []
         self.missions = []
         self.mission_index = 0
@@ -126,7 +129,7 @@ class MacBridge(TutorFlowMixin, StudyMemoryMixin):
         )
         self.db.commit()
 
-    def _fetch_missions(self):
+    def _fetch_missions(self, *, prepare=False):
         selected = getattr(self.backend, "selected_content", None)
         content = getattr(self.backend, "content", None)
         if selected is None or content is None:
@@ -142,7 +145,16 @@ class MacBridge(TutorFlowMixin, StudyMemoryMixin):
             not isinstance(point, str) or not point.strip() for point in points
         ):
             raise ValueError("Pontos preparados invalidos")
-        return content_id, points
+        title, source = row.get("title") or "", row.get("text") or ""
+        key = content_id, row.get("version"), title, source, tuple(points)
+        cached = self.prepared_missions
+        if cached and cached[0] == key:
+            return content_id, cached[1]
+        candidates = mission_points(source, points)
+        if prepare and not self.demo:
+            candidates = prepare_questions(title, source, candidates, get_settings().briefing_model)
+            self.prepared_missions = key, candidates
+        return content_id, candidates
 
     def _set_missions(self, content_id, points):
         previews = mission_previews(points)
@@ -306,17 +318,16 @@ class MacBridge(TutorFlowMixin, StudyMemoryMixin):
             else "Funcionou! Voz captada e processada.",
         }
         report = row.get("content_report")
-        if isinstance(report, dict) and report.get("content_id") == row.get("reference_content_id"):
+        followup = self._followup_wire()
+        if followup:
+            response["summary"] = followup["comparison"] or followup["question"]
+        elif isinstance(report, dict) and report.get("content_id") == row.get("reference_content_id"):
             response["summary"] = shorten(
                 f"{'Demo guiada' if self.demo else 'Material completo'}: "
                 f"{report.get('coverage_percent', 0)}% dos pontos mencionados; "
                 "a missao e um ponto. Nao comprova acerto.",
                 220,
             )
-        if self.interaction.get("stage") == "done" and self.sid == self.interaction.get(
-            "second_sid"
-        ):
-            response["summary"] = shorten(self.interaction["comparison"], 220)
         if row.get("duration_seconds") is not None:
             response["duration_seconds"] = round(float(row["duration_seconds"]))
         if row.get("subject"):
@@ -601,12 +612,13 @@ class MacBridge(TutorFlowMixin, StudyMemoryMixin):
             if valid_answer or second_retry:
                 self.interaction.update(stage="answering", second_sid=self.sid)
                 self.mission_index = self.interaction["focus_index"]
-            elif content_id is not None and row.get("reference_content_id") and not self.demo:
+            elif self.mission_points and row.get("reference_content_id") and not self.demo:
                 self.mission_index = mission_index
                 self.interaction = {
                     "stage": "explaining",
                     "content_id": content_id,
                     "mission_index": mission_index,
+                    "mission_point": self.mission_points[mission_index],
                     "first_sid": self.sid,
                 }
             else:
@@ -720,7 +732,7 @@ class MacBridge(TutorFlowMixin, StudyMemoryMixin):
         calibration = self._run_calibration() if calibrate else None
         mission_content_id, mission_points = None, []
         try:
-            mission_content_id, mission_points = self._fetch_missions()
+            mission_content_id, mission_points = self._fetch_missions(prepare=True)
         except Exception as exc:  # noqa: BLE001 - a selected mission must be verified before capture
             log_swallowed(logger, "bridge._run_diagnostics", exc)
             components.append(
@@ -1008,7 +1020,7 @@ class MacBridge(TutorFlowMixin, StudyMemoryMixin):
                     self.selected_content_id = selected
                     if state == "ready" and selected != self.mission_content_id:
                         try:
-                            content_id, points = self._fetch_missions()
+                            content_id, points = self._fetch_missions(prepare=True)
                         except Exception as exc:  # noqa: BLE001 - start revalidates the selection
                             log_swallowed(logger, "bridge._ops_tick_worker", exc)
                             content_id, points = None, []

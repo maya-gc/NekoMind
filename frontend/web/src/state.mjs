@@ -322,6 +322,7 @@ function sanitizeFollowup(raw) {
     source_point: stringOrEmpty(raw.source_point).slice(0, 500),
     first_excerpt: stringOrEmpty(raw.first_excerpt).slice(0, 240),
     second_excerpt: stringOrEmpty(raw.second_excerpt).slice(0, 240),
+    assessment: ["correto", "parcial", "equivoco", "nao_mencionou"].includes(raw.assessment) ? raw.assessment : "",
   };
 }
 
@@ -372,6 +373,42 @@ export function cardModelForSnapshot(snapshot, cardState = {}) {
   return { cardIndex: index, card: cards[index], generation: snapshot.generation, total: cards.length };
 }
 
+export function missionOutcome(followup) {
+  const comparison = followup?.comparison || "";
+  const question = followup?.source_point || "";
+  const addition = /quanto[\s\S]+\bmais\b/i.test(question);
+  const example = addition
+    ? "Separe os objetos em dois grupos e conte todos."
+    : "Pense num exemplo do dia a dia e explique como ele funciona.";
+
+  switch (followup?.assessment) {
+    case "correto":
+      return {
+        kind: "correct", title: "Você acertou!",
+        detail: comparison || "Sua explicação mostrou como você pensou.",
+        next: "Quer um desafio? Mostre outro jeito de explicar.",
+      };
+    case "equivoco":
+      return {
+        kind: "retry", title: "A resposta ficou incorreta",
+        detail: comparison || "Vamos conferir a resposta com um exemplo.",
+        next: followup.hint || example,
+      };
+    case "parcial":
+      return {
+        kind: "retry", title: "Você está no caminho",
+        detail: comparison || "Conte mais um passo do seu raciocínio.",
+        next: followup.hint || example,
+      };
+    default:
+      return {
+        kind: "uncertain", title: "Vamos ouvir de novo",
+        detail: "Conte como você pensou, do começo até o resultado.",
+        next: followup?.hint || example,
+      };
+  }
+}
+
 export function resultCards(snapshot) {
   if (!snapshot.result) return [];
   if (snapshot.followup?.stage === "question" || snapshot.followup?.stage === "hint") {
@@ -382,7 +419,8 @@ export function resultCards(snapshot) {
     }];
   }
   if (snapshot.followup?.stage === "done") {
-    return [{ kind: "followup", label: "O que mudou na fala", value: snapshot.followup.comparison }];
+    const outcome = missionOutcome(snapshot.followup);
+    return [{ kind: "mission-result", label: outcome.title, value: outcome.detail, next: outcome.next }];
   }
   if (snapshot.experience_mode === "fair") {
     const evidence = snapshot.result.evidence || {};
@@ -688,7 +726,7 @@ function touchDetail(snapshot) {
   if (snapshot.state === "recording") return "A captura vem do Mac. O navegador não grava áudio.";
   if (snapshot.state === "paused") return "A captura está pausada. Toque em Retomar quando quiser continuar.";
   if (snapshot.state === "processing") return "Aguarde a bancada confirmar esta etapa.";
-  if (snapshot.state === "completed" && snapshot.followup?.stage === "done") return "Veja os trechos reconhecidos nas duas respostas.";
+  if (snapshot.state === "completed" && snapshot.followup?.stage === "done") return "Veja o resultado da missão.";
   if (snapshot.state === "completed" && snapshot.followup) return "Ouça a pergunta do gatinho, peça uma dica ou responda.";
   if (snapshot.state === "completed") return "Cartões limpos para o próximo visitante.";
   if (snapshot.state === "recovery") return "Escolha uma ação explícita antes de reabrir captura.";

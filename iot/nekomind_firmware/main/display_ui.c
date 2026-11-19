@@ -85,10 +85,16 @@ static const uint8_t *glyph(char ch)
     static const uint8_t dot[5] = {0,0x60,0x60,0,0};
     static const uint8_t slash[5] = {0x40,0x30,0x08,0x06,0x01};
     static const uint8_t colon[5] = {0,0x36,0x36,0,0};
+    static const uint8_t question[5] = {0x02,0x01,0x51,0x09,0x06};
+    static const uint8_t exclamation[5] = {0,0,0x5f,0,0};
+    static const uint8_t comma[5] = {0,0x40,0x30,0,0};
     if (ch == '-') return dash;
     if (ch == '.') return dot;
     if (ch == '/') return slash;
     if (ch == ':') return colon;
+    if (ch == '?') return question;
+    if (ch == '!') return exclamation;
+    if (ch == ',') return comma;
     return NULL;
 }
 

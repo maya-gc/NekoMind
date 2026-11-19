@@ -1,4 +1,4 @@
-import { statusLabel, stepLabel } from "./state.mjs?v=dialogue-2";
+import { missionOutcome, statusLabel, stepLabel } from "./state.mjs?v=mission-feedback-5";
 
 export function renderConfirmation(label) {
   return `<section class="confirmation-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
@@ -49,6 +49,9 @@ export function renderTouch(model) {
 }
 
 export function renderPublic(snapshot) {
+  if (snapshot.state === "completed" && ["question", "hint", "done"].includes(snapshot.followup?.stage)) {
+    return renderMissionResult(snapshot);
+  }
   return `
     <section class="public-stage state-${escapeAttr(snapshot.state)}" data-view="public">
       <header class="public-header">
@@ -65,15 +68,9 @@ export function renderPublic(snapshot) {
         <aside class="journey-panel" aria-label="Jornada da sessão">
           <h2>Jornada da sessão</h2>
           ${renderJourney(snapshot.journey)}
-          ${snapshot.content ? `<p class="live-content" role="status">${snapshot.content.status === "unavailable" ? "Batimento indisponível; gravação continua." : `Conteúdo guiado · ${escapeHtml(snapshot.content.coverage_percent)}% dos pontos reconhecidos até agora · ${escapeHtml(snapshot.content.origin)} · provisório`}</p>` : ""}
+          ${snapshot.content ? `<p class="live-content" role="status">${snapshot.content.status === "unavailable" ? "Batimento indisponível; gravação continua." : "Ouvindo a explicação · acompanhamento provisório"}</p>` : ""}
         </aside>
       </div>
-      ${snapshot.followup && snapshot.followup.stage !== "done" ? `<section class="public-followup" aria-label="Pergunta do gatinho">
-        <h2>${escapeHtml(snapshot.followup.stage === "answering" ? "Respondendo" : "Pergunta do gatinho")}</h2>
-        <p>${escapeHtml(snapshot.followup.question)}</p>
-        ${assessmentBadge(snapshot.followup)}
-        ${snapshot.followup.hint ? `<small>${escapeHtml(snapshot.followup.hint)}</small>` : ""}
-      </section>` : ""}
       <section class="public-result" aria-label="Resultado público">
         ${renderPublicResult(snapshot)}
       </section>
@@ -271,6 +268,30 @@ function renderSemanticGraph(report, limit) {
   return `<section class="semantic-graph"><h3>Relações conceituais</h3><p>${escapeHtml(graph.disclaimer || "Associação não comprova acerto factual.")}</p>${edges ? `<ul>${edges}</ul>` : '<p>Nenhuma relação clara foi identificada.</p>'}</section>`;
 }
 
+function renderMissionResult(snapshot) {
+  const followup = snapshot.followup;
+  const outcome = missionOutcome(followup);
+  const done = followup.stage === "done";
+  const next = done ? outcome.next : (followup.stage === "hint" ? followup.hint : followup.question);
+  const action = done
+    ? outcome.kind === "correct" ? "" : "Na gatinha, toque em Nova tentativa."
+    : "Na gatinha, toque em Responder ou use Dica.";
+  return `
+    <section class="public-stage mission-result-page" data-view="public">
+      <section class="public-mission-result" data-outcome="${escapeAttr(outcome.kind)}"
+        aria-labelledby="mission-result-title">
+        ${snapshot.is_demo ? '<span class="mode-pill mode-demo">DEMO</span>' : ""}
+        <h1 id="mission-result-title">${escapeHtml(outcome.title)}</h1>
+        ${followup.source_point ? `<p class="mission-result-prompt">${escapeHtml(followup.source_point)}</p>` : ""}
+        <p class="mission-result-detail">${escapeHtml(outcome.detail)}</p>
+        <div class="mission-result-next">
+          <p>${escapeHtml(next)}</p>
+          ${action ? `<small>${escapeHtml(action)}</small>` : ""}
+        </div>
+      </section>
+    </section>`;
+}
+
 function renderPublicResult(snapshot) {
   if (!snapshot.result) {
     return `<p class="empty-result">Sem dados do visitante anterior.</p>`;
@@ -304,28 +325,19 @@ function renderPublicResult(snapshot) {
       <h3>Termos reconhecidos pelo NekoMind</h3>
       ${topics ? `<ul class="topic-strip">${topics}</ul>` : `<p class="empty-result">Nenhum termo destacado.</p>`}
     </div>
-    ${result.content_report ? `<section class="guided-report">
+    ${result.content_report && !snapshot.followup ? `<section class="guided-report">
       <h3>Conteúdo guiado · ${escapeHtml(result.content_report.coverage_percent)}% dos pontos mencionados</h3>
-      ${snapshot.followup ? "<p>Esse percentual considera o material inteiro; a missão escolhida pedia apenas um ponto.</p>" : ""}
       <p>${escapeHtml(result.content_report.disclaimer)}</p>
       <ul>${result.content_report.points.map((item) => `<li><strong>${escapeHtml(item.point)}</strong> · ${escapeHtml(item.status === "covered" ? "mencionado" : item.status === "partial" ? "parcial" : item.status === "possible_divergence" ? "possível divergência" : "não mencionado")}${item.evidence ? `<small>Trecho: ${escapeHtml(item.evidence)}</small>` : ""} <em>${escapeHtml(item.origin)}</em></li>`).join("")}</ul>
       ${renderSemanticGraph(result.content_report, 4)}
-    </section>` : ""}
-    ${snapshot.followup?.stage === "done" ? `<section class="guided-report public-comparison">
-      <h3>O que mudou na fala</h3>
-      <p>${escapeHtml(snapshot.followup.comparison)}</p>
-      ${assessmentBadge(snapshot.followup)}
-      ${snapshot.followup.source_point ? `<p><strong>Ponto do material:</strong> ${escapeHtml(snapshot.followup.source_point)}</p>` : ""}
-      ${snapshot.followup.source_point ? `<ul>
-        <li><strong>Primeira tentativa:</strong> ${escapeHtml(snapshot.followup.first_excerpt || "Não foi reconhecido um trecho ligado a esse ponto.")}</li>
-        <li><strong>Segunda tentativa:</strong> ${escapeHtml(snapshot.followup.second_excerpt || "Não foi reconhecido um trecho ligado a esse ponto.")}</li>
-      </ul>` : ""}
-      <small>A comparação mostra trechos da fala reconhecida; não avalia correção científica nem domínio do assunto.</small>
     </section>` : ""}
   </div>`;
 }
 
 function renderTouchResultCard(card, model) {
+  if (card.kind === "mission-result") {
+    return `<p>${escapeHtml(card.value)}</p><p class="touch-mission-next">${escapeHtml(card.next)}</p>`;
+  }
   if (card.kind === "topics") {
     return card.topics.length
       ? `<ul class="touch-topic-cloud">${card.topics.map((topic) => `<li>${escapeHtml(topic)}</li>`).join("")}</ul>`

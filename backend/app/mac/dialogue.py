@@ -4,7 +4,7 @@ import re
 
 from app.services.content_matching import STOP, normalize
 
-MAX_MISSION_BYTES = 60
+MAX_MISSION_BYTES = 44
 MAX_MISSIONS = 30
 
 STATUS_RANK = {
@@ -15,6 +15,17 @@ STATUS_RANK = {
 }
 MAX_COMPARISON_BYTES = 94
 WORD_RE = re.compile(r"[\wÀ-ÿ]+")
+
+LCD_PROMPT_CHARS = 48
+LCD_TEXT = re.compile(r"[A-Za-zÁÀÂÃÉÊÍÓÔÕÚÜÇáàâãéêíóôõúüç0-9 .,:!?/\-]+")
+BULLET = re.compile(r"^(?:[-*•]|\d+[.)])\s+")
+METADATA = re.compile(
+    r"^(?:tema|p[úu]blico(?:-alvo)?|objetivos?|n[íi]vel|faixa et[áa]ria|"
+    r"diagn[óo]stico|miss[õo]es|(?:primeira |segunda )?dicas?)\b",
+    re.IGNORECASE,
+)
+MISSION_HEADER = re.compile(r"^(?:#{1,6}\s+)?miss[õo]es\s*:?$", re.IGNORECASE)
+AUTHORED_QUESTION = re.compile(r"\bpergunte:\s*[“\"]?([^?”\"]+\?)", re.IGNORECASE)
 
 
 def short_text(value: str, max_bytes: int) -> str:
@@ -27,8 +38,77 @@ def short_text(value: str, max_bytes: int) -> str:
     return clipped.rstrip(" ,;:.!?") + "..."
 
 
+def mission_points(source: str, points: list[str]) -> list[str]:
+    """Prefer named exercises and keep administrative lines out of the picker."""
+    authored = []
+    in_missions = False
+    for raw in source.splitlines():
+        line = raw.strip()
+        if MISSION_HEADER.fullmatch(line):
+            in_missions = True
+        elif in_missions and BULLET.match(line):
+            point = BULLET.sub("", line)
+            if not METADATA.match(point):
+                authored.append(point)
+        elif in_missions and line:
+            break
+    candidates = authored or [point for point in points if not METADATA.match(point)]
+    return list(dict.fromkeys(candidates))[:MAX_MISSIONS]
+
+
 def mission_previews(points: list[str]) -> list[str]:
-    return [short_text(point, MAX_MISSION_BYTES) for point in points[:MAX_MISSIONS]]
+    previews = []
+    for point in points[:MAX_MISSIONS]:
+        previews.append(short_text(mission_title(point), MAX_MISSION_BYTES))
+    return previews
+
+
+def mission_title(point: str) -> str:
+    title, _, instructions = point.partition(". ")
+    if AUTHORED_QUESTION.search(instructions) or re.match(
+        r"^(?:mostre|pergunte)\b", instructions, re.IGNORECASE,
+    ):
+        return title
+    return point
+
+
+def lcd_line(value: object) -> str | None:
+    # The landscape result card has three rows with 24 glyphs each. Leave room
+    # for wrapping at spaces and reject glyphs unsupported by the firmware.
+    if not isinstance(value, str):
+        return None
+    line = " ".join(value.split())
+    if (
+        len(line) <= LCD_PROMPT_CHARS
+        and LCD_TEXT.fullmatch(line)
+        and any(char.isalnum() for char in line)
+        and all(len(word) <= 24 for word in line.split())
+    ):
+        return line
+    return None
+
+
+def authored_hint_for(point: str, source: str) -> str | None:
+    label = mission_title(point)
+    if label == point:
+        return None
+    pattern = (
+        r"^Dicas? para a miss[ãa]o " + re.escape(label.rstrip(" .!?"))
+        + r":?[^\S\n]*\n[^\S\n]*(?:[-*•]\s*)?(?:Primeira dica:\s*)?([^\n]+)"
+    )
+    match = re.search(pattern, source, re.IGNORECASE | re.MULTILINE)
+    return lcd_line(match[1].strip(' “”:."') + ".") if match else None
+
+
+def fallback_dialogue(point: str) -> tuple[str, str]:
+    authored = AUTHORED_QUESTION.search(point)
+    label = mission_title(point).rstrip(" .!?")
+    # Ask about the method when an authored exercise relies on a visual aid.
+    question = lcd_line(authored[1]) if authored and "mostre " not in point.lower() else None
+    question = question or lcd_line(question_for(point)) or lcd_line(f"Como resolveu: {label}?")
+    question = question or lcd_line(f"O que sabe sobre {short_text(label, 28)}?")
+    hint = lcd_line(hint_for(point))
+    return question or "Como você resolveu essa missão?", hint or "Dica: pense em um exemplo."
 
 
 def choose_focus(report: dict, preferred_index: int = 0) -> tuple[int, str] | None:
