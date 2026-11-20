@@ -7,7 +7,7 @@ import {
   sanitizePrivateSnapshot,
   sanitizePublicSnapshot,
   touchModelForSnapshot,
-} from "./state.mjs?v=mission-feedback-5";
+} from "./state.mjs?v=brand-lumi-1";
 import {
   renderCommandState,
   renderConfirmation,
@@ -16,7 +16,7 @@ import {
   renderPublic,
   renderTokenPrompt as renderTokenPromptMarkup,
   renderTouch,
-} from "./render.mjs?v=mission-feedback-5";
+} from "./render.mjs?v=brand-lumi-1";
 import { captureTextareaScroll, restoreTextareaScroll } from "./scroll_state.mjs";
 import { shouldDeferPresenterRefresh } from "./presenter_refresh.mjs";
 

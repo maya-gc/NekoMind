@@ -24,6 +24,15 @@ from app.database.connection import init_db
 from app.security import operator_token, require_operator
 
 
+class LocalStaticFiles(StaticFiles):
+    """Serve a interface local sem reutilizar uma versão visual antiga."""
+
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        return response
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Garante que o diretorio de armazenamento exista antes do banco/audio.
@@ -64,7 +73,7 @@ app.include_router(routes_experience.router)
 app.include_router(websocket.router)
 
 WEB_DIR = Path(__file__).resolve().parents[2] / "frontend" / "web"
-app.mount("/web", StaticFiles(directory=WEB_DIR, check_dir=False), name="web")
+app.mount("/web", LocalStaticFiles(directory=WEB_DIR, check_dir=False), name="web")
 
 
 @app.get("/touch", include_in_schema=False)

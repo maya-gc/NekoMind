@@ -1,4 +1,4 @@
-import { missionOutcome, statusLabel, stepLabel } from "./state.mjs?v=mission-feedback-5";
+import { missionOutcome, statusLabel, stepLabel } from "./state.mjs?v=brand-lumi-1";
 
 export function renderConfirmation(label) {
   return `<section class="confirmation-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
