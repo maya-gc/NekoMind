@@ -254,64 +254,77 @@ button:disabled {
 }
 
 .cat-head {
-  fill: #fffefa;
-  stroke: #30282d;
+  fill: #b8acec;
+  stroke: #332b55;
   stroke-width: 5;
   stroke-linejoin: round;
 }
 
 .cat-cheek {
-  fill: #ffe0e7;
+  fill: #e3a9d1;
 }
 
 .cat-eye {
-  fill: #30282d;
+  fill: #f5b942;
+  stroke: #332b55;
+  stroke-width: 4;
+}
+
+.cat-pupil {
+  fill: #332b55;
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 .cat-eye-closed {
   fill: none;
-  stroke: #30282d;
+  stroke: #332b55;
   stroke-width: 5;
   stroke-linecap: round;
 }
 
-.cat-nose-outline {
-  fill: #30282d;
+.cat-muzzle {
+  fill: #d9fff8;
+  stroke: #332b55;
+  stroke-width: 3;
 }
 
 .cat-nose {
-  fill: #f6c747;
+  fill: #332b55;
 }
 
-.cat-bow,
-.cat-bow-knot {
-  fill: #e93656;
-  stroke: #30282d;
-  stroke-width: 5;
-}
-
-.cat-whisker {
+.cat-mouth {
   fill: none;
-  stroke: #30282d;
+  stroke: #332b55;
   stroke-width: 4;
   stroke-linecap: round;
+}
+
+.cat-spark {
+  fill: #32d6c4;
+  stroke: #332b55;
+  stroke-width: 4;
+  stroke-linejoin: round;
   transform-box: fill-box;
   transform-origin: center;
+}
+
+.cat-freckle {
+  fill: #655a91;
 }
 
 .voice-dot {
   fill: color-mix(in srgb, var(--neko-signal-cyan) 65%, transparent);
 }
 
-.cat-face.is-low .cat-whisker,
-.state-recording .cat-face.is-low .cat-whisker {
-  stroke: var(--neko-caution-amber);
-  transform: scaleX(0.72);
+.cat-face.is-low .cat-spark,
+.state-recording .cat-face.is-low .cat-spark {
+  fill: var(--neko-caution-amber);
 }
 
-.cat-face.is-clipping .cat-bow,
+.cat-face.is-clipping .cat-spark,
 .cat-face.is-clipping .voice-dot {
-  fill: color-mix(in srgb, var(--neko-error-red) 65%, #e93656);
+  fill: color-mix(in srgb, var(--neko-error-red) 65%, #32d6c4);
   stroke: var(--neko-error-red);
 }
 
@@ -319,8 +332,8 @@ button:disabled {
   fill: var(--neko-check-green);
 }
 
-.state-error .cat-bow,
-.state-recovery .cat-bow {
+.state-error .cat-spark,
+.state-recovery .cat-spark {
   stroke: var(--neko-caution-amber);
 }
 
@@ -1079,8 +1092,8 @@ button:disabled {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .state-recording .cat-whisker {
-    animation: whisker-listen 900ms ease-out infinite alternate;
+  .state-recording .cat-spark {
+    animation: spark-listen 900ms ease-out infinite alternate;
   }
 
   .state-processing .cat-pupil {
@@ -1088,7 +1101,7 @@ button:disabled {
   }
 }
 
-@keyframes whisker-listen {
+@keyframes spark-listen {
   from { transform: scaleX(0.9); }
   to { transform: scaleX(1.05); }
 }

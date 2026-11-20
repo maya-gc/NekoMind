@@ -1,4 +1,4 @@
-"""Widget do avatar NekoMind (mascote gato em arte ASCII/emoji).
+"""Widget de Lumi, mascote felina original do NekoMind, em arte ASCII/emoji.
 
 Estados espelham o firmware (iot/nekomind_firmware): IDLE, RECORDING,
 PAUSED, PROCESSING, SUCCESS, ERROR.
@@ -27,15 +27,15 @@ AVATAR_CSS = """
     text-align: center;
     padding: 1.4rem 1rem;
     border-radius: 20px;
-    border: 3px dashed #f6a5c0;
-    background: linear-gradient(160deg, #fff7fb 0%, #fdeef5 60%, #fbd3e3 100%);
-    color: #7a4a5b;
+    border: 3px dashed #32d6c4;
+    background: linear-gradient(160deg, #f7f4ff 0%, #ded6ff 60%, #b8acec 100%);
+    color: #332b55;
     margin-bottom: 0.6rem;
 }
 .neko-state {
     text-align: center;
     font-size: 0.95rem;
-    color: #b06a83;
+    color: #655a91;
     font-weight: 600;
     letter-spacing: 0.04em;
 }

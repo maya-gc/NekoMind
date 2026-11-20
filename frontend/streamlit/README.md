@@ -39,5 +39,5 @@ python3 -m pytest frontend/streamlit/tests -q
 ```
 
 A validação desta branch também abriu o Streamlit no navegador, executou uma sessão
-**demo temporária**, conferiu origem e foco por teclado e salvou capturas em
-`ScreenshotsToCloseLoop/runs/touch-mac-mvp/`. Isso não valida o display físico ESP32.
+**demo temporária** e conferiu origem e foco por teclado. Capturas devem ser
+regeneradas após mudanças visuais e não são versionadas. Isso não valida o display físico ESP32.

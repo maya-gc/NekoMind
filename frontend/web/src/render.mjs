@@ -204,26 +204,29 @@ export function renderCatFace({ state = "idle", voice = null, compact = false } 
   const low = voice?.quality === "low";
   const eyes = state === "paused"
     ? `<path class="cat-eye-closed" d="M82 105 Q89 111 96 105 M145 105 Q152 111 159 105" />`
-    : `<ellipse class="cat-eye" cx="89" cy="105" rx="5" ry="9" />
-       <ellipse class="cat-eye" cx="152" cy="105" rx="5" ry="9" />`;
+    : `<ellipse class="cat-eye" cx="89" cy="105" rx="11" ry="12" />
+       <ellipse class="cat-eye" cx="152" cy="105" rx="11" ry="12" />
+       <circle class="cat-pupil" cx="89" cy="105" r="4" />
+       <circle class="cat-pupil" cx="152" cy="105" r="4" />`;
   return `
     <svg class="cat-face ${compact ? "is-compact" : ""} ${clipping ? "is-clipping" : ""} ${low ? "is-low" : ""}"
       data-state="${escapeAttr(state)}"
       viewBox="0 0 240 180"
       role="img"
-      aria-label="Rosto da gatinha NekoMind em estado ${escapeAttr(state)}">
-      <title>Gatinha NekoMind com laço</title>
-      <path class="cat-head" d="M40 78 Q33 59 42 27 Q45 17 59 21 L98 35 Q120 27 144 29 L180 20 Q196 17 199 31 Q204 54 200 76 Q211 89 211 110 Q210 151 164 162 Q120 175 76 161 Q29 148 29 109 Q29 89 40 78 Z" />
+      aria-label="Rosto de Lumi, mascote original do NekoMind, em estado ${escapeAttr(state)}">
+      <title>Lumi, mascote felina original do NekoMind</title>
+      <path class="cat-head" d="M39 82 Q31 58 48 25 Q54 14 68 24 L96 44 Q120 34 145 40 L177 20 Q194 12 199 30 Q207 57 198 82 Q211 96 207 119 Q199 154 159 164 Q118 175 77 162 Q35 149 31 116 Q28 95 39 82 Z" />
       <ellipse class="cat-cheek" cx="65" cy="128" rx="12" ry="6" />
       <ellipse class="cat-cheek" cx="175" cy="128" rx="12" ry="6" />
       ${eyes}
-      <ellipse class="cat-nose-outline" cx="120" cy="126" rx="10" ry="7" />
-      <ellipse class="cat-nose" cx="120" cy="126" rx="7" ry="5" />
-      <path class="cat-whisker left" style="--voice:${level}" d="M75 118 L21 111 M75 129 L17 130 M79 139 L27 151" />
-      <path class="cat-whisker right" style="--voice:${level}" d="M165 118 L219 111 M165 129 L223 130 M161 139 L213 151" />
-      <ellipse class="cat-bow" cx="155" cy="45" rx="20" ry="29" transform="rotate(24 155 45)" />
-      <ellipse class="cat-bow" cx="191" cy="59" rx="22" ry="20" transform="rotate(-28 191 59)" />
-      <ellipse class="cat-bow-knot" cx="174" cy="55" rx="15" ry="13" />
+      <ellipse class="cat-muzzle" cx="120" cy="127" rx="28" ry="20" />
+      <path class="cat-nose" d="M112 121 Q120 113 128 121 Q120 130 112 121 Z" />
+      <path class="cat-mouth" d="M120 129 Q111 142 101 135 M120 129 Q129 142 139 135" />
+      <path class="cat-spark" d="M120 48 L126 60 L140 62 L130 72 L133 86 L120 79 L107 86 L110 72 L100 62 L114 60 Z" />
+      <circle class="cat-freckle" cx="76" cy="130" r="3" />
+      <circle class="cat-freckle" cx="84" cy="135" r="2.5" />
+      <circle class="cat-freckle" cx="164" cy="130" r="3" />
+      <circle class="cat-freckle" cx="156" cy="135" r="2.5" />
       <circle class="voice-dot" cx="120" cy="174" r="${Math.max(3, Math.min(6, 3 + level / 25))}" />
     </svg>`;
 }

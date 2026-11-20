@@ -1,12 +1,13 @@
-# NekoMind — estação de estudo com gatinha touch
+# NekoMind — estação de estudo com mascote touch
 
 [![testes](https://github.com/maya-gc/NekoMind/actions/workflows/testes.yml/badge.svg)](https://github.com/maya-gc/NekoMind/actions/workflows/testes.yml)
 ![Windows](https://img.shields.io/badge/Windows-desenvolvimento-0078D6)
 ![macOS](https://img.shields.io/badge/macOS-apresenta%C3%A7%C3%A3o-555555)
 ![ESP32-S3](https://img.shields.io/badge/ESP32--S3-LCD%20touch-E7352C)
 
-[Prévia visual da gatinha em 3D](output/concepts/nekomind-3d/README.md):
-personagem, tela conceitual e dois GIFs de movimento para avaliação.
+**Lumi** é a mascote felina original do projeto: lavanda e turquesa, com olhos
+âmbar, sorriso, sardas e estrela frontal. Sua arte é gerada por código local;
+consulte [licenças e origem dos elementos visuais](ASSET-LICENSES.md).
 
 A pessoa escolhe um ponto do material no **display touch da gatinha**, explica em
 voz alta, recebe uma **pergunta** e uma **dica**, responde de novo e vê uma
@@ -100,8 +101,8 @@ funcionamento. A transcrição completa continua privada e nenhuma dessas evidê
 é apresentada como nota ou prova de domínio. Os termos refletem o que o ASR local
 reconheceu e podem divergir da fala quando o modelo ou a captação forem insuficientes.
 
-O rosto no LCD e no painel do Mac usa a referência de gatinha branca com laço
-vermelho, olhos escuros, nariz amarelo e bigodes, desenhada com primitivas locais
+O rosto no LCD e no painel do Mac é Lumi, mascote original lavanda e turquesa,
+com olhos âmbar, sorriso, sardas e estrela frontal, desenhada com primitivas locais
 (sem imagem externa). No LCD há um botão **ESCURO/CLARO** no canto superior direito
 em todos os estados. Ele alterna imediatamente a paleta suave rosa e creme ou
 ameixa escura, persiste a escolha no NVS do ESP32 e não altera a captura nem envia
@@ -134,9 +135,8 @@ legível e, ao mesmo tempo, deixar o funcionamento visível para a plateia:
 - **Modo demo:** continua disponível e sempre identificado. Dados simulados não são
   exibidos como resultado real.
 
-Evidências inspecionadas no navegador: [display 320×240](ScreenshotsToCloseLoop/runs/presentation-evidence/touch-proof-320x240.jpg),
-[termos no display](ScreenshotsToCloseLoop/runs/presentation-evidence/touch-terms-320x240.jpg)
-e [painel público 1440×900](ScreenshotsToCloseLoop/runs/presentation-evidence/public-proof-1440x900.jpg).
+As evidências visuais devem ser regeneradas localmente após mudanças de identidade;
+capturas antigas não são distribuídas no repositório.
 
 ## Status consolidado da `main`
 

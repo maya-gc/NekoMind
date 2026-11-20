@@ -50,3 +50,11 @@ Thumbs.db
 
 # Relatórios locais gerados pelo pipeline de validação
 relatorio-pipeline*/
+
+# Evidências visuais geradas (regenerar com a identidade atual)
+/ScreenshotsToCloseLoop/runs/
+/output/concepts/nekomind-3d/
+/output/prototypes/realtime-3d/
+
+# Atalho local para iniciar a apresentação com dois cliques
+/iniciar_nekomind.bat

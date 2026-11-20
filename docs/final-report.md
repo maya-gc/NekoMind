@@ -183,14 +183,8 @@ A confirmação nativa bloqueou o navegador; após substituí-la, a repetição 
 final de reset/retry/histórico/exclusão permaneceu não concluída. Os testes de API e
 contrato correspondentes passaram. **QA parcial, sem aprovação irrestrita.**
 
-- [Resultado vertical](https://github.com/maya-gc/NekoMind/blob/feat/nekomind-touch-mac-mvp/ScreenshotsToCloseLoop/runs/feira-nm019/touch-result-240x320.png)
-- [Resultado horizontal](https://github.com/maya-gc/NekoMind/blob/feat/nekomind-touch-mac-mvp/ScreenshotsToCloseLoop/runs/feira-nm019/touch-result-320x240.png)
-- [Gravação demo conectada](https://github.com/maya-gc/NekoMind/blob/feat/nekomind-touch-mac-mvp/ScreenshotsToCloseLoop/runs/feira-nm019/connected-recording-320x240.png)
-- [Painel público](https://github.com/maya-gc/NekoMind/blob/feat/nekomind-touch-mac-mvp/ScreenshotsToCloseLoop/runs/feira-nm019/public-result-1440x900.png)
-- [Presenter](https://github.com/maya-gc/NekoMind/blob/feat/nekomind-touch-mac-mvp/ScreenshotsToCloseLoop/runs/feira-nm019/presenter-recovery-1440x900.png)
-
-As 33 capturas versionadas incluem baseline, fixtures e fluxo conectado; os problemas
-de enquadramento foram preservados fora do Git. [QA completo](https://github.com/maya-gc/NekoMind/blob/feat/nekomind-touch-mac-mvp/docs/qa-report.md).
+As capturas históricas da identidade anterior foram removidas. A validação descrita
+permanece registrada em texto; novas evidências visuais devem usar Lumi.
 
 ## Testes
 

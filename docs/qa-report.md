@@ -74,7 +74,7 @@ storage padrão, e separado o diretório de arquivos de cada teste.
 
 ## Evidência visual
 
-Capturas em `ScreenshotsToCloseLoop/runs/feira-nm019/`. Arquivos com `fixture` na tela
+As capturas antigas não são versionadas. Arquivos com `fixture` na tela
 são estados determinísticos para QA e **não evidência de microfone/modelo reais**.
 O primeiro `initial-before-240x320.png` registra o problema antes da correção.
 
@@ -174,18 +174,9 @@ final ficou em 28 testes aprovados.
 
 ## Capturas selecionadas e inspecionadas
 
-- [Atração 240×320](../ScreenshotsToCloseLoop/runs/feira-nm019/touch-attraction-240x320.png)
-- [Gravação demo conectada](../ScreenshotsToCloseLoop/runs/feira-nm019/connected-recording-320x240.png)
-- [Pausa demo conectada](../ScreenshotsToCloseLoop/runs/feira-nm019/connected-paused-320x240.png)
-- [Voz baixa](../ScreenshotsToCloseLoop/runs/feira-nm019/touch-low-voice-240x320.png) · [Clipping](../ScreenshotsToCloseLoop/runs/feira-nm019/touch-clipping-240x320.png)
-- [Erro de autoteste](../ScreenshotsToCloseLoop/runs/feira-nm019/touch-checking-error-240x320.png) · [Recuperação](../ScreenshotsToCloseLoop/runs/feira-nm019/touch-recovery-240x320.png)
-- [Extração 240×320](../ScreenshotsToCloseLoop/runs/feira-nm019/touch-processing-topics-240x320.png) · [Preparação 320×240](../ScreenshotsToCloseLoop/runs/feira-nm019/touch-processing-result-320x240.png)
-- [Resultado 240×320](../ScreenshotsToCloseLoop/runs/feira-nm019/touch-result-240x320.png) · [Resultado 320×240](../ScreenshotsToCloseLoop/runs/feira-nm019/touch-result-320x240.png)
-- [Painel público 1440×900](../ScreenshotsToCloseLoop/runs/feira-nm019/public-result-1440x900.png)
-- [Prova visual nova no touch 240×320](../ScreenshotsToCloseLoop/runs/presentation-evidence/touch-proof-240x320.jpg) · [termos agrupados 320×240](../ScreenshotsToCloseLoop/runs/presentation-evidence/touch-terms-320x240.jpg)
-- [Prova visual nova no painel público](../ScreenshotsToCloseLoop/runs/presentation-evidence/public-proof-1440x900.jpg) · [ensaio real local](../ScreenshotsToCloseLoop/runs/presentation-evidence/public-live-real-1440x900.jpg)
-- [Presenter 1440×900](../ScreenshotsToCloseLoop/runs/feira-nm019/presenter-recovery-1440x900.png)
-- [Reset fixture](../ScreenshotsToCloseLoop/runs/feira-nm019/touch-reset-240x320.png), distinto do reset conectado testado pela API.
+As capturas históricas foram removidas com a troca de identidade visual. A cobertura
+textual e os testes automatizados continuam válidos; novas capturas devem ser
+produzidas com Lumi antes da próxima apresentação.
 
 ## Validação física e pendências
 

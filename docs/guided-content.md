@@ -115,7 +115,7 @@ frame novo sem alterar a estrutura dos comandos. Firmware antigo envia IDs sem
 esse prefixo e não recebe frames de conteúdo. Mac antigo aceita o novo ID como
 texto comum e mantém os estados antigos.
 
-O avatar mantém a silhueta original com laço e os temas existentes. Duas
+Lumi mantém sua silhueta original, estrela frontal e os temas existentes. Duas
 atualizações iguais e pelo menos 6 s entre trocas suavizam a expressão. Uma
 inversão explícita pode produzir expressão triste; após 30 s de fala reconhecida
 sem cobertura, preocupada; conteúdo parcial, contente; cobertura, feliz.

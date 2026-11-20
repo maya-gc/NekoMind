@@ -36,11 +36,9 @@ No viewport estreito, menu foi recolhido e controles/rótulos ficaram visíveis.
 Configuração real de teste não executou ASR: somente demonstrou bloqueio do botão demo
 com histórico ainda identificado. Ao parar backend, Configurações apresentou erro.
 
-- [Demo desktop](../../ScreenshotsToCloseLoop/runs/touch-mac-mvp/streamlit-demo.png)
-- [Demo390×844](../../ScreenshotsToCloseLoop/runs/touch-mac-mvp/streamlit-demo-mobile.png)
-- [Demo bloqueada no modo real](../../ScreenshotsToCloseLoop/runs/touch-mac-mvp/streamlit-real-demo-blocked.png)
-- [Backend indisponível](../../ScreenshotsToCloseLoop/runs/touch-mac-mvp/streamlit-backend-error.png)
+As capturas históricas foram removidas após a atualização da identidade visual.
+Novas evidências devem ser geradas a partir da versão atual antes de uma apresentação.
 
-Os servidores temporários foram encerrados após verificação. Screenshots não contêm
+Os servidores temporários foram encerrados após verificação. As capturas não continham
 conteúdo pessoal. Sem auditoria completa WCAG nem evidência de touch físico. Gate UI
 estruturado do Flow permaneceu FAIL; screenshots não substituem suas demais exigências.

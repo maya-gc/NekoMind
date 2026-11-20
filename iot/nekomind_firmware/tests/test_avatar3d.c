@@ -36,15 +36,17 @@ int main(int argc, char **argv)
     neko_avatar3d_render(0, 0, W, H, 0, H, "face-ready", 1000, bg, put_pixel);
     assert(writes >= W * H);
     uint64_t first = image_hash();
-    int foreground = 0, red = 0, dark = 0, left_ear = 0;
+    int foreground = 0, teal = 0, lavender = 0, dark = 0;
     for (size_t i = 0; i < W * H; ++i) {
         if (image[i] != bg) foreground++;
-        if ((image[i] & 0xf800) > 0x8000 && (image[i] & 0x07e0) < 0x0220) red++;
+        int r = (image[i] >> 11) & 0x1f;
+        int g = (image[i] >> 5) & 0x3f;
+        int b = image[i] & 0x1f;
+        if (g > r * 2 && g > b) teal++;
+        if (r > 12 && b > 16 && b > g / 2) lavender++;
         if (image[i] < 0x4208) dark++;
-        if (i / W < 34 && i % W < 65 && image[i] != bg
-            && (image[i] & 0x07e0) >= 0x0700) left_ear++;
     }
-    assert(foreground > 6000 && red > 50 && dark > 30 && left_ear > 100);
+    assert(foreground > 6000 && teal > 100 && lavender > 1000 && dark > 30);
     neko_avatar3d_render(0, 0, W, H, 0, H, "face-ready", 1250, bg, put_pixel);
     assert(image_hash() != first);
     neko_avatar3d_render(0, 0, W, H, 0, H, "face-paused", 1250, bg, put_pixel);

@@ -14,7 +14,7 @@ de até duas linhas, ação principal no rodapé e cartões sequenciais no resul
 e tópicos legíveis a distância. Presenter: diagnóstico, sessão atual e ações seguras em
 uma ferramenta densa, sem conteúdo sensível por padrão.
 
-Tokens de produto: preto LCD, branco de bigode, ciano de sinal, verde de check, âmbar
+Tokens de produto: preto LCD, lavanda de Lumi, turquesa de sinal, verde de check, âmbar
 de atenção, vermelho de erro, violeta de demo, grafite de painel e superfície sutil de
 cartão. Texto não depende só de cor; foco é visível; reduced motion tem fallback estático.
 

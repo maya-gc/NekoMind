@@ -91,8 +91,8 @@ static bool head_surface(float u, float v, float cosine, float sine,
     return true;
 }
 
-static void whisker(neko_avatar3d_pixel_fn pixel, int x0, int y0,
-                    int x1, int y1, int clip_y0, int clip_y1, uint16_t color)
+static void stroke_line(neko_avatar3d_pixel_fn pixel, int x0, int y0,
+                        int x1, int y1, int clip_y0, int clip_y1, uint16_t color)
 {
     int dx = abs(x1 - x0), dy = abs(y1 - y0);
     int sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
@@ -130,17 +130,18 @@ void neko_avatar3d_render(int x, int y, int width, int height,
     bool blink = paused || (!still && blink_phase > 3.16f && blink_phase < 3.32f);
     float eye_h = blink || success ? 0.025f : worried ? 0.075f : 0.105f;
     float eye_y = thinking ? -0.10f : -0.035f;
-    float red = worried ? 250.f : 239.f;
+    float teal = worried ? 244.f : 50.f;
     ellipsoid_t parts[] = {
-        {-0.48f, -0.57f + bob, -0.28f, 0.25f, 0.32f, 0.16f, 255, 251, 249, -0.12f},
-        { 0.48f, -0.57f + bob, -0.28f, 0.25f, 0.32f, 0.16f, 255, 251, 249,  0.12f},
-        { 0.f, bob, 0.f, 0.76f, 0.69f, 0.48f, 255, 251, 249, 0.f},
-        {-0.30f, eye_y + bob, 0.49f, 0.066f, eye_h, 0.054f, 46, 35, 40, 0.f},
-        { 0.30f, eye_y + bob, 0.49f, 0.066f, eye_h, 0.054f, 46, 35, 40, 0.f},
-        { 0.f, 0.17f + bob, 0.51f, 0.075f, 0.052f, 0.060f, 249, 200, 66, 0.f},
-        { 0.34f, -0.59f + bob, 0.48f, 0.18f, 0.30f, 0.11f, (uint8_t)red, 45, 70, -0.27f},
-        { 0.69f, -0.44f + bob, 0.45f, 0.21f, 0.19f, 0.11f, (uint8_t)red, 45, 70, 0.18f},
-        { 0.54f, -0.51f + bob, 0.64f, 0.095f, 0.095f, 0.075f, 225, 32, 55, 0.f},
+        {-0.48f, -0.57f + bob, -0.28f, 0.25f, 0.34f, 0.16f, 91, 218, 205, -0.12f},
+        { 0.48f, -0.57f + bob, -0.28f, 0.25f, 0.34f, 0.16f, 91, 218, 205,  0.12f},
+        { 0.f, bob, 0.f, 0.76f, 0.69f, 0.48f, 184, 172, 236, 0.f},
+        {-0.30f, eye_y + bob, 0.49f, 0.085f, eye_h, 0.060f, 245, 185, 66, 0.f},
+        { 0.30f, eye_y + bob, 0.49f, 0.085f, eye_h, 0.060f, 245, 185, 66, 0.f},
+        {-0.30f, eye_y + bob, 0.56f, 0.032f, eye_h * 0.55f, 0.025f, 51, 43, 85, 0.f},
+        { 0.30f, eye_y + bob, 0.56f, 0.032f, eye_h * 0.55f, 0.025f, 51, 43, 85, 0.f},
+        { 0.f, 0.19f + bob, 0.48f, 0.22f, 0.14f, 0.065f, 217, 255, 248, 0.f},
+        { 0.f, 0.13f + bob, 0.56f, 0.055f, 0.036f, 0.030f, 51, 43, 85, 0.f},
+        { 0.f, -0.40f + bob, 0.51f, 0.12f, 0.12f, 0.050f, (uint8_t)teal, 214, 196, 0.f},
     };
     /* Projecao ajustada ao retangulo reservado para o rosto no LCD. */
     float scale_y = (float)height / 1.79f;
@@ -171,19 +172,13 @@ void neko_avatar3d_render(int x, int y, int width, int height,
             pixel(xx, yy, color);
         }
     }
-    /* Bigodes sao segmentos 3D presos a face; acompanham a rotacao da cabeca. */
-    uint16_t ink = rgb565(60, 46, 51);
-    for (int side = -1; side <= 1; side += 2) {
-        for (int i = -1; i <= 1; ++i) {
-            float ax = cosine * (side * 0.52f) + sine * 0.33f;
-            float bx = cosine * (side * 0.74f) + sine * 0.30f;
-            float ay = 0.17f + bob + i * 0.085f;
-            float by = ay + i * 0.04f;
-            int x0 = (int)(mid_x + scale_x * ax), x1 = (int)(mid_x + scale_x * bx);
-            int y0 = (int)(mid_y + scale_y * ay), y1 = (int)(mid_y + scale_y * by);
-            if (x0 >= x && x0 < x + width && x1 >= x && x1 < x + width
-                && y0 >= y && y0 < y + height && y1 >= y && y1 < y + height)
-                whisker(pixel, x0, y0, x1, y1, first_y, last_y, ink);
-        }
-    }
+    /* O sorriso visivel diferencia Lumi e tambem comunica estado sem depender de cor. */
+    uint16_t ink = rgb565(51, 43, 85);
+    int mouth_x = (int)(mid_x + scale_x * sine * 0.42f);
+    int mouth_y = (int)(mid_y + scale_y * (0.25f + bob));
+    int mouth_drop = success ? 2 : worried ? -4 : 5;
+    stroke_line(pixel, mouth_x, mouth_y, mouth_x - (int)(scale_x * 0.13f),
+                mouth_y + mouth_drop, first_y, last_y, ink);
+    stroke_line(pixel, mouth_x, mouth_y, mouth_x + (int)(scale_x * 0.13f),
+                mouth_y + mouth_drop, first_y, last_y, ink);
 }
