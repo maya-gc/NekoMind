@@ -1,27 +1,33 @@
 # Diálogo guiado no touch
 
-O estudante escolhe no touch um dos pontos preparados no painel do Mac e explica
-esse trecho. O ESP32-S3 controla a tela e envia comandos; o Mac capta o áudio,
-transcreve, compara com o briefing local e toca a voz da gatinha. O navegador
+O estudante escolhe no touch um exercício curto preparado a partir do conteúdo
+selecionado no Mac e explica seu raciocínio. O ESP32-S3 controla a tela e envia
+comandos; o Mac capta o áudio, transcreve, avalia a resposta com regras locais e,
+quando disponível, com o tutor Ollama local, e toca a voz da gatinha. O navegador
 `/touch` reproduz os mesmos comandos para ensaio. O modo livre segue disponível.
 
 ## Sequência para o estudante
 
-1. O operador seleciona um briefing revisado, com até 30 pontos. Depois do
-   diagnóstico, o touch percorre os pontos com **Anterior/Próxima** e envia
-   `start` com o índice escolhido. A prévia tem até 60 bytes UTF-8 por ponto.
-2. O estudante explica em voz alta e toca **Finalizar**. Só depois da análise
-   final válida o Mac escolhe um ponto pouco mencionado, começando por
-   `not_mentioned`, depois `partial`, `possible_divergence` e `covered`.
-   Em empate, prefere o ponto escolhido pelo estudante.
-3. A gatinha lê uma pergunta curta ligada a esse ponto. O estudante pode tocar
-   **Pedir dica**; a dica usa palavras do próprio ponto e é lida em voz alta.
+1. O operador seleciona um briefing revisado, com até 30 pontos. Antes da captura,
+   o bridge prepara até 30 exercícios/perguntas que caibam no LCD. Para matemática
+   básica, contas estruturadas recebem avaliação determinística; nos demais temas,
+   o Ollama local pode propor perguntas e há fallback seguro quando indisponível.
+   O touch percorre as missões com **Anterior/Próxima** e envia `start` com o
+   índice escolhido. Cada prévia validada tem até 44 bytes UTF-8.
+2. O estudante explica em voz alta e toca **Finalizar**. A análise correlaciona a
+   fala com a missão escolhida e produz uma avaliação conservadora. Uma heurística
+   ou resposta de modelo, isoladamente, não comprova correção factual ou domínio.
+3. A gatinha apresenta uma pergunta curta de aprofundamento. O estudante pode
+   tocar **Pedir dica**; a dica é curta e lida em voz alta quando a voz local está
+   disponível.
 4. Ao tocar **Responder**, começa outra captura, associada à primeira. Ao
    terminar, a gatinha compara como o mesmo ponto apareceu nas duas falas.
    **Encerrar** ou **Nova tentativa** permite seguir para o próximo visitante.
 
-Pergunta, dica e comparação são formuladas localmente por regras a partir do
-briefing. Não há chamada de IA generativa remota nem custo por fala. A voz
+Pergunta, dica e comparação são formuladas localmente por regras e, quando
+configurado, pelo modelo Ollama local. Conteúdo importado e transcrições são dados,
+não instruções para o modelo. Não há chamada de IA generativa remota nem custo por
+fala. A voz
 Kokoro `pf_dora` em português brasileiro roda no Mac após a instalação inicial
 dos pesos; usa o alto-falante do Mac. Antes de gravar, o áudio da gatinha é
 interrompido para reduzir a chance de entrar na transcrição. Se a voz opcional
@@ -42,8 +48,9 @@ baseado em fala real.
   antes de abrir o microfone.
 - O primeiro resultado pode trazer `followup.stage=question`; `hint` muda para
   `stage=hint`; `answer` cria outra sessão e envia `stage=answering`; o segundo
-  resultado envia `stage=done` com a comparação. A serial mantém o teto de
-  4096 bytes por linha.
+  resultado envia `stage=done` com a comparação. O payload público também pode
+  expor `assessment`, `source_point`, `tutor` e trechos de evidência sanitizados;
+  a serial mantém um subconjunto compacto e o teto de 4096 bytes por linha.
 - Índices, vínculos entre sessões e etapas do diálogo ficam no journal SQLite
   do bridge. Reiniciar o bridge recupera uma pergunta ou comparação já salva,
   sem reabrir o microfone automaticamente. O backend persiste cada tentativa

@@ -7,7 +7,6 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 import torch
-
 from kokoro import KPipeline
 
 

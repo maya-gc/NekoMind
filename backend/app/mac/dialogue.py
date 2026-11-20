@@ -25,6 +25,7 @@ METADATA = re.compile(
     re.IGNORECASE,
 )
 MISSION_HEADER = re.compile(r"^(?:#{1,6}\s+)?miss[õo]es\s*:?$", re.IGNORECASE)
+SECTION_HEADER = re.compile(r"^#{1,6}\s+\S")
 AUTHORED_QUESTION = re.compile(r"\bpergunte:\s*[“\"]?([^?”\"]+\?)", re.IGNORECASE)
 
 
@@ -46,12 +47,12 @@ def mission_points(source: str, points: list[str]) -> list[str]:
         line = raw.strip()
         if MISSION_HEADER.fullmatch(line):
             in_missions = True
+        elif in_missions and SECTION_HEADER.match(line):
+            break
         elif in_missions and BULLET.match(line):
             point = BULLET.sub("", line)
             if not METADATA.match(point):
                 authored.append(point)
-        elif in_missions and line:
-            break
     candidates = authored or [point for point in points if not METADATA.match(point)]
     return list(dict.fromkeys(candidates))[:MAX_MISSIONS]
 
@@ -103,8 +104,13 @@ def authored_hint_for(point: str, source: str) -> str | None:
 def fallback_dialogue(point: str) -> tuple[str, str]:
     authored = AUTHORED_QUESTION.search(point)
     label = mission_title(point).rstrip(" .!?")
+    # Prepared missions may already be complete LCD-safe questions. Reuse them
+    # instead of wrapping them in another "O que sabe sobre ...?" prompt.
+    question = lcd_line(point) if point.rstrip().endswith("?") else None
     # Ask about the method when an authored exercise relies on a visual aid.
-    question = lcd_line(authored[1]) if authored and "mostre " not in point.lower() else None
+    question = question or (
+        lcd_line(authored[1]) if authored and "mostre " not in point.lower() else None
+    )
     question = question or lcd_line(question_for(point)) or lcd_line(f"Como resolveu: {label}?")
     question = question or lcd_line(f"O que sabe sobre {short_text(label, 28)}?")
     hint = lcd_line(hint_for(point))

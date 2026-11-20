@@ -20,7 +20,7 @@ def _send(port, frame, *, retries=2):
         try:
             port.write(frame)
             return True
-        except Exception as exc:  # noqa: BLE001 - only write timeouts are tolerated
+        except Exception as exc:
             if type(exc).__name__ != "SerialTimeoutException" and not isinstance(
                     exc, TimeoutError):
                 raise

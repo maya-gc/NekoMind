@@ -138,11 +138,12 @@ Evidências inspecionadas no navegador: [display 320×240](ScreenshotsToCloseLoo
 [termos no display](ScreenshotsToCloseLoop/runs/presentation-evidence/touch-terms-320x240.jpg)
 e [painel público 1440×900](ScreenshotsToCloseLoop/runs/presentation-evidence/public-proof-1440x900.jpg).
 
-## Status consolidado da branch
+## Status consolidado da `main`
 
-A branch `feat/nekomind-touch-mac-mvp` contém as melhorias NM-001 a NM-019 e os
-ajustes encontrados durante os ensaios locais. A matriz detalhada por requisito está
-no [relatório final](docs/final-report.md).
+A branch histórica `feat/nekomind-touch-mac-mvp` introduziu as melhorias NM-001 a
+NM-019, hoje incorporadas à `main` junto dos ajustes posteriores. A matriz detalhada
+por requisito permanece no [relatório final](docs/final-report.md), como registro da
+entrega original; o estado executável atual é sempre o da `main`.
 
 | Área | Entregue no software |
 |---|---|

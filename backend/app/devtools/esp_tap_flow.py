@@ -46,9 +46,8 @@ class AckSpy:
                 text = line.decode("utf-8", "replace").strip()
                 start = text.find('{"v":1,"type":"display_ack"')
                 if start >= 0:
-                    with contextlib.suppress(ValueError):
-                        with self.lock:
-                            self.acks.append(json.loads(text[start:]))
+                    with contextlib.suppress(ValueError), self.lock:
+                        self.acks.append(json.loads(text[start:]))
                 elif "sim_tap" in text:
                     self.logs.append(text)
                 elif "saude:" in text or "avatar 3D:" in text:
@@ -70,7 +69,7 @@ class AckSpy:
         for _ in range(count):
             try:
                 self.write(frame)
-            except Exception as exc:  # noqa: BLE001 - only timeouts are counted
+            except Exception as exc:
                 if type(exc).__name__ != "SerialTimeoutException":
                     raise
                 timeouts += 1

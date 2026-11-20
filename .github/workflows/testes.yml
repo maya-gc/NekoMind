@@ -35,6 +35,9 @@ jobs:
       - name: Backend (pytest)
         working-directory: backend
         run: python -m pytest -q -rfEs -p no:cacheprovider
+      - name: Backend (Ruff)
+        working-directory: backend
+        run: python -m ruff check .
       - name: Frontend (node --test)
         shell: bash
         run: node --test frontend/tests/*.test.mjs

@@ -41,6 +41,7 @@ def _windows(text: str, out: Path) -> str:
     env = {**os.environ, "NEKO_OUT": str(out), "NEKO_TEXT": text}
     result = subprocess.run(
         ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+        check=False,
         capture_output=True,
         text=True,
         timeout=120,
@@ -52,7 +53,9 @@ def _windows(text: str, out: Path) -> str:
 
 
 def _macos(text: str, out: Path) -> str:
-    voices = subprocess.run(["say", "-v", "?"], capture_output=True, text=True).stdout
+    voices = subprocess.run(
+        ["say", "-v", "?"], check=False, capture_output=True, text=True,
+    ).stdout
     args = ["say", "--data-format=LEI16@16000", "--file-format=WAVE", "-o", str(out)]
     voice = "Luciana" if "Luciana" in voices else None
     if voice:

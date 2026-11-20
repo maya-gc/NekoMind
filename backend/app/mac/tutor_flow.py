@@ -61,7 +61,7 @@ def _compatible_assessment(assessment, feedback):
         return assessment
     if assessment == "equivoco" and feedback.assessment != "equivoco":
         return ""
-    if assessment == "correto" and feedback.assessment != "correto" and not feedback.mentions_expected:
+    if assessment == "correto" and feedback.assessment != "correto":
         return "parcial"
     return assessment
 

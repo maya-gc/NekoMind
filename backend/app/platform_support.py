@@ -113,6 +113,4 @@ def audio_player_command(path: Path) -> list[str] | None:
 def audio_player_available() -> bool:
     if IS_MACOS:
         return Path("/usr/bin/afplay").is_file()
-    if IS_WINDOWS:
-        return True  # Media.SoundPlayer ships with Windows PowerShell.
-    return False
+    return IS_WINDOWS  # Media.SoundPlayer ships with Windows PowerShell.

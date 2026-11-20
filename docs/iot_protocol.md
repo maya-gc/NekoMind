@@ -34,11 +34,13 @@ nonce somente em novo boot, nunca ao retransmitir o mesmo comando.
 | hint | id atual; revela e lê a dica da pergunta, se houver |
 | answer | id da primeira sessão concluída; abre a segunda captura |
 
-Com briefing preparado, `state=ready` inclui `missions` (até 30 prévias de até
-60 bytes UTF-8). **Anterior/Próxima** percorre a lista somente no touch; `start`
-inclui `mission_index` (0 a 29) para fixar o ponto escolhido. O Mac valida de
-novo o briefing antes de iniciar a captura e responde `mission_changed` se ele
-foi alterado. Sem briefing, `start` segue sem índice.
+Com briefing preparado, `state=ready` inclui `missions` (até 30 prévias validadas
+de até 44 bytes UTF-8). Elas são exercícios/perguntas derivados do conteúdo, e
+não necessariamente cópias literais dos pontos. **Anterior/Próxima** percorre a
+lista somente no touch; `start` inclui `mission_index` (0 a 29) para fixar a
+missão escolhida. O Mac valida novamente conteúdo e missões antes de iniciar a
+captura e responde `mission_changed` se o contexto foi alterado. Sem briefing,
+`start` segue sem índice.
 
 O touch mostra PENDING e bloqueia nova ativação comum até confirmação/timeout.
 A ação RESEND é local ao controlador: retransmite exatamente a linha anterior,
@@ -76,9 +78,14 @@ estados seguintes. Exemplo:
 
 `hint` revela uma dica (`stage=hint`) e `answer` cria outra sessão
 (`stage=answering` enquanto ela é processada). O segundo `result` traz
-`stage=done` e `comparison`. Pergunta, dica e comparação são limitadas a
+`stage=done` e `comparison`. O snapshot HTTP usado pelos painéis pode acrescentar
+`assessment`, `source_point`, `tutor`, `first_excerpt` e `second_excerpt`, todos
+sanitizados; esses campos não fazem parte do subconjunto serial v1 atual. Pergunta,
+dica e comparação são limitadas a
 200, 160 e 220 bytes UTF-8, respectivamente; o texto efetivamente gerado para
-os cartões do LCD cabe em 95 bytes. O firmware rejeita `missions` fora de
+os cartões do LCD cabe em 95 bytes. No firmware atual, `stage=done` ainda usa o
+título genérico de comparação, pois o serial v1 não transporta `assessment`.
+O firmware rejeita `missions` fora de
 `state=ready` e estágios de `followup` incompatíveis com o estado. O diálogo
 completo e suas limitações estão em [diálogo guiado](interactive-dialogue.md).
 

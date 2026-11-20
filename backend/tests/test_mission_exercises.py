@@ -1,3 +1,4 @@
+from app.mac.dialogue import mission_points
 from app.mac.mission_exercises import (
     addition_comparison,
     addition_feedback,
@@ -29,6 +30,76 @@ def test_subject_title_is_enough_to_generate_a_relevant_question(monkeypatch):
         lambda *args: ["Público infantil?", "Como a água vira vapor?", "Como a água vira vapor?"],
     )
     assert prepare_questions("Ciclo da água", "", [], "local") == ["Como a água vira vapor?"]
+
+
+def test_basic_math_recognizes_real_introductory_labels_in_long_material():
+    from app.mac.mission_exercises import _basic_math
+
+    long_material = "Contexto pedagógico para a turma. " * 8 + "Prática de somas até 10."
+    assert len(long_material) > 80
+    assert _basic_math("Somas até 10", long_material)
+    assert _basic_math("Adição para iniciantes", "Exercícios graduais com objetos.")
+
+
+def test_basic_math_does_not_capture_advanced_mathematics():
+    from app.mac.mission_exercises import _basic_math
+
+    assert not _basic_math(
+        "Álgebra linear avançada",
+        "Adição de vetores, espaços vetoriais, autovalores e transformações lineares.",
+    )
+
+
+def test_question_fallback_converts_points_to_lcd_safe_prompts(monkeypatch):
+    monkeypatch.setattr("app.mac.mission_exercises.ask_questions", lambda *args: [])
+    missions = prepare_questions(
+        "Ciências",
+        "",
+        [
+            "A água evapora quando recebe calor do ambiente e muda de estado físico.",
+            (
+                "Este ponto contém 🚀 um símbolo que o LCD não aceita e uma explicação muito "
+                "longa que não deve ser enviada diretamente para o dispositivo."
+            ),
+        ],
+        "local",
+    )
+    assert missions == [
+        "O que sabe sobre A água evapora quando...?",
+        "Como você resolveu essa missão?",
+    ]
+    assert all(len(question.encode("utf-8")) <= 44 and "?" in question for question in missions)
+
+
+def test_question_fallback_is_fixed_when_no_point_is_usable(monkeypatch):
+    monkeypatch.setattr("app.mac.mission_exercises.ask_questions", lambda *args: [])
+    assert prepare_questions("Tema", "", [], "local") == ["O que você sabe sobre este tema?"]
+
+
+def test_prepared_question_is_reused_without_nested_prompt():
+    from app.mac.dialogue import fallback_dialogue
+
+    prepared = "O que sabe sobre A água evapora quando...?"
+    question, _ = fallback_dialogue(prepared)
+    assert question == prepared
+    assert "O que sabe sobre O que sabe" not in question
+    assert len(question) <= 48
+
+
+def test_authored_missions_allow_intro_text_and_stop_at_next_heading():
+    source = """## Missões
+Escolha uma atividade e explique seu raciocínio.
+
+- Quanto é 2 mais 3? Como sabe?
+- Por que a água vira vapor?
+
+## Dicas
+- Esta linha pertence à seção seguinte.
+"""
+    assert mission_points(source, ["Fallback"]) == [
+        "Quanto é 2 mais 3? Como sabe?",
+        "Por que a água vira vapor?",
+    ]
 
 
 def test_bridge_serves_question_then_compares_two_transcribed_answers(client, tmp_path, monkeypatch):
@@ -112,6 +183,19 @@ def test_unclear_audio_does_not_override_an_explained_total():
     assert addition_feedback(FIRST_ADDITION, "Eu falei lápis.").assessment == ""
     assert addition_feedback(FIRST_ADDITION, "Não dá cinco.").assessment == ""
     assert addition_feedback(FIRST_ADDITION, "1 mais 2 é 4, mais 2 é 5.").assessment == "equivoco"
+
+
+def test_mentioning_or_negating_expected_total_cannot_confirm_ai_verdict():
+    from app.mac.mission_exercises import FIRST_ADDITION
+    from app.mac.tutor_flow import _compatible_assessment
+
+    for speech in ("Não é 5, é 4.", "5 está errado.", "Acho 5, mas não."):
+        feedback = addition_feedback(FIRST_ADDITION, speech)
+        assert feedback.assessment != "correto"
+        assert _compatible_assessment("correto", feedback) == "parcial"
+
+    confirmed = addition_feedback(FIRST_ADDITION, "1 mais 2 é 3, mais 2 é 5.")
+    assert _compatible_assessment("correto", confirmed) == "correto"
 
 
 def test_explanation_in_pairs_can_be_correct_without_echoing_the_question():

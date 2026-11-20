@@ -1,5 +1,8 @@
 # Tutor IA local — temas simples e complexos
 
+O planejamento infantil ancorado e o formato de memória curada portátil estão em
+[inteligência pedagógica local](inteligencia-pedagogica-local.md).
+
 Desde 09/11/2026 a pergunta, a dica e a comparação podem ser geradas por um
 modelo local no **Ollama** (padrão `qwen2.5:7b`), lendo o ponto da missão e o
 que você falou. Assim funcionam tanto “ciclo da água” quanto “Hamiltoniana” ou

@@ -6,7 +6,6 @@ from pathlib import Path
 
 import soundfile as sf
 import torch
-
 from chatterbox.tts import ChatterboxTTS
 
 
