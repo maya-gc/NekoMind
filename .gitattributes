@@ -1,3 +1,4 @@
 *.pdf binary
 *.wav binary
 *.aiff binary
+/scripts/apresentar.ps1 text eol=crlf

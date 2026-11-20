@@ -22,7 +22,10 @@ supervisor (`python -m app.devtools.supervisor`): Ollama, backend e bridge
 são reiniciados sozinhos se caírem ou pararem de responder; os logs ficam em
 `backend/storage/logs/` (girados a cada 5 MB) e o banco recebe backup no início
 e no fim em `backend/storage/backups/` (últimos 10). Ctrl+C encerra tudo.
-O checklist avisa se o computador estiver na bateria.
+O checklist avisa se o computador estiver na bateria. No Windows, executar o
+atalho ou `apresentar.ps1` outra vez detecta a instância saudável, abre as telas
+e não disputa novamente a porta 8000 nem a serial do ESP. O painel Streamlit é
+iniciado quando seu ambiente já foi preparado por `scripts\setup_frontend.ps1`.
 
 ## Antes de subir ao palco (5 minutos)
 
