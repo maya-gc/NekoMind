@@ -178,7 +178,7 @@ class TutorFlowMixin:
             from app.services import tutor_ai
 
             model = tutor_ai.resolve_model(model)
-            if not tutor_ai.available(model):
+            if provider == "auto" and not tutor_ai.available(model):
                 return
             if first_turn:
                 result = tutor_ai.first_turn(
