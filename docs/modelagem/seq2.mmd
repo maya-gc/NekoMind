@@ -1,0 +1,27 @@
+sequenceDiagram
+  autonumber
+  actor O as Operador
+  participant P as Painel web
+  participant A as API FastAPI
+  participant T as Tutor Ollama
+  participant D as Banco SQLite
+  participant B as Bridge Python
+  O->>P: cola o texto ou envia um PDF
+  P->>A: POST /contents/import-pdf
+  A-->>P: texto extraído
+  O->>P: clica em Analisar briefing
+  P->>A: POST /contents/analyze-briefing
+  A->>T: escolher os trechos principais
+  alt modelo disponível
+    T-->>A: índices das frases
+    A-->>P: pontos sugeridos
+  else modelo ausente ou Ollama desligado
+    A-->>P: mensagem com a causa e o comando para resolver
+  end
+  O->>P: revisa os pontos e salva
+  P->>A: POST /contents
+  A->>D: INSERT reference_contents
+  O->>P: seleciona o material
+  P->>A: PUT /experience/selection
+  B->>A: GET /experience/selection
+  A-->>B: material e missões

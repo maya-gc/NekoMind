@@ -1,0 +1,22 @@
+digraph G {
+  rankdir=LR; graph [dpi=220, fontname="Liberation Sans", nodesep=0.35, ranksep=0.6, compound=true];
+  node [fontname="Liberation Sans", fontsize=11, shape=component, style=filled, fillcolor="#f2f2f2"];
+  edge [fontname="Liberation Sans", fontsize=9];
+  subgraph cluster_esp { label="«dispositivo» ESP32-S3"; style=rounded;
+    fw [label="Firmware ESP32-S3\n(máquina de estados,\ntoque, LCD, avatar 3D)"]; }
+  subgraph cluster_pc { label="«dispositivo» Computador local"; style=rounded;
+    br [label="Bridge Python\n(serial, microfone,\ndiário, tutor)"];
+    api [label="API FastAPI\n(sessões, materiais,\nanálise)"];
+    db [label="Banco SQLite", shape=cylinder];
+    j [label="Diário local\nSQLite", shape=cylinder];
+    asr [label="faster-whisper\n(transcrição)"];
+    ia [label="Tutor Ollama\n(qwen2.5)"];
+    web [label="Painel web\n(/presenter e /public)"];
+    sup [label="Supervisor\n(reinício e backup)"];
+  }
+  fw -> br [dir=both, label="USB JSON Lines"];
+  br -> api [label="HTTP local"]; br -> j; br -> ia [label="HTTP 11434"];
+  api -> db [label="SQLAlchemy"]; api -> asr; api -> ia [label="briefing e\ngrafo semântico"];
+  web -> api [label="HTTP 8000"];
+  sup -> br [style=dashed, label="monitora"]; sup -> api [style=dashed]; sup -> ia [style=dashed];
+}

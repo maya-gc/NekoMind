@@ -1,0 +1,31 @@
+digraph G {
+  graph [dpi=220, fontname="Liberation Sans", nodesep=0.35, ranksep=0.32];
+  node [fontname="Liberation Sans", fontsize=10.5, shape=box, style="rounded,filled", fillcolor="#f2f2f2"];
+  edge [fontname="Liberation Sans", fontsize=9, arrowhead=vee];
+  ini [shape=circle, style=filled, fillcolor=black, label="", width=0.25];
+  a1 [label="Estudante toca em Finalizar"];
+  f1 [shape=box, style=filled, fillcolor=black, label="", width=3.2, height=0.06];
+  a2 [label="Bridge encerra a captura\ne envia o áudio à API"];
+  a3 [label="Firmware exibe PROCESSING\ne mantém heartbeat e avatar"];
+  j1 [shape=box, style=filled, fillcolor=black, label="", width=3.2, height=0.06];
+  a4 [label="API detecta trechos com voz (VAD)"];
+  d1 [shape=diamond, style=filled, fillcolor=white, label="Há fala\nválida?", width=1.3, height=0.9, fixedsize=true];
+  a5 [label="Registrar erro de silêncio\ne mostrar ERROR no LCD"];
+  a6 [label="Transcrever com faster-whisper"];
+  a7 [label="Comparar a fala com o ponto\nda missão (cobertura lexical)"];
+  d2 [shape=diamond, style=filled, fillcolor=white, label="Tutor de IA\ndisponível?", width=1.4, height=0.95, fixedsize=true];
+  a8 [label="Tutor avalia e cita evidência\n(correto, parcial, equívoco,\nnão mencionou)"];
+  a9 [label="Aplicar regras locais\nde pergunta e dica"];
+  a10 [label="Reconciliar avaliação\ncom a evidência"];
+  m1 [shape=diamond, style=filled, fillcolor=white, label="", width=0.35, height=0.35, fixedsize=true];
+  a11 [label="Gravar memória de estudo\ne lista de revisão"];
+  a12 [label="Enviar pergunta e dica ao display"];
+  fim [shape=doublecircle, style=filled, fillcolor=black, label="", width=0.18];
+  fim2 [shape=doublecircle, style=filled, fillcolor=black, label="", width=0.18];
+  ini -> a1 -> f1; f1 -> a2; f1 -> a3; a2 -> j1; a3 -> j1; j1 -> a4 -> d1;
+  d1 -> a5 [label="não"]; a5 -> fim2;
+  d1 -> a6 [label="sim"]; a6 -> a7 -> d2;
+  d2 -> a8 [label="sim"]; d2 -> a9 [label="não"];
+  a8 -> a10 -> m1; a9 -> m1; m1 -> a11 -> a12 -> fim;
+  {rank=same; a2; a3;}
+}

@@ -1,0 +1,63 @@
+erDiagram
+  direction LR
+  reference_contents ||--o{ study_sessions : "orienta"
+  study_sessions ||--o{ topics : "identifica"
+  study_sessions ||--o{ metrics : "gera"
+  study_sessions ||--o{ audio_chunks : "armazena"
+  study_sessions ||--o| deleted_session_tombstones : "origina"
+  reference_contents {
+    INTEGER id PK
+    VARCHAR200 title
+    TEXT text
+    VARCHAR16 language
+    INTEGER version
+    VARCHAR16 source
+    TEXT points_json
+    BOOLEAN fair_available
+    DATETIME created_at
+    DATETIME updated_at
+  }
+  study_sessions {
+    INTEGER id PK
+    DATETIME started_at
+    DATETIME ended_at
+    FLOAT duration_seconds
+    VARCHAR10 status
+    TEXT transcription
+    FLOAT clarity_score
+    BOOLEAN is_demo
+    VARCHAR16 mode
+    VARCHAR100 start_request_id
+    VARCHAR200 subject
+    INTEGER reference_content_id FK
+    TEXT reference_snapshot_json
+    TEXT content_report_json
+  }
+  topics {
+    INTEGER id PK
+    INTEGER session_id FK
+    VARCHAR200 name
+    FLOAT relevance
+    TEXT notes
+  }
+  metrics {
+    INTEGER id PK
+    INTEGER session_id FK
+    VARCHAR100 name
+    FLOAT value
+    VARCHAR32 unit
+  }
+  audio_chunks {
+    INTEGER id PK
+    INTEGER session_id FK
+    INTEGER sequence
+    VARCHAR32 format
+    INTEGER sample_rate
+    INTEGER byte_size
+    VARCHAR500 file_path
+  }
+  deleted_session_tombstones {
+    INTEGER session_id PK
+    VARCHAR100 start_request_id UK
+    DATETIME deleted_at
+  }

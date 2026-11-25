@@ -1,0 +1,23 @@
+sequenceDiagram
+  autonumber
+  actor E as Estudante
+  participant F as Firmware ESP32-S3
+  participant B as Bridge Python
+  participant A as API FastAPI
+  participant T as Tutor Ollama
+  E->>F: toca em Pedir dica
+  F->>B: command hint
+  B-->>F: state com a dica seguinte
+  E->>F: toca em Responder
+  F->>B: command answer
+  B->>A: POST /sessions (segunda tentativa)
+  B-->>F: state RECORDING
+  E->>F: toca em Finalizar
+  F->>B: command finish
+  B->>A: POST /sessions/{id}/finish
+  A-->>B: transcrição e análise
+  B->>T: comparar primeira e segunda resposta
+  T-->>B: comparação e nova avaliação
+  B->>B: grava memória de estudo e revisão
+  B-->>F: result com a comparação
+  F-->>E: mostra o que melhorou e o que falta

@@ -1,0 +1,121 @@
+classDiagram
+  direction TB
+  class ReferenceContent {
+    -id: int
+    -title: str
+    -text: str
+    -language: str
+    -version: int
+    -source: str
+    -points_json: str
+    -fair_available: bool
+    -created_at: datetime
+    -updated_at: datetime
+  }
+  class ContentController {
+    <<controller>>
+    +create_content(payload: ContentInput) dict
+    +list_contents() list~dict~
+    +get_content(content_id: int) dict
+    +update_content(content_id: int, payload: ContentInput) dict
+    +delete_content(content_id: int) dict
+    +analyze_reference_briefing(payload: TextPreviewInput) dict
+  }
+  class StudySession {
+    -id: int
+    -started_at: datetime
+    -ended_at: datetime
+    -duration_seconds: float
+    -status: SessionStatus
+    -transcription: str
+    -clarity_score: float
+    -is_demo: bool
+    -mode: str
+    -subject: str
+    -reference_content_id: int
+    -content_report_json: str
+    +journey() dict
+    +content_report() dict
+  }
+  class SessionStatus {
+    <<enumeration>>
+    recording
+    paused
+    processing
+    completed
+    error
+    recovery
+    cancelled
+  }
+  class Topic {
+    -id: int
+    -name: str
+    -relevance: float
+    -notes: str
+  }
+  class Metric {
+    -id: int
+    -name: str
+    -value: float
+    -unit: str
+  }
+  class AudioChunk {
+    -id: int
+    -sequence: int
+    -sample_rate: int
+    -byte_size: int
+    -file_path: str
+  }
+  class SessionRepository {
+    -db: Session
+    +create(title: str, is_demo: bool) StudySession
+    +get(session_id: int) StudySession
+    +list(limit: int, offset: int) list~StudySession~
+    +save(session: StudySession) StudySession
+    +claim_deletion(session_id: int) StudySession
+  }
+  class MacBridge {
+    -state: str
+    -sid: int
+    -recorder: Recorder
+    -backend: LocalBackend
+    +handle(message: dict) dict
+    +tick() void
+    +drain_events() list~dict~
+    +close() void
+  }
+  class TutorFlowMixin {
+    #interaction: dict
+    #tutor_cache: dict
+    #_prefetch_tutor(sid: int, row: dict) void
+    #_prepare_interaction_result(row: dict) str
+  }
+  class StudyMemoryMixin {
+    #db: JournalConnection
+    +review_queue(limit: int) list~dict~
+    #_remember_point(point: str, status: str) void
+  }
+  class TutorAI {
+    <<service>>
+    +resolve_model(model: str) str
+    +reconcile(assessment: str, lexical_status: str) str
+    +first_turn(point: str, transcript: str, model: str) dict
+    +second_turn(point: str, question: str, first: str, second: str, model: str) dict
+  }
+  class LocalBackend {
+    +create(rid: str, is_demo: bool) dict
+    +upload(sid: int, path: Path) dict
+    +finish(sid: int, rid: str) dict
+    +delete(sid: int, confirmed: bool) dict
+  }
+  ReferenceContent "0..1" --> "0..*" StudySession : orienta
+  StudySession "1" *-- "0..*" Topic : identifica
+  StudySession "1" *-- "0..*" Metric : gera
+  StudySession "1" *-- "0..*" AudioChunk : armazena
+  StudySession --> SessionStatus
+  SessionRepository ..> StudySession : persiste
+  ContentController ..> ReferenceContent : mantém
+  TutorFlowMixin <|-- MacBridge
+  StudyMemoryMixin <|-- MacBridge
+  MacBridge "1" --> "1" LocalBackend : usa
+  TutorFlowMixin ..> TutorAI : consulta

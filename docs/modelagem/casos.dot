@@ -1,0 +1,34 @@
+digraph G {
+  rankdir=LR; graph [fontname="Liberation Sans", fontsize=12, nodesep=0.22, ranksep=0.7, dpi=220, newrank=true];
+  node [fontname="Liberation Sans", fontsize=11]; edge [fontname="Liberation Sans", fontsize=9, arrowhead=none];
+  node [shape=box, style="", penwidth=0, image="ator.png", imagescale=true, imagepos=tc, labelloc=b, width=1.5, height=1.7, fixedsize=true];
+  est [label="Estudante"]; op [label="Operador"]; ia [label="Tutor de IA local\n(Ollama)", width=0.9];
+  node [shape=ellipse, style=filled, fillcolor="#f2f2f2", penwidth=1, image="", width=0, height=0, fixedsize=false, labelloc=c];
+  subgraph cluster_s { label="Sistema NekoMind"; style=rounded; fontsize=13;
+    uc05 [label="UC05 Executar\ndiagnóstico"];
+    uc06 [label="UC06 Explicar missão\nem voz alta"];
+    uc09 [label="UC09 Responder novamente\ne ver comparação"];
+    uc07 [label="UC07 Avaliar explicação"];
+    uc08 [label="UC08 Pedir dica"];
+    uc01 [label="UC01 Manter material\nde referência"];
+    uc04 [label="UC04 Selecionar material\nda estação"];
+    uc10 [label="UC10 Consultar e excluir\nsessões"];
+    uc02 [label="UC02 Importar material"];
+    uc03 [label="UC03 Gerar missões\ncom IA"];
+    uc02a [label="UC02.1 Importar PDF"]; uc02b [label="UC02.2 Importar site"];
+  }
+  est -> uc05; est -> uc06; est -> uc09;
+  op -> uc04; op -> uc01; op -> uc10;
+  uc06 -> uc07 [style=dashed, arrowhead=vee, label="«include»"];
+  uc09 -> uc07 [style=dashed, arrowhead=vee, label="«include»"];
+  uc06 -> uc05 [style=dashed, arrowhead=vee, label="«include»", constraint=false];
+  uc06 -> uc08 [style=dashed, dir=back, arrowtail=vee, label="«extend»"];
+  uc01 -> uc02 [style=dashed, dir=back, arrowtail=vee, label="«extend»"];
+  uc01 -> uc03 [style=dashed, dir=back, arrowtail=vee, label="«extend»"];
+  uc02 -> uc02a [dir=back, arrowtail=onormal]; uc02 -> uc02b [dir=back, arrowtail=onormal];
+  uc07 -> ia; uc03 -> ia;
+  {rank=same; est; op;}
+  {rank=same; uc05; uc06; uc09; uc04; uc01; uc10;}
+  {rank=same; uc07; uc08; uc02; uc03;}
+  {rank=same; uc02a; uc02b; ia;}
+}

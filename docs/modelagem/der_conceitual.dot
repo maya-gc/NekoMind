@@ -1,0 +1,15 @@
+graph G {
+  layout=dot; rankdir=LR; graph [dpi=220, fontname="Liberation Sans", nodesep=0.5, ranksep=0.45];
+  node [fontname="Liberation Sans", fontsize=11]; edge [fontname="Liberation Sans", fontsize=10];
+  node [shape=box, style=filled, fillcolor="#f2f2f2", width=1.9, height=0.55];
+  MAT [label="MATERIAL_REFERENCIA"]; SES [label="SESSAO_ESTUDO"]; TOP [label="TOPICO"];
+  MET [label="METRICA"]; AUD [label="TRECHO_AUDIO"]; EXC [label="REGISTRO_EXCLUSAO"];
+  node [shape=diamond, style=filled, fillcolor="white", width=1.3, height=0.8, fixedsize=true];
+  r1 [label="orienta"]; r2 [label="identifica"]; r3 [label="gera"]; r4 [label="armazena"]; r5 [label="origina"];
+  MAT -- r1 [headlabel="", taillabel="(0,1)", labeldistance=2.2];
+  r1 -- SES [headlabel="(0,N)", labeldistance=2.2];
+  SES -- r2 [taillabel="(1,1)", labeldistance=2.2]; r2 -- TOP [headlabel="(0,N)", labeldistance=2.2];
+  SES -- r3 [taillabel="(1,1)", labeldistance=2.2]; r3 -- MET [headlabel="(0,N)", labeldistance=2.2];
+  SES -- r4 [taillabel="(1,1)", labeldistance=2.2]; r4 -- AUD [headlabel="(0,N)", labeldistance=2.2];
+  SES -- r5 [taillabel="(1,1)", labeldistance=2.2, style=dashed]; r5 -- EXC [headlabel="(0,1)", labeldistance=2.2, style=dashed];
+}

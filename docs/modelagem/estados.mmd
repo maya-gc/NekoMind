@@ -1,0 +1,15 @@
+stateDiagram-v2
+  [*] --> IDLE
+  IDLE --> CHECKING: toque em Diagnóstico
+  CHECKING --> READY: componentes prontos
+  CHECKING --> ERROR: falha no diagnóstico
+  READY --> RECORDING: toque em Começar
+  RECORDING --> PAUSED: toque em Pausar
+  PAUSED --> RECORDING: toque em Retomar
+  RECORDING --> PROCESSING: toque em Finalizar
+  PROCESSING --> SUCCESS: análise concluída
+  PROCESSING --> ERROR: falha ou silêncio
+  SUCCESS --> RECORDING: toque em Responder
+  SUCCESS --> IDLE: toque em Voltar
+  ERROR --> CHECKING: toque em Tentar de novo
+  ERROR --> IDLE: toque em Reset

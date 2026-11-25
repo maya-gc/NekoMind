@@ -1,0 +1,16 @@
+digraph G {
+  rankdir=LR; graph [dpi=220, fontname="Liberation Sans", nodesep=0.5, ranksep=0.45, newrank=true];
+  node [fontname="Liberation Sans", fontsize=10.5, shape=box, style="rounded,filled", fillcolor="#f2f2f2", width=2.3];
+  edge [fontname="Liberation Sans", fontsize=9, arrowhead=vee];
+  subgraph cluster_f { label="Técnica de Feynman"; style=rounded;
+    f1 [label="1. Escolher um conceito"]; f2 [label="2. Explicar com palavras\nsimples, como para\numa criança"];
+    f3 [label="3. Identificar lacunas\ne voltar ao material"]; f4 [label="4. Simplificar e usar\nanalogias"]; }
+  subgraph cluster_n { label="Ciclo de uma missão no NekoMind"; style=rounded;
+    n1 [label="Escolher a missão\nno display"]; n2 [label="Explicar em voz alta\n(gravação e transcrição)"];
+    n3 [label="Avaliação, pergunta e dica\nsobre o ponto mais fraco"]; n4 [label="Responder de novo e\nver a comparação"]; }
+  f1 -> f2 -> f3 -> f4; n1 -> n2 -> n3 -> n4;
+  f4 -> f1 [constraint=false, style=dashed, label="repete"]; n4 -> n1 [constraint=false, style=dashed, label="lista de revisão"];
+  f1 -> n1 [style=dotted, arrowhead=none]; f2 -> n2 [style=dotted, arrowhead=none];
+  f3 -> n3 [style=dotted, arrowhead=none]; f4 -> n4 [style=dotted, arrowhead=none];
+  {rank=same; f1; n1;} {rank=same; f2; n2;} {rank=same; f3; n3;} {rank=same; f4; n4;}
+}

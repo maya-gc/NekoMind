@@ -1,0 +1,19 @@
+digraph G {
+  rankdir=TB; graph [dpi=220, fontname="Liberation Sans", nodesep=0.6, ranksep=0.6];
+  node [fontname="Liberation Sans", fontsize=11, shape=box3d, style=filled, fillcolor="#f7f7f7"];
+  edge [fontname="Liberation Sans", fontsize=10, arrowhead=none];
+  esp [label="«device»\nPlaca ESP32-S3-WROOM-1\n\n«artefato» nekomind_firmware.bin\nFreeRTOS, ESP-IDF 5.3"];
+  lcd [label="«device»\nMódulo LCD ILI9341\ne toque XPT2046"];
+  pc [label="«device»\nComputador (Windows ou macOS)\n\n«artefato» backend (Python 3.12)\n«artefato» bridge (app.mac)\n«artefato» frontend web\n«artefato» nekomind.db (SQLite)"];
+  ol [label="«execution environment»\nOllama\n\nqwen2.5:3b, 7b ou 14b"];
+  mic [label="«device»\nMicrofone USB"];
+  nav [label="«execution environment»\nNavegador\n/presenter e /public"];
+  lcd -> esp [label="SPI 20 MHz e 2 MHz"];
+  esp -> pc [label="USB Serial/JTAG\n115200 baud"];
+  mic -> pc [label="USB áudio"];
+  pc -> ol [label="HTTP localhost:11434"];
+  pc -> nav [label="HTTP localhost:8000"];
+  {rank=same; lcd; mic;}
+  {rank=same; ol; nav;}
+  lcd -> esp [style=invis]; 
+}
