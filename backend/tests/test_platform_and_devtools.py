@@ -415,3 +415,31 @@ def test_semantic_verdict_survives_an_unusable_screen_message():
     assert bridge.interaction["second_assessment"] == "correto"
     assert result == "Você explicou usando poça."
     assert _grounded_assessment({"assessment": "equivoco", "evidence": ""}) == ""
+
+
+def test_missing_ollama_model_falls_back_to_installed(monkeypatch):
+    from app.services import tutor_ai
+
+    monkeypatch.setattr(tutor_ai, "installed_models", lambda **k: ["qwen2.5:7b", "qwen2.5:14b"])
+    assert tutor_ai.resolve_model("qwen2.5:3b") == "qwen2.5:7b"  # PC sem o 3b
+    assert tutor_ai.resolve_model("qwen2.5:14b") == "qwen2.5:14b"
+    monkeypatch.setattr(tutor_ai, "installed_models", lambda **k: None)  # Ollama desligado
+    assert tutor_ai.resolve_model("qwen2.5:3b") == "qwen2.5:3b"
+
+
+def test_briefing_reports_missing_model_clearly(monkeypatch):
+    import httpx
+
+    from app.services import briefing_ai
+
+    def handler(request):
+        return httpx.Response(404, json={"error": "model 'qwen2.5:3b' not found"})
+
+    real = httpx.Client
+    monkeypatch.setattr(briefing_ai.httpx, "Client",
+                        lambda **k: real(transport=httpx.MockTransport(handler)))
+    import pytest
+
+    with pytest.raises(briefing_ai.BriefingAIError, match="ollama pull qwen2.5:3b"):
+        briefing_ai.analyze_briefing("A água evapora com o calor do Sol. O vapor sobe e forma nuvens.",
+                                     "qwen2.5:3b")

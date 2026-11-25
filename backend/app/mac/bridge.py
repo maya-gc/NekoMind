@@ -152,7 +152,10 @@ class MacBridge(TutorFlowMixin, StudyMemoryMixin):
             return content_id, cached[1]
         candidates = mission_points(source, points)
         if prepare and not self.demo:
-            candidates = prepare_questions(title, source, candidates, get_settings().briefing_model)
+            from app.services.tutor_ai import resolve_model
+
+            candidates = prepare_questions(title, source, candidates,
+                                           resolve_model(get_settings().briefing_model))
             self.prepared_missions = key, candidates
         return content_id, candidates
 

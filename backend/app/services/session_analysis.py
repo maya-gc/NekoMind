@@ -16,6 +16,7 @@ from app.database.models import SessionStatus, StudySession
 from app.repositories.metric_repository import MetricRepository
 from app.repositories.session_repository import SessionRepository
 from app.repositories.topic_repository import TopicRepository
+from app.services.tutor_ai import resolve_model
 from app.services import (
     audio_processing,
     clarity_evaluation,
@@ -253,7 +254,8 @@ def _analyze_session_claimed(
             if not session.is_demo:
                 try:
                     content_report["semantic_graph"] = build_semantic_graph(
-                        snapshot["points"], transcript_text, get_settings().briefing_model
+                        snapshot["points"], transcript_text,
+                        resolve_model(get_settings().briefing_model),
                     )
                 except SemanticGraphError:
                     content_report["semantic_graph"] = {

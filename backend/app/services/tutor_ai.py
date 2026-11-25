@@ -53,6 +53,47 @@ def _data_block(**values: str) -> str:
     return f"{DATA_START}\n{payload}\n{DATA_END}"
 
 
+# Ordem de preferência quando o modelo configurado não está instalado.
+PREFERRED = ("qwen2.5:3b", "qwen3:4b", "qwen2.5:7b", "gemma3:4b", "qwen2.5:14b")
+_installed_cache: list = [0.0, None]
+_fallback_logged: set = set()
+
+
+def installed_models(*, ttl: float = 30.0) -> list[str] | None:
+    """Models in the local Ollama, or None when Ollama is not answering."""
+    now = time.monotonic()
+    if _installed_cache[1] is not None and now - _installed_cache[0] < ttl:
+        return _installed_cache[1]
+    try:
+        with httpx.Client(trust_env=False, timeout=1.5) as client:
+            tags = client.get(f"{OLLAMA}/api/tags").json().get("models", [])
+        names = [t.get("name", "") for t in tags if t.get("name")]
+    except Exception as exc:  # noqa: BLE001 - Ollama off is a normal state
+        log_swallowed(logger, "tutor_ai.installed_models", exc)
+        return None
+    _installed_cache[:] = [now, names]
+    return names
+
+
+def resolve_model(model: str) -> str:
+    """Return ``model`` if installed; otherwise the best installed local model.
+
+    The defaults differ between machines (the Mac bench uses qwen2.5:3b, the
+    Windows PC has 7b/14b). Asking Ollama for a missing model fails with 404,
+    which used to surface as "a IA local não respondeu".
+    """
+    names = installed_models()
+    if not names:
+        return model
+    if model in names or f"{model}:latest" in names:
+        return model
+    choice = next((m for m in PREFERRED if m in names), names[0])
+    if (model, choice) not in _fallback_logged:
+        _fallback_logged.add((model, choice))
+        logger.warning("Modelo %s não instalado no Ollama; usando %s.", model, choice)
+    return choice
+
+
 def available(model: str, *, ttl: float = 60.0) -> bool:
     now = time.monotonic()
     cached = _available_cache.get(model)
@@ -178,6 +219,7 @@ def _speech_window(text: str) -> str:
 
 def warm_up(model: str) -> bool:
     """Load the model into memory so the first question does not time out."""
+    model = resolve_model(model)
     if not available(model):
         return False
     try:

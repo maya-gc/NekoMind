@@ -177,10 +177,9 @@ class TutorFlowMixin:
                 return
             from app.services import tutor_ai
 
-            if provider == "auto" and not tutor_ai.available(model):
-                model = settings.briefing_model
-                if not tutor_ai.available(model):
-                    return
+            model = tutor_ai.resolve_model(model)
+            if not tutor_ai.available(model):
+                return
             if first_turn:
                 result = tutor_ai.first_turn(
                     focus[1], transcript, model, material=f"{rubric}\n{material}".strip(),

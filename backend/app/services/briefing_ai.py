@@ -55,7 +55,7 @@ def analyze_briefing(text: str, model: str) -> dict:
         raise BriefingAIError("O texto precisa conter ao menos uma frase legível.")
     points: list[str] = []
     try:
-        with httpx.Client(trust_env=False, timeout=45) as client:
+        with httpx.Client(trust_env=False, timeout=120) as client:
             for candidates in chunks:
                 numbered = "\n".join(f"{index}: {point}" for index, point in enumerate(candidates))
                 prompt = (
@@ -91,6 +91,24 @@ def analyze_briefing(text: str, model: str) -> dict:
                 points.extend(candidates[index] for index in selected)
     except BriefingAIError:
         raise
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            raise BriefingAIError(
+                f"O modelo {model} não está instalado no Ollama. "
+                f"Rode no terminal: ollama pull {model}"
+            ) from exc
+        raise BriefingAIError(
+            "A IA local não respondeu corretamente. Confira se o Ollama e o modelo estão ativos."
+        ) from exc
+    except httpx.ConnectError as exc:
+        raise BriefingAIError(
+            "O Ollama não está rodando. Abra o aplicativo do Ollama e tente de novo."
+        ) from exc
+    except httpx.TimeoutException as exc:
+        raise BriefingAIError(
+            f"O modelo {model} demorou demais para responder. Tente de novo em alguns "
+            "segundos (o primeiro uso carrega o modelo na memória)."
+        ) from exc
     except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
         raise BriefingAIError(
             "A IA local não respondeu corretamente. Confira se o Ollama e o modelo estão ativos."

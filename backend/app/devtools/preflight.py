@@ -153,9 +153,16 @@ def check_tutor(c):
     from app.services import tutor_ai
 
     settings = get_settings()
+    names = tutor_ai.installed_models() or []
+    briefing = settings.briefing_model
+    if names:
+        used = tutor_ai.resolve_model(briefing)
+        c.add("Modelo do material e das missões", "ok" if used == briefing else "aviso",
+              f"{used}" + ("" if used == briefing else f" (configurado {briefing} não instalado)"),
+              "" if used == briefing else f"Opcional: ollama pull {briefing}")
     if settings.tutor_provider == "regras":
         c.add("Tutor (perguntas)", "aviso", "regras locais (sem IA)")
-    elif tutor_ai.available(settings.tutor_model):
+    elif tutor_ai.available(tutor_ai.resolve_model(settings.tutor_model)):
         c.add("Tutor (perguntas)", "ok", f"IA local {settings.tutor_model}: perguntas adaptadas ao assunto")
     else:
         c.add("Tutor (perguntas)", "aviso", f"{settings.tutor_model} indisponível; usando regras locais",

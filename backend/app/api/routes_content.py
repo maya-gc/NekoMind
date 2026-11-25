@@ -110,7 +110,9 @@ def prepare_text(payload: TextPreviewInput):
 @router.post("/analyze-briefing")
 def analyze_reference_briefing(payload: TextPreviewInput):
     try:
-        return analyze_briefing(payload.text, get_settings().briefing_model)
+        from app.services.tutor_ai import resolve_model
+
+        return analyze_briefing(payload.text, resolve_model(get_settings().briefing_model))
     except BriefingAIError as exc:
         raise HTTPException(422, str(exc)) from exc
 
