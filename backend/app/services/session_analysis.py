@@ -16,7 +16,6 @@ from app.database.models import SessionStatus, StudySession
 from app.repositories.metric_repository import MetricRepository
 from app.repositories.session_repository import SessionRepository
 from app.repositories.topic_repository import TopicRepository
-from app.services.tutor_ai import resolve_model
 from app.services import (
     audio_processing,
     clarity_evaluation,
@@ -24,6 +23,7 @@ from app.services import (
     topic_extraction,
     transcription,
 )
+from app.services.tutor_ai import resolve_model
 
 
 class AnalysisRejectedError(RuntimeError):
